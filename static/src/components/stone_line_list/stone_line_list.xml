@@ -1,35 +1,44 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
 
-    <!-- 1. Template del Botón (Widget) -->
+    <!-- 1. Componente del Botón -->
     <t t-name="sale_stone_selection.ExpandButton" owl="1">
-        <div class="o_stone_toggle_btn cursor-pointer text-center" t-on-click="toggle">
+        <!-- 
+             IMPORTANTE: Usamos d-inline-block y propagation stop 
+             para que el click no abra el formulario de la línea 
+        -->
+        <div class="o_stone_toggle_btn cursor-pointer d-inline-block" t-on-click.stop="toggle">
             <i class="fa fa-chevron-right" 
                t-att-class="{'o_rotated': props.record.data.is_stone_expanded}"
-               title="Ver detalles"/>
+               style="transition: transform 0.2s;"
+               title="Seleccionar placas"/>
         </div>
     </t>
 
-    <!-- 2. Override del Renderer -->
+    <!-- 2. Renderer de la Lista -->
     <t t-name="sale_stone_selection.ListRenderer" t-inherit="web.ListRenderer" t-inherit-mode="primary">
         <xpath expr="//table/tbody" position="replace">
-            <!-- IMPORTANTE: t-ref="tbody" es necesario para que Odoo reconozca la lista -->
+            <!-- 
+                 CORRECCIÓN CRÍTICA: 
+                 Agregamos t-ref="tbody". Sin esto, Odoo pierde la referencia 
+                 y la reactividad de la lista se rompe (no se abre nada).
+            -->
             <tbody t-ref="tbody">
                 <t t-foreach="rows" t-as="row" t-key="row.id">
-                    <!-- Fila Estándar -->
+                    <!-- Fila estándar de Odoo -->
                     <ListRow 
                         t-props="row" 
                         list="list" 
                         onRowClicked="onRowClicked"
                     />
                     
-                    <!-- Fila Expandible (Se muestra si el campo boolean es true) -->
+                    <!-- Fila Expandible (Stone Grid) -->
+                    <!-- Solo renderizar si es un producto real (no sección/nota) y está expandido -->
                     <t t-if="row.record.data.product_id and row.record.data.is_stone_expanded">
                          <tr class="o_stone_details_row_tr">
-                             <!-- Usamos una función segura para el colspan -->
+                             <!-- Usamos colspan seguro -->
                              <td t-att-colspan="getColspanSafe()" class="p-0 border-0">
                                  <div class="o_stone_slide_down">
-                                     <!-- Verificación de seguridad para product_id -->
                                      <StoneGrid 
                                          productId="row.record.data.product_id[0]"
                                          selectedLotIds="row.record.data.lot_ids.currentIds"

@@ -6,15 +6,15 @@ import { standardFieldProps } from "@web/views/fields/standard_field_props";
 import { Component } from "@odoo/owl";
 import { StoneGrid } from "../stone_grid/stone_grid";
 
-// --- Botón ---
+// --- Botón Expandir ---
 export class StoneExpandButton extends Component {
     static template = "sale_stone_selection.ExpandButton";
     static props = { ...standardFieldProps };
 
     toggle(ev) {
+        // Detenemos propagación para que no se abra la línea de edición
         ev.stopPropagation(); 
         const current = this.props.record.data.is_stone_expanded;
-        // Actualizamos el registro. Esto dispara el onchange y luego el re-render
         this.props.record.update({ is_stone_expanded: !current });
     }
 }
@@ -30,25 +30,32 @@ export class StoneOrderLineRenderer extends ListRenderer {
     }
 
     /**
-     * Calcula columnas de forma segura.
-     * Si this.state.columns falla, devuelve 20 para asegurar que ocupe todo el ancho.
+     * Devuelve el colspan de forma segura incluso si columns es undefined
      */
     getColspanSafe() {
+        // Si this.state.columns existe usamos su largo, si no, un valor alto por defecto
         const colCount = this.state.columns ? this.state.columns.length : 15;
-        // +1 por selectores, +1 por botón de borrado, +2 extra por seguridad
+        // +1 por selectores (checkboxes), +1 por trash icon, +2 extra por seguridad
         return colCount + 4;
     }
 
     updateLotSelection(row, ids) {
+        // [6, 0, [ids]] es el comando ORM para reemplazar Many2many
         row.record.update({ lot_ids: [[6, 0, ids]] });
     }
 }
-StoneOrderLineRenderer.components = { ...ListRenderer.components, StoneGrid };
+// Registramos componentes (Importante: NO registrar ListRow aquí, se hereda del padre)
+StoneOrderLineRenderer.components = { 
+    ...ListRenderer.components, 
+    StoneGrid 
+};
 StoneOrderLineRenderer.template = "sale_stone_selection.ListRenderer";
 
-// --- Vista ---
+// --- Vista (View Config) ---
 export const stoneOrderLineListView = {
-    ...listView,
+    ...listView, // Heredamos toda la lógica estándar de la lista
     Renderer: StoneOrderLineRenderer,
 };
+
+// Registramos en VISTAS
 registry.category("views").add("stone_order_line_list", stoneOrderLineListView);
