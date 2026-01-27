@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
 
-    <!-- 1. Override del Renderer Loop -->
+    <!-- 1. Override del Renderer -->
     <t t-name="sale_stone_selection.ListRenderer" t-inherit="web.ListRenderer" t-inherit-mode="primary">
         <xpath expr="//table/tbody" position="replace">
             <tbody>
                 <t t-foreach="rows" t-as="row" t-key="row.id">
-                    <!-- Fila Estándar de Odoo -->
+                    <!-- Fila Estándar (Usará nuestra clase StoneOrderLineRow) -->
                     <ListRow 
                         t-props="row" 
                         list="list" 
@@ -14,16 +14,15 @@
                     />
                     
                     <!-- Fila Expandible (Stone Grid) -->
-                    <!-- Solo se renderiza si hay producto y el flag 'is_stone_expanded' es true -->
+                    <!-- Se inyecta justo debajo de la fila del producto correspondiente -->
                     <t t-if="row.record.data.product_id and row.record.data.is_stone_expanded">
                          <tr class="o_stone_details_row_tr">
-                             <!-- Colspan dinámico para ocupar todo el ancho -->
-                             <td t-att-colspan="columns.length + (hasSelectors ? 1 : 0) + 2" class="p-0 border-0">
+                             <td t-att-colspan="getColspan(row)" class="p-0 border-0">
                                  <div class="o_stone_slide_down">
                                      <StoneGrid 
                                          productId="row.record.data.product_id[0]"
                                          selectedLotIds="row.record.data.lot_ids.currentIds"
-                                         onUpdateSelection.bind="(ids) => row.record.update({ lot_ids: [[6, 0, ids]] })"
+                                         onUpdateSelection.bind="(ids) => updateLotSelection(row, ids)"
                                      />
                                  </div>
                              </td>
@@ -34,20 +33,34 @@
         </xpath>
     </t>
 
-    <!-- 2. Override del Row para añadir el botón toggle -->
-    <t t-name="sale_stone_selection.ListRow" t-inherit="web.ListRow" t-inherit-mode="primary">
-        <xpath expr="//td[1]" position="inside">
-            <t t-if="props.record.data.product_id">
-                <div class="d-inline-block ms-1" t-on-click.stop="">
-                    <button class="btn btn-sm btn-link p-0 text-decoration-none o_stone_toggle_btn"
-                            t-on-click="() => props.record.update({ is_stone_expanded: !props.record.data.is_stone_expanded })"
-                            title="Seleccionar placas">
-                        <i class="fa fa-chevron-down" 
-                           t-att-class="{'o_rotated': props.record.data.is_stone_expanded}"/>
-                    </button>
-                </div>
+    <!-- 2. Definición Manual del Row (Evita el error 'Missing parent template') -->
+    <t t-name="sale_stone_selection.ListRow" owl="1">
+        <tr class="o_data_row" 
+            t-att-class="getRowClass(record)" 
+            t-att-data-id="record.id" 
+            t-on-click="onRowClicked">
+            
+            <t t-foreach="cells" t-as="cell" t-key="cell.id" t-index="index">
+                <td t-att-class="getCellClass(cell)" 
+                    t-att-name="cell.column.name" 
+                    t-att-colspan="cell.column.colspan" 
+                    t-att-style="cell.style"
+                    t-on-click="(ev) => this.onCellClicked(cell, ev)">
+                    
+                    <!-- BOTÓN TOGGLE (Insertado en la primera columna) -->
+                    <t t-if="index === 0 and record.data.product_id">
+                        <div class="d-inline-block me-1 o_stone_toggle_btn"
+                             t-on-click.stop="toggleStoneDetails">
+                             <i class="fa fa-chevron-right" 
+                                t-att-class="{'o_rotated': record.data.is_stone_expanded}"/>
+                        </div>
+                    </t>
+
+                    <!-- Renderizado estándar de la celda de Odoo -->
+                    <t t-component="getCellComponent(cell)" t-props="cell.props" />
+                </td>
             </t>
-        </xpath>
+        </tr>
     </t>
 
 </templates>
