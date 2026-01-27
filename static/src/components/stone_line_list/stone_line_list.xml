@@ -1,32 +1,35 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
 
-    <!-- Template del Botón -->
+    <!-- 1. Template del Botón (Widget) -->
     <t t-name="sale_stone_selection.ExpandButton" owl="1">
         <div class="o_stone_toggle_btn cursor-pointer text-center" t-on-click="toggle">
             <i class="fa fa-chevron-right" 
                t-att-class="{'o_rotated': props.record.data.is_stone_expanded}"
-               title="Ver detalles de placas"/>
+               title="Ver detalles"/>
         </div>
     </t>
 
-    <!-- Override del Renderer -->
+    <!-- 2. Override del Renderer -->
     <t t-name="sale_stone_selection.ListRenderer" t-inherit="web.ListRenderer" t-inherit-mode="primary">
         <xpath expr="//table/tbody" position="replace">
-            <tbody>
+            <!-- IMPORTANTE: t-ref="tbody" es necesario para que Odoo reconozca la lista -->
+            <tbody t-ref="tbody">
                 <t t-foreach="rows" t-as="row" t-key="row.id">
-                    <!-- Fila original de Odoo -->
+                    <!-- Fila Estándar -->
                     <ListRow 
                         t-props="row" 
                         list="list" 
                         onRowClicked="onRowClicked"
                     />
                     
-                    <!-- Fila Inyectada (Stone Grid) -->
+                    <!-- Fila Expandible (Se muestra si el campo boolean es true) -->
                     <t t-if="row.record.data.product_id and row.record.data.is_stone_expanded">
                          <tr class="o_stone_details_row_tr">
-                             <td t-att-colspan="getColspan(row)" class="p-0 border-0">
+                             <!-- Usamos una función segura para el colspan -->
+                             <td t-att-colspan="getColspanSafe()" class="p-0 border-0">
                                  <div class="o_stone_slide_down">
+                                     <!-- Verificación de seguridad para product_id -->
                                      <StoneGrid 
                                          productId="row.record.data.product_id[0]"
                                          selectedLotIds="row.record.data.lot_ids.currentIds"
