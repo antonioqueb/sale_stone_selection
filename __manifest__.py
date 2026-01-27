@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Stone Selection & Visual Sale Grid',
-    'version': '17.0.1.0.0',
+    'version': '19.0.2.0.0',
     'category': 'Sales/Sales',
     'summary': 'Selección visual agrupada de placas (piedra/mármol) en ventas',
     'description': """
