@@ -6,7 +6,7 @@
         <xpath expr="//table/tbody" position="replace">
             <tbody>
                 <t t-foreach="rows" t-as="row" t-key="row.id">
-                    <!-- Fila Estándar (Usará nuestra clase StoneOrderLineRow) -->
+                    <!-- Fila Estándar (Renderiza nuestro componente StoneOrderLineRow) -->
                     <ListRow 
                         t-props="row" 
                         list="list" 
@@ -14,7 +14,6 @@
                     />
                     
                     <!-- Fila Expandible (Stone Grid) -->
-                    <!-- Se inyecta justo debajo de la fila del producto correspondiente -->
                     <t t-if="row.record.data.product_id and row.record.data.is_stone_expanded">
                          <tr class="o_stone_details_row_tr">
                              <td t-att-colspan="getColspan(row)" class="p-0 border-0">
@@ -33,7 +32,7 @@
         </xpath>
     </t>
 
-    <!-- 2. Definición Manual del Row (Evita el error 'Missing parent template') -->
+    <!-- 2. Definición Manual del Row (Sin heredar de web.ListRow) -->
     <t t-name="sale_stone_selection.ListRow" owl="1">
         <tr class="o_data_row" 
             t-att-class="getRowClass(record)" 
@@ -47,7 +46,7 @@
                     t-att-style="cell.style"
                     t-on-click="(ev) => this.onCellClicked(cell, ev)">
                     
-                    <!-- BOTÓN TOGGLE (Insertado en la primera columna) -->
+                    <!-- BOTÓN TOGGLE (Primera columna) -->
                     <t t-if="index === 0 and record.data.product_id">
                         <div class="d-inline-block me-1 o_stone_toggle_btn"
                              t-on-click.stop="toggleStoneDetails">
@@ -56,7 +55,6 @@
                         </div>
                     </t>
 
-                    <!-- Renderizado estándar de la celda de Odoo -->
                     <t t-component="getCellComponent(cell)" t-props="cell.props" />
                 </td>
             </t>
