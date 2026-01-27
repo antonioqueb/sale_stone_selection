@@ -1,18 +1,12 @@
-# -*- coding: utf-8 -*-
+# ./__manifest__.py
 {
     'name': 'Stone Selection & Visual Sale Grid',
-    'version': '19.0.2.0.0',
+    'version': '19.0.1.0.0', # <--- ACTUALIZADO A 19
     'category': 'Sales/Sales',
     'summary': 'Selección visual agrupada de placas (piedra/mármol) en ventas',
     'description': """
         Módulo profesional para la gestión de ventas de piedra natural.
-        
-        Características:
-        - Inyección de componente OWL en líneas de pedido.
-        - Selección visual de lotes (placas) agrupadas por Bloque.
-        - Cálculo automático de m² basado en selección.
-        - Visualización de dimensiones, ubicación y tipo.
-        - UX mejorada: Acordeón expandible sin popups intrusivos.
+        Adapta la vista de lista (list view) de ventas para Odoo 19.
     """,
     'author': 'Alphaqueb Consulting SAS',
     'website': 'https://alphaqueb.com',
