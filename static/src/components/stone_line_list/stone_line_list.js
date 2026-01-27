@@ -1,39 +1,41 @@
 /** @odoo-module */
 import { registry } from "@web/core/registry";
 import { ListRenderer } from "@web/views/list/list_renderer";
-import { X2ManyField } from "@web/views/fields/x2many/x2many_field";
+import { listView } from "@web/views/list/list_view"; // Importamos la configuración base de la lista
 import { standardFieldProps } from "@web/views/fields/standard_field_props";
 import { Component } from "@odoo/owl";
 import { StoneGrid } from "../stone_grid/stone_grid";
 
-// 1. Componente del Botón (Field Widget)
+// =========================================================
+// 1. COMPONENTE DEL BOTÓN (WIDGET)
+// =========================================================
 export class StoneExpandButton extends Component {
     static template = "sale_stone_selection.ExpandButton";
     static props = { ...standardFieldProps };
 
     toggle(ev) {
-        ev.stopPropagation(); // Evitar que Odoo abra la línea para editar
+        ev.stopPropagation(); 
         const current = this.props.record.data.is_stone_expanded;
         this.props.record.update({ is_stone_expanded: !current });
     }
 }
 
-// Registramos el widget para usarlo en el XML
-export const stoneExpandButton = {
+// CORRECCIÓN: Registramos un OBJETO, no la clase directamente
+registry.category("fields").add("stone_expand_button", {
     component: StoneExpandButton,
     displayName: "Stone Expand Button",
-};
-registry.category("fields").add("stone_expand_button", stoneExpandButton);
+});
 
 
-// 2. Extendemos el Renderer solo para inyectar el Grid
+// =========================================================
+// 2. RENDERER DE LA LISTA (CUSTOM RENDERER)
+// =========================================================
 export class StoneOrderLineRenderer extends ListRenderer {
     setup() {
         super.setup();
     }
 
     getColspan(row) {
-        // columns + selectores + botón borrado
         return this.state.columns.length + (this.props.hasSelectors ? 1 : 0) + 1;
     }
 
@@ -41,7 +43,8 @@ export class StoneOrderLineRenderer extends ListRenderer {
         row.record.update({ lot_ids: [[6, 0, ids]] });
     }
 }
-// Solo añadimos StoneGrid, usamos el ListRow estándar de Odoo
+
+// Registramos los componentes que usará nuestro Renderer
 StoneOrderLineRenderer.components = { 
     ...ListRenderer.components, 
     StoneGrid 
@@ -49,11 +52,16 @@ StoneOrderLineRenderer.components = {
 StoneOrderLineRenderer.template = "sale_stone_selection.ListRenderer";
 
 
-// 3. Registramos el Field Widget de la Lista (X2Many)
-export class StoneOrderLineField extends X2ManyField {}
-StoneOrderLineField.components = { 
-    ...X2ManyField.components, 
-    ListRenderer: StoneOrderLineRenderer 
+// =========================================================
+// 3. CONFIGURACIÓN DE LA VISTA (JS_CLASS)
+// =========================================================
+// Esto es lo que busca Odoo cuando usas js_class="stone_order_line_list"
+// Heredamos de 'listView' y solo cambiamos el Renderer.
+
+export const stoneOrderLineListView = {
+    ...listView,
+    Renderer: StoneOrderLineRenderer,
 };
 
-registry.category("fields").add("stone_order_line_list", StoneOrderLineField);
+// CORRECCIÓN: Registramos en 'views', no en 'fields'
+registry.category("views").add("stone_order_line_list", stoneOrderLineListView);

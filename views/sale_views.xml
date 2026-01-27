@@ -6,23 +6,21 @@
         <field name="inherit_id" ref="sale.view_order_form"/>
         <field name="arch" type="xml">
             
-            <!-- 1. Cambiar el renderizador de la lista (JS Class) -->
+            <!-- 1. js_class invoca a 'stoneOrderLineListView' del registro 'views' -->
             <xpath expr="//field[@name='order_line']/list" position="attributes">
                 <attribute name="js_class">stone_order_line_list</attribute>
             </xpath>
 
-            <!-- 2. Insertar el botón al principio de la lista -->
+            <!-- 2. widget invoca a 'stoneExpandButton' del registro 'fields' -->
             <xpath expr="//field[@name='order_line']/list/field[@name='product_id']" position="before">
-                <!-- Este campo usa nuestro widget y es clickeable -->
                 <field name="is_stone_expanded" 
                        widget="stone_expand_button" 
                        string=" " 
                        width="30px" 
                        nolabel="1"
-                       class="text-center p-0"/>
+                       class="p-0"/>
             </xpath>
 
-            <!-- 3. Campos invisibles necesarios -->
             <xpath expr="//field[@name='order_line']/list/field[@name='product_id']" position="after">
                 <field name="lot_ids" widget="many2many_tags" column_invisible="1"/>
             </xpath>
