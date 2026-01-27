@@ -1,12 +1,24 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
 
-    <!-- 1. Override del Renderer -->
+    <!-- 1. Template del Botón (Widget) -->
+    <t t-name="sale_stone_selection.ExpandButton" owl="1">
+        <div class="o_stone_toggle_btn cursor-pointer" t-on-click="toggle">
+            <i class="fa fa-chevron-right" 
+               t-att-class="{'o_rotated': props.record.data.is_stone_expanded}"/>
+        </div>
+    </t>
+
+    <!-- 2. Override del Renderer -->
     <t t-name="sale_stone_selection.ListRenderer" t-inherit="web.ListRenderer" t-inherit-mode="primary">
         <xpath expr="//table/tbody" position="replace">
             <tbody>
                 <t t-foreach="rows" t-as="row" t-key="row.id">
-                    <!-- Fila Estándar (Renderiza nuestro componente StoneOrderLineRow) -->
+                    <!-- 
+                        Fila Estándar de Odoo:
+                        Al no heredarla, usamos la original <ListRow>.
+                        El botón aparecerá porque añadiremos el campo en la vista.
+                    -->
                     <ListRow 
                         t-props="row" 
                         list="list" 
@@ -16,6 +28,7 @@
                     <!-- Fila Expandible (Stone Grid) -->
                     <t t-if="row.record.data.product_id and row.record.data.is_stone_expanded">
                          <tr class="o_stone_details_row_tr">
+                             <!-- Usamos una función del renderer para el colspan -->
                              <td t-att-colspan="getColspan(row)" class="p-0 border-0">
                                  <div class="o_stone_slide_down">
                                      <StoneGrid 
@@ -30,35 +43,6 @@
                 </t>
             </tbody>
         </xpath>
-    </t>
-
-    <!-- 2. Definición Manual del Row (Sin heredar de web.ListRow) -->
-    <t t-name="sale_stone_selection.ListRow" owl="1">
-        <tr class="o_data_row" 
-            t-att-class="getRowClass(record)" 
-            t-att-data-id="record.id" 
-            t-on-click="onRowClicked">
-            
-            <t t-foreach="cells" t-as="cell" t-key="cell.id" t-index="index">
-                <td t-att-class="getCellClass(cell)" 
-                    t-att-name="cell.column.name" 
-                    t-att-colspan="cell.column.colspan" 
-                    t-att-style="cell.style"
-                    t-on-click="(ev) => this.onCellClicked(cell, ev)">
-                    
-                    <!-- BOTÓN TOGGLE (Primera columna) -->
-                    <t t-if="index === 0 and record.data.product_id">
-                        <div class="d-inline-block me-1 o_stone_toggle_btn"
-                             t-on-click.stop="toggleStoneDetails">
-                             <i class="fa fa-chevron-right" 
-                                t-att-class="{'o_rotated': record.data.is_stone_expanded}"/>
-                        </div>
-                    </t>
-
-                    <t t-component="getCellComponent(cell)" t-props="cell.props" />
-                </td>
-            </t>
-        </tr>
     </t>
 
 </templates>
