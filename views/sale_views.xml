@@ -6,19 +6,12 @@
         <field name="inherit_id" ref="sale.view_order_form"/>
         <field name="arch" type="xml">
             
-            <!-- 
-                1. Asignamos la js_class a la etiqueta <list> dentro del field order_line.
-                   Esto le dice a Odoo que use nuestro 'stoneOrderLineListView' 
-                   en lugar del renderer por defecto de ventas.
-            -->
+            <!-- js_class necesaria para cargar nuestros assets, aunque usemos lógica estándar -->
             <xpath expr="//field[@name='order_line']/list" position="attributes">
                 <attribute name="js_class">stone_order_line_list</attribute>
             </xpath>
 
-            <!-- 
-                2. Insertamos el botón ANTES del producto.
-                   Usamos class="p-0" y width="30px" para que no ocupe mucho espacio.
-            -->
+            <!-- El Widget Mágico -->
             <xpath expr="//field[@name='order_line']/list/field[@name='product_id']" position="before">
                 <field name="is_stone_expanded" 
                        widget="stone_expand_button" 
@@ -28,9 +21,7 @@
                        class="p-0 text-center"/>
             </xpath>
 
-            <!-- 
-                3. Añadimos el campo de lotes (invisible) para que la data esté disponible en JS 
-            -->
+            <!-- Campos de datos necesarios -->
             <xpath expr="//field[@name='order_line']/list/field[@name='product_id']" position="after">
                 <field name="lot_ids" widget="many2many_tags" column_invisible="1"/>
             </xpath>
