@@ -30,6 +30,6 @@
         ],
     },
     'installable': True,
-    'application': False,
+    'application': True,
     'license': 'OPL-1',
 }
