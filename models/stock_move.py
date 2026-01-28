@@ -17,7 +17,9 @@ class StockMove(models.Model):
         Si cambian los lotes en el albarán (stock.move.line), actualizamos la SO.
         """
         for move in self:
-            if move.sale_line_id and move.picking_type_code == 'outgoing':
+            # CORRECCIÓN ODOO 19: 'picking_type_code' no existe en stock.move.
+            # Se debe usar move.picking_type_id.code
+            if move.sale_line_id and move.picking_type_id.code == 'outgoing':
                 # Obtener los lotes actualmente reservados en el movimiento
                 current_reservation_lots = move.move_line_ids.mapped('lot_id')
                 
