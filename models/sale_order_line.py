@@ -37,7 +37,6 @@ class SaleOrderLine(models.Model):
         asignamos inmediatamente los lotes seleccionados a los movimientos de stock.
         """
         # CORRECCIÓN ODOO 19: El método padre ya no acepta argumentos.
-        # Quitamos 'previous_product_uom_qty' de la llamada a super().
         res = super(SaleOrderLine, self)._action_launch_stock_rule()
         self._sync_lots_to_stock_moves()
         return res
@@ -62,19 +61,21 @@ class SaleOrderLine(models.Model):
             if not line.lot_ids:
                 continue
                 
-            # Buscar movimientos activos (no cancelados ni hechos completamente si queremos permitir re-asignación parcial)
-            # Generalmente nos interesa modificar los que están en espera o asignados.
+            # Buscar movimientos activos
             moves = line.move_ids.filtered(lambda m: m.state not in ['cancel', 'done'])
             
             for move in moves:
-                # 1. Limpiar reservas existentes automáticas o manuales previas
-                # Esto es necesario para "resetear" y aplicar la selección visual exacta
+                # IMPORTANTE: Usamos un contexto para decir "Soy la SO actualizando el Stock,
+                # no me devuelvas la llamada (sync back) porque causará error de registro borrado".
+                move = move.with_context(skip_back_sync=True)
+                
+                # 1. Limpiar reservas existentes. 
+                # Al tener el contexto, el unlink -> recompute -> NO llamará a _sync_lots_back_to_so
                 move.move_line_ids.unlink()
                 
                 # 2. Crear nuevas líneas de movimiento (Reserva explícita)
                 move_lines_vals = []
                 for lot in line.lot_ids:
-                    # Buscar el quant para saber dónde está y cuánto hay
                     quant = self.env['stock.quant'].search([
                         ('lot_id', '=', lot.id),
                         ('location_id.usage', '=', 'internal'),
@@ -82,20 +83,21 @@ class SaleOrderLine(models.Model):
                     ], limit=1)
                     
                     if not quant:
-                        continue # El lote no está disponible físicamente
+                        continue 
                         
                     move_lines_vals.append({
                         'move_id': move.id,
                         'lot_id': lot.id,
                         'product_id': line.product_id.id,
                         'product_uom_id': line.product_uom.id,
-                        'qty_demand': 0, # En Odoo moderno, qty_demand va en el move, aqui reservamos
-                        'quantity': quant.quantity, # Reservar todo lo que tenga la placa
+                        'qty_demand': 0, 
+                        'quantity': quant.quantity,
                         'location_id': quant.location_id.id,
                         'location_dest_id': move.location_dest_id.id,
                     })
                 
                 if move_lines_vals:
-                    self.env['stock.move.line'].create(move_lines_vals)
+                    # Crear con el mismo contexto de protección
+                    self.env['stock.move.line'].with_context(skip_back_sync=True).create(move_lines_vals)
                     # Forzar recalculo de estado de reserva
                     move._recompute_state()
