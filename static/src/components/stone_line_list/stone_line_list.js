@@ -22,14 +22,11 @@ export class StoneExpandButton extends Component {
         this.containerNode = null;
         this.gridNode = null;
         
-        // Estado local de filtros
+        // Estado local de filtros (Solo los solicitados)
         this.filters = {
-            bloque: '',
-            atado: '',
-            alto_min: '',
-            ancho_min: '',
             lot_name: '',
-            contenedor: ''
+            bloque: '',
+            atado: ''
         };
         
         // Debounce para la búsqueda
@@ -102,60 +99,73 @@ export class StoneExpandButton extends Component {
      */
     createFilterBar() {
         const bar = document.createElement('div');
-        bar.className = 'd-flex flex-wrap gap-2 p-2 bg-light border-bottom align-items-center';
+        // 'align-items-end' para que los inputs queden alineados abajo
+        bar.className = 'd-flex flex-wrap gap-3 p-2 bg-light border-bottom align-items-end';
         bar.style.fontSize = '12px';
 
-        // Definición de filtros a mostrar
+        // Definición de filtros a mostrar (Solo Lote, Bloque, Atado)
         const inputs = [
-            { key: 'bloque', label: 'Bloque', width: '100px', placeholder: 'Ej. B-001' },
-            { key: 'lot_name', label: 'Lote', width: '100px', placeholder: 'Buscar...' },
-            { key: 'alto_min', label: 'Alto Mín.', width: '70px', type: 'number', placeholder: '0.00' },
-            { key: 'ancho_min', label: 'Ancho Mín.', width: '70px', type: 'number', placeholder: '0.00' },
-            { key: 'atado', label: 'Atado', width: '70px', placeholder: 'A-1' },
-            { key: 'contenedor', label: 'Contenedor', width: '90px', placeholder: 'CONT...' },
+            { key: 'lot_name', label: 'Lote / Serial', width: '140px', placeholder: 'Buscar...' },
+            { key: 'bloque', label: 'Bloque', width: '120px', placeholder: 'Ej. B-01' },
+            { key: 'atado', label: 'Atado', width: '100px', placeholder: 'Ej. A-1' },
         ];
 
-        // Icono de filtro
-        bar.innerHTML = '<div class="text-secondary me-1"><i class="fa fa-filter"></i></div>';
+        // Icono decorativo al inicio
+        const iconContainer = document.createElement('div');
+        iconContainer.className = 'text-secondary me-1 mb-2'; // mb-2 para alinear con inputs
+        iconContainer.innerHTML = '<i class="fa fa-filter fa-lg"></i>';
+        bar.appendChild(iconContainer);
 
         inputs.forEach(field => {
+            // Wrapper vertical para etiqueta arriba e input abajo
             const wrapper = document.createElement('div');
-            
+            wrapper.className = 'd-flex flex-column'; 
+
+            // Etiqueta Arriba
+            const label = document.createElement('span');
+            label.className = 'text-muted fw-bold mb-1';
+            label.style.fontSize = '10px';
+            label.style.textTransform = 'uppercase';
+            label.innerText = field.label;
+
             // Input
             const input = document.createElement('input');
-            input.type = field.type || 'text';
+            input.type = 'text';
             input.className = 'form-control form-control-sm';
-            input.placeholder = field.placeholder || field.label;
+            input.placeholder = field.placeholder;
             input.style.width = field.width;
-            input.style.fontSize = '11px';
+            input.style.fontSize = '12px';
             input.value = this.filters[field.key] || '';
             
-            // Evento
+            // Evento Input (dispara búsqueda parcial)
             input.addEventListener('input', (e) => {
                 this.filters[field.key] = e.target.value;
                 this.triggerSearch();
             });
 
-            // Label flotante o simple (usamos title para ahorrar espacio visual)
-            input.title = field.label;
-            
+            wrapper.appendChild(label);
             wrapper.appendChild(input);
             bar.appendChild(wrapper);
         });
 
         // Botón limpiar
+        const clearBtnWrapper = document.createElement('div');
+        clearBtnWrapper.className = 'd-flex flex-column justify-content-end ms-auto';
+        
         const clearBtn = document.createElement('button');
-        clearBtn.className = 'btn btn-link btn-sm text-muted p-0 ms-auto';
-        clearBtn.innerHTML = '<i class="fa fa-times"></i> Limpiar';
+        clearBtn.className = 'btn btn-link btn-sm text-muted p-0 mb-1';
+        clearBtn.innerHTML = '<i class="fa fa-times"></i> Limpiar filtros';
         clearBtn.style.fontSize = '11px';
         clearBtn.style.textDecoration = 'none';
         clearBtn.onclick = () => {
-            this.filters = { bloque: '', atado: '', alto_min: '', ancho_min: '', lot_name: '', contenedor: '' };
+            this.filters = { lot_name: '', bloque: '', atado: '' };
             // Limpiar inputs visualmente
             bar.querySelectorAll('input').forEach(i => i.value = '');
             this.triggerSearch();
         };
-        bar.appendChild(clearBtn);
+        
+        clearBtnWrapper.appendChild(clearBtn);
+        bar.appendChild(clearBtnWrapper);
 
         return bar;
     }
@@ -164,7 +174,7 @@ export class StoneExpandButton extends Component {
         if (this.searchTimeout) clearTimeout(this.searchTimeout);
         this.searchTimeout = setTimeout(() => {
             this.loadData();
-        }, 400); // 400ms delay
+        }, 500); // 500ms delay para permitir escritura fluida
     }
 
     async loadData() {
@@ -189,7 +199,8 @@ export class StoneExpandButton extends Component {
         this.gridNode.style.opacity = '0.6';
 
         try {
-            // Llamada al backend usando el nuevo método con filtros
+            // Llamada al backend usando los filtros actuales
+            // NOTA: El backend usa 'ilike', por lo que la búsqueda ya es "similar" (contiene) y no exacta.
             const quants = await this.orm.call(
                 'stock.quant', 
                 'search_stone_inventory_for_so', 
@@ -213,8 +224,8 @@ export class StoneExpandButton extends Component {
         if (!quants || quants.length === 0) {
             this.gridNode.innerHTML = `
                 <div class="d-flex flex-column align-items-center justify-content-center py-4 text-muted">
-                    <i class="fa fa-inbox fa-2x mb-2 opacity-50"></i>
-                    <span class="small">No se encontraron placas con estos filtros.</span>
+                    <i class="fa fa-search fa-2x mb-2 opacity-50"></i>
+                    <span class="small">No se encontraron placas con estos criterios.</span>
                 </div>
             `;
             return;
@@ -260,7 +271,7 @@ export class StoneExpandButton extends Component {
             html += `
                 <tr class="table-light">
                     <td colspan="6" class="px-2 py-1 fw-bold text-dark border-bottom" style="font-size: 11px;">
-                        <div class="d-flex justify-content-between">
+                        <div class="d-flex justify-content-between align-items-center">
                             <span><i class="fa fa-cubes me-1 text-primary"></i> Bloque: ${bloque}</span>
                             <span class="badge bg-white text-dark border fw-normal">Total: ${totalArea} m²</span>
                         </div>
@@ -272,7 +283,7 @@ export class StoneExpandButton extends Component {
                 const lotId = q.lot_id ? q.lot_id[0] : 0;
                 const lotName = q.lot_id ? q.lot_id[1] : '';
                 
-                // Limpiar nombre de ubicación (quitar almacén padre)
+                // Limpiar nombre de ubicación
                 const fullLocName = q.location_id ? q.location_id[1] : '';
                 const locName = fullLocName.split('/').pop().trim();
 
