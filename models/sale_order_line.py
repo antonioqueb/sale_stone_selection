@@ -36,7 +36,9 @@ class SaleOrderLine(models.Model):
         Sobreescritura: Al confirmar la venta (crear movimientos),
         asignamos inmediatamente los lotes seleccionados a los movimientos de stock.
         """
-        res = super(SaleOrderLine, self)._action_launch_stock_rule(previous_product_uom_qty)
+        # CORRECCIÓN ODOO 19: El método padre ya no acepta argumentos.
+        # Quitamos 'previous_product_uom_qty' de la llamada a super().
+        res = super(SaleOrderLine, self)._action_launch_stock_rule()
         self._sync_lots_to_stock_moves()
         return res
 
