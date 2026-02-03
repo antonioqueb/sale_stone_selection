@@ -4,24 +4,34 @@ import logging
 
 _logger = logging.getLogger(__name__)
 
+# Intentamos importar el Cleaner igual que en el módulo de Carrito
+try:
+    from odoo.addons.stock_lot_dimensions.models.utils.picking_cleaner import PickingLotCleaner
+except ImportError:
+    PickingLotCleaner = None
+
 class SaleOrder(models.Model):
     _inherit = 'sale.order'
 
     def action_confirm(self):
         """
-        Sobrescribimos confirmar para imponer la selección visual sobre la lógica FIFO de Odoo.
+        Lógica robusta de confirmación:
+        1. Confirmación estándar (Odoo genera Pickings y reserva FIFO).
+        2. Limpieza de reservas automáticas (usando PickingLotCleaner).
+        3. Asignación forzada de los lotes seleccionados visualmente.
         """
-        # 1. Ejecutar confirmación estándar de Odoo (Genera Pickings y reservas FIFO)
+        # 1. Ejecutar confirmación estándar
         res = super(SaleOrder, self).action_confirm()
         
-        # 2. Corregir las reservas inmediatamente
+        # 2. Limpieza de reservas automáticas (Critico para evitar mezcla de lotes)
+        self._clear_auto_assigned_lots()
+        
+        # 3. Asignación Estricta de Lotes Seleccionados
         for order in self:
-            # Buscar líneas que tengan selección manual de placas (lot_ids no vacío)
             lines_with_stone = order.order_line.filtered(lambda l: l.lot_ids)
             if not lines_with_stone:
                 continue
 
-            # Obtener los albaranes generados que no estén cancelados
             pickings = order.picking_ids.filtered(
                 lambda p: p.state not in ['cancel', 'done']
             )
@@ -29,92 +39,89 @@ class SaleOrder(models.Model):
             if not pickings:
                 continue
 
-            _logger.info(f"[STONE] Aplicando reserva estricta para Orden {order.name}")
-            
-            # Aplicar la lógica de asignación forzada línea por línea
+            _logger.info(f"[STONE] Asignando lotes seleccionados para Orden {order.name}")
             for line in lines_with_stone:
                 order._assign_stone_lots_strict(pickings, line)
         
         return res
 
+    def _clear_auto_assigned_lots(self):
+        """Limpia las reservas que Odoo hizo automáticamente por FIFO."""
+        if PickingLotCleaner:
+            _logger.info("[STONE] Ejecutando PickingLotCleaner...")
+            cleaner = PickingLotCleaner(self.env)
+            for order in self:
+                if order.picking_ids:
+                    cleaner.clear_pickings_lots(order.picking_ids)
+        else:
+            _logger.warning("[STONE] PickingLotCleaner no disponible. La limpieza podría ser incompleta.")
+
     def _assign_stone_lots_strict(self, pickings, line):
         """
-        Elimina las reservas automáticas y asigna LOS LOTES SELECCIONADOS VISUALMENTE.
+        Crea las líneas de movimiento (stock.move.line) para los lotes seleccionados.
         """
         product = line.product_id
-        selected_lots = line.lot_ids  # Estos son los lotes que seleccionaste en el grid visual
+        selected_lots = line.lot_ids
         
         if not selected_lots:
             return
 
         for picking in pickings:
-            # Buscar movimientos asociados a este producto en el picking
             moves = picking.move_ids.filtered(lambda m: m.product_id.id == product.id)
             
             for move in moves:
-                # ---------------------------------------------------------
-                # PASO 1: LIMPIEZA (Borrón y cuenta nueva)
-                # Eliminamos lo que Odoo reservó automáticamente (FIFO)
-                # ---------------------------------------------------------
+                # Nos aseguramos que esté limpio (por si el Cleaner falló o no existe)
                 if move.move_line_ids:
-                    _logger.info(f"[STONE] Limpiando reservas automáticas en movimiento {move.id}")
                     move.move_line_ids.unlink()
                 
-                # ---------------------------------------------------------
-                # PASO 2: ASIGNACIÓN MANUAL (Respetar Grid Visual)
-                # ---------------------------------------------------------
                 remaining_demand = move.product_uom_qty
                 
                 for lot in selected_lots:
                     if remaining_demand <= 0:
                         break
                         
-                    # Buscar dónde está físicamente este lote AHORA MISMO.
-                    # Priorizamos buscar en la ubicación del movimiento, pero si no está ahí
-                    # (ej. movimiento entre almacenes), buscamos en cualquier interna.
+                    # Buscar el stock físico real
+                    # 1. Prioridad: Ubicación del movimiento
+                    # 2. Fallback: Cualquier ubicación interna
                     domain = [
                         ('lot_id', '=', lot.id),
                         ('quantity', '>', 0),
                         ('location_id.usage', '=', 'internal')
                     ]
                     
-                    # Intento 1: Ubicación hija del movimiento
                     quant = self.env['stock.quant'].search(
                         domain + [('location_id', 'child_of', move.location_id.id)], 
                         limit=1, 
                         order='quantity desc'
                     )
                     
-                    # Intento 2: Cualquier ubicación interna (Fallback)
                     if not quant:
                         quant = self.env['stock.quant'].search(domain, limit=1, order='quantity desc')
                     
                     if not quant:
-                        _logger.warning(f"[STONE] El lote {lot.name} fue seleccionado pero no tiene stock físico disponible.")
+                        _logger.warning(f"[STONE] Lote {lot.name} seleccionado pero sin stock físico.")
                         continue
 
-                    # Cantidad a reservar: Todo lo que tenga el lote o lo que falte de demanda
+                    # Reservar
                     qty_to_reserve = min(quant.quantity, remaining_demand)
                     
                     if qty_to_reserve <= 0:
                         continue
 
                     try:
-                        # CREAR LA RESERVA EXPLÍCITA
-                        # Esto hace que aparezca en "Operaciones Detalladas" del Picking
                         self.env['stock.move.line'].create({
                             'move_id': move.id,
                             'picking_id': picking.id,
                             'product_id': product.id,
                             'lot_id': lot.id,
-                            'quantity': qty_to_reserve, 
-                            'location_id': quant.location_id.id, # Ubicación REAL del lote
+                            'quantity': qty_to_reserve,
+                            'location_id': quant.location_id.id,
                             'location_dest_id': move.location_dest_id.id,
                             'product_uom_id': product.uom_id.id,
                         })
                         
                         remaining_demand -= qty_to_reserve
-                        _logger.info(f"[STONE] Reservado Lote {lot.name} ({qty_to_reserve}) en Movimiento {move.id}")
+                        _logger.info(f"[STONE] Reservado {lot.name} ({qty_to_reserve}) en {picking.name}")
                         
                     except Exception as e:
-                        _logger.error(f"[STONE] Error creando reserva para lote {lot.name}: {str(e)}")
+                        _logger.error(f"[STONE] Error reservando lote {lot.name}: {e}")

@@ -1,18 +1,19 @@
 # ./__manifest__.py
 {
     'name': 'Stone Selection & Visual Sale Grid',
-    'version': '19.0.1.1.0',
+    'version': '19.0.1.2.0',
     'category': 'Sales/Sales',
-    'summary': 'Selección visual de placas con reserva estricta (Anti-FIFO)',
+    'summary': 'Selección visual de placas con reserva estricta',
     'description': """
-        Módulo de venta de piedra natural.
-        1. Selección visual mediante Grid (Widget Stone Expand).
-        2. Reserva forzada de lotes seleccionados al confirmar la venta.
-        3. Visualización de asignaciones en Albaranes.
+        Módulo profesional para la gestión de ventas de piedra natural.
+        - Selección visual (Grid) en líneas de venta.
+        - Reserva estricta de lotes seleccionados (Bypass FIFO).
+        - Integración con stock_lot_dimensions para limpieza de asignaciones automáticas.
     """,
     'author': 'Alphaqueb Consulting SAS',
     'website': 'https://alphaqueb.com',
-    'depends': ['sale_management', 'stock'],
+    # IMPORTANTE: Se agrega stock_lot_dimensions para garantizar el orden de ejecución correcto
+    'depends': ['sale_management', 'stock', 'stock_lot_dimensions'],
     'data': [
         'views/sale_views.xml',
         'views/stock_views.xml',
