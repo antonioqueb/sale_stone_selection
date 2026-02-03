@@ -2,7 +2,7 @@
 import { registry } from "@web/core/registry";
 import { listView } from "@web/views/list/list_view";
 import { standardFieldProps } from "@web/views/fields/standard_field_props";
-import { Component, xml, onWillUnmount } from "@odoo/owl";
+import { Component, xml, onWillUnmount, onWillStart, onWillUpdateProps } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 
 export class StoneExpandButton extends Component {
@@ -26,15 +26,117 @@ export class StoneExpandButton extends Component {
         
         this.filters = { lot_name: '', bloque: '', atado: '', alto_min: '', ancho_min: '' };
         this.searchTimeout = null;
+
+        // =====================================================================
+        // DIAGNÓSTICO: Logs en el ciclo de vida del componente
+        // =====================================================================
+        onWillStart(() => {
+            console.group("🔷 [STONE onWillStart] Componente inicializando");
+            this._logRecordState("onWillStart");
+            console.groupEnd();
+        });
+
+        onWillUpdateProps((nextProps) => {
+            console.group("🔷 [STONE onWillUpdateProps] Props actualizándose");
+            console.log("Props actuales:", this.props);
+            console.log("Props nuevos:", nextProps);
+            this._logRecordState("onWillUpdateProps (current)", this.props);
+            this._logRecordState("onWillUpdateProps (next)", nextProps);
+            console.groupEnd();
+        });
         
         onWillUnmount(() => {
+            console.log("🔷 [STONE onWillUnmount] Componente desmontándose");
             this.removeGrid();
         });
     }
 
+    /**
+     * DIAGNÓSTICO: Loguear estado completo del record
+     */
+    _logRecordState(context, props = this.props) {
+        console.group(`📊 [STONE ${context}] Estado del Record`);
+        
+        if (!props || !props.record) {
+            console.warn("❌ props.record NO EXISTE");
+            console.groupEnd();
+            return;
+        }
+
+        const record = props.record;
+        const data = record.data;
+
+        console.log("Record completo:", record);
+        console.log("Record.data:", data);
+        console.log("Record.resId:", record.resId);
+        console.log("Record.isNew:", record.isNew);
+        
+        // Inspeccionar lot_ids específicamente
+        console.group("🏷️ lot_ids inspection");
+        console.log("data.lot_ids:", data.lot_ids);
+        console.log("data.lot_ids tipo:", typeof data.lot_ids);
+        
+        if (data.lot_ids) {
+            console.log("data.lot_ids constructor:", data.lot_ids.constructor?.name);
+            console.log("data.lot_ids keys:", Object.keys(data.lot_ids));
+            
+            // Intentar diferentes formas de acceder a los IDs
+            if (Array.isArray(data.lot_ids)) {
+                console.log("✅ Es Array directo:", data.lot_ids);
+            }
+            
+            if (data.lot_ids.records) {
+                console.log("✅ Tiene .records:", data.lot_ids.records);
+                console.log("Records mapped:", data.lot_ids.records.map(r => ({
+                    resId: r.resId,
+                    data: r.data,
+                    id: r.data?.id
+                })));
+            }
+            
+            if (data.lot_ids.currentIds) {
+                console.log("✅ Tiene .currentIds:", data.lot_ids.currentIds);
+            }
+            
+            if (data.lot_ids.resIds) {
+                console.log("✅ Tiene .resIds:", data.lot_ids.resIds);
+            }
+
+            // Propiedad count si existe
+            if ('count' in data.lot_ids) {
+                console.log("✅ Tiene .count:", data.lot_ids.count);
+            }
+
+            // Iterar si es iterable
+            try {
+                if (typeof data.lot_ids[Symbol.iterator] === 'function') {
+                    console.log("✅ Es iterable, expandiendo:", [...data.lot_ids]);
+                }
+            } catch (e) {
+                console.log("❌ No es iterable");
+            }
+        } else {
+            console.log("❌ lot_ids es null/undefined/falsy");
+        }
+        console.groupEnd();
+
+        // Otros campos relevantes
+        console.log("product_id:", data.product_id);
+        console.log("product_uom_qty:", data.product_uom_qty);
+        
+        console.groupEnd();
+    }
+
     async handleClick(ev) {
+        console.group("🔷 [STONE handleClick]");
+        this._logRecordState("handleClick");
+        
         const tr = ev.currentTarget.closest('tr');
-        if (!tr) return;
+        if (!tr) {
+            console.warn("❌ No se encontró <tr>");
+            console.groupEnd();
+            return;
+        }
 
         if (this.isExpanded) {
             this.removeGrid();
@@ -45,9 +147,12 @@ export class StoneExpandButton extends Component {
             this.isExpanded = true;
         }
         this.render();
+        console.groupEnd();
     }
 
     async injectContainer(currentRow) {
+        console.log("🔷 [STONE injectContainer] Creando contenedor");
+        
         const newTr = document.createElement('tr');
         newTr.className = 'o_stone_details_row_tr';
         
@@ -132,46 +237,93 @@ export class StoneExpandButton extends Component {
     }
 
     /**
-     * EXTRACTOR SEGURO DE IDS (Corrección Principal)
+     * DIAGNÓSTICO: Extractor con logs exhaustivos
      */
     extractLotIds(rawLots) {
-        if (!rawLots) return [];
+        console.group("🔷 [STONE extractLotIds] Extrayendo IDs");
+        console.log("Input rawLots:", rawLots);
+        console.log("Input tipo:", typeof rawLots);
+        
+        if (!rawLots) {
+            console.log("❌ rawLots es falsy, retornando []");
+            console.groupEnd();
+            return [];
+        }
+
+        console.log("rawLots constructor:", rawLots.constructor?.name);
+        console.log("rawLots keys:", Object.keys(rawLots));
         
         // 1. Caso Array simple [1, 2, 3]
         if (Array.isArray(rawLots)) {
+            console.log("✅ Es Array directo:", rawLots);
+            console.groupEnd();
             return rawLots;
         }
         
-        // 2. Caso Odoo X2Many RecordList (la mayoría de los casos en V16+)
-        // `records` contiene objetos Proxy que tienen la data
+        // 2. Caso Odoo X2Many RecordList (Odoo 16+)
         if (rawLots.records && Array.isArray(rawLots.records)) {
-            return rawLots.records.map(r => r.resId || r.data.id).filter(id => id);
+            console.log("✅ Tiene .records, extrayendo resIds");
+            const ids = rawLots.records.map(r => {
+                console.log("  Record:", r, "resId:", r.resId, "data.id:", r.data?.id);
+                return r.resId || r.data?.id;
+            }).filter(id => id);
+            console.log("IDs extraídos:", ids);
+            console.groupEnd();
+            return ids;
         }
 
-        // 3. Caso Odoo Legacy o estructura especial
+        // 3. Caso .currentIds
         if (rawLots.currentIds && Array.isArray(rawLots.currentIds)) {
+            console.log("✅ Tiene .currentIds:", rawLots.currentIds);
+            console.groupEnd();
             return rawLots.currentIds;
         }
 
+        // 4. Caso .resIds
+        if (rawLots.resIds && Array.isArray(rawLots.resIds)) {
+            console.log("✅ Tiene .resIds:", rawLots.resIds);
+            console.groupEnd();
+            return rawLots.resIds;
+        }
+
+        // 5. Caso iterable
+        try {
+            if (typeof rawLots[Symbol.iterator] === 'function') {
+                const ids = [...rawLots];
+                console.log("✅ Es iterable, expandido:", ids);
+                console.groupEnd();
+                return ids;
+            }
+        } catch (e) {
+            console.log("❌ No es iterable:", e);
+        }
+
+        console.log("❌ No se pudo extraer IDs, retornando []");
+        console.groupEnd();
         return [];
     }
 
     async loadData() {
         if (!this.gridNode) return;
         
-        const recordData = this.props.record.data;
+        console.group("🔷 [STONE loadData] Cargando datos");
         
-        // --- LOGGING DIAGNÓSTICO EN CONSOLA NAVEGADOR ---
-        console.group("STONE SELECTION DEBUG");
-        console.log("Record Data:", recordData);
-        console.log("Raw lot_ids field:", recordData.lot_ids);
+        const recordData = this.props.record.data;
+        this._logRecordState("loadData");
         
         let productId = false;
         if (recordData.product_id) {
-            if (Array.isArray(recordData.product_id)) productId = recordData.product_id[0];
-            else if (typeof recordData.product_id === 'number') productId = recordData.product_id;
-            else if (recordData.product_id.id) productId = recordData.product_id.id;
+            if (Array.isArray(recordData.product_id)) {
+                productId = recordData.product_id[0];
+            } else if (typeof recordData.product_id === 'number') {
+                productId = recordData.product_id;
+            } else if (recordData.product_id.id) {
+                productId = recordData.product_id.id;
+            } else if (typeof recordData.product_id === 'object' && recordData.product_id[0]) {
+                productId = recordData.product_id[0];
+            }
         }
+        console.log("productId resuelto:", productId);
 
         if (!productId) {
             this.gridNode.innerHTML = '<div class="alert alert-warning m-2">Selecciona un producto primero.</div>';
@@ -179,12 +331,11 @@ export class StoneExpandButton extends Component {
             return;
         }
 
-        // Usamos el extractor robusto
         const currentLotIds = this.extractLotIds(recordData.lot_ids);
-        console.log("IDs Extraídos para enviar al server:", currentLotIds);
-        console.groupEnd();
+        console.log("IDs finales para enviar al server:", currentLotIds);
 
         try {
+            console.log("🔷 Llamando a search_stone_inventory_for_so...");
             const quants = await this.orm.call(
                 'stock.quant', 
                 'search_stone_inventory_for_so', 
@@ -195,17 +346,25 @@ export class StoneExpandButton extends Component {
                     current_lot_ids: currentLotIds
                 }
             );
+            console.log("🔷 Respuesta del server:", quants);
 
             this.renderTable(quants, currentLotIds);
         } catch (error) {
-            console.error(error);
+            console.error("❌ Error en loadData:", error);
             this.gridNode.innerHTML = `<div class="alert alert-danger m-2">Error: ${error.message}</div>`;
         }
+        
+        console.groupEnd();
     }
 
     renderTable(quants, selectedIds) {
+        console.group("🔷 [STONE renderTable]");
+        console.log("quants:", quants?.length);
+        console.log("selectedIds:", selectedIds);
+        
         if (!quants || quants.length === 0) {
             this.gridNode.innerHTML = '<div class="p-3 text-center text-muted">No se encontraron placas disponibles con estos filtros.</div>';
+            console.groupEnd();
             return;
         }
 
@@ -248,16 +407,19 @@ export class StoneExpandButton extends Component {
                 const lotName = q.lot_id ? q.lot_id[1] : '';
                 const locName = q.location_id ? q.location_id[1].split('/').pop() : '';
                 
-                // Asegurar comparación numérica
                 const isChecked = selectedIds.includes(lotId);
                 const isReserved = q.reserved_quantity > 0;
 
                 let rowClass = isChecked ? 'table-primary' : '';
                 let statusBadge = '';
                 
-                if (isChecked && isReserved) statusBadge = '<span class="badge bg-success" style="font-size:9px">Asignado</span>';
-                else if (isReserved) statusBadge = '<span class="badge bg-warning text-dark" style="font-size:9px">Reservado</span>';
-                else statusBadge = '<span class="badge bg-light text-muted border" style="font-size:9px">Libre</span>';
+                if (isChecked && isReserved) {
+                    statusBadge = '<span class="badge bg-success" style="font-size:9px">Asignado</span>';
+                } else if (isReserved) {
+                    statusBadge = '<span class="badge bg-warning text-dark" style="font-size:9px">Reservado</span>';
+                } else {
+                    statusBadge = '<span class="badge bg-light text-muted border" style="font-size:9px">Libre</span>';
+                }
 
                 html += `
                     <tr class="${rowClass}" style="cursor:pointer;" onclick="this.querySelector('.stone-chk').click()">
@@ -284,27 +446,41 @@ export class StoneExpandButton extends Component {
         this.gridNode.querySelectorAll('.stone-chk').forEach(input => {
             input.addEventListener('change', (e) => this.onSelectionChange(e));
         });
+        
+        console.groupEnd();
     }
 
     onSelectionChange(ev) {
+        console.group("🔷 [STONE onSelectionChange]");
+        
         const id = parseInt(ev.target.value);
         const isChecked = ev.target.checked;
         const row = ev.target.closest('tr');
         
+        console.log("Lot ID:", id);
+        console.log("isChecked:", isChecked);
+        
         if (isChecked) row.classList.add('table-primary');
         else row.classList.remove('table-primary');
 
-        // Usamos el mismo extractor para obtener el estado actual base
+        // Estado actual
         let currentIds = this.extractLotIds(this.props.record.data.lot_ids);
+        console.log("currentIds ANTES:", currentIds);
 
         if (isChecked) {
             if (!currentIds.includes(id)) currentIds.push(id);
         } else {
             currentIds = currentIds.filter(x => x !== id);
         }
+        console.log("currentIds DESPUÉS:", currentIds);
 
-        // Actualizamos usando el comando [6, 0, IDs]
-        this.props.record.update({ lot_ids: [[6, 0, currentIds]] });
+        // Actualizar el record
+        const updateCommand = [[6, 0, currentIds]];
+        console.log("Enviando update con:", updateCommand);
+        
+        this.props.record.update({ lot_ids: updateCommand });
+        
+        console.groupEnd();
     }
 
     removeGrid() {

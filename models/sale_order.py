@@ -12,25 +12,118 @@ except ImportError:
 class SaleOrder(models.Model):
     _inherit = 'sale.order'
 
+    # =========================================================================
+    # DIAGNÓSTICO: Interceptar métodos de copia de la orden
+    # =========================================================================
+
+    def copy_data(self, default=None):
+        """
+        Método que prepara los datos para copiar una orden.
+        """
+        _logger.info("=" * 80)
+        _logger.info("[STONE ORDER COPY_DATA] INICIO - Orden ID: %s, Name: %s", self.id, self.name)
+        _logger.info("[STONE ORDER COPY_DATA] default recibido: %s", default)
+        _logger.info("[STONE ORDER COPY_DATA] Contexto: %s", self.env.context)
+        
+        # Loguear lot_ids de cada línea ANTES de copiar
+        for line in self.order_line:
+            _logger.info("[STONE ORDER COPY_DATA] Línea ID %s, Producto: %s, lot_ids: %s", 
+                        line.id, 
+                        line.product_id.name if line.product_id else 'N/A',
+                        line.lot_ids.ids if line.lot_ids else [])
+        
+        result = super(SaleOrder, self).copy_data(default)
+        
+        _logger.info("[STONE ORDER COPY_DATA] Resultado tipo: %s", type(result))
+        
+        # Inspeccionar el resultado para ver si las líneas tienen lot_ids
+        if result:
+            for idx, data in enumerate(result):
+                _logger.info("[STONE ORDER COPY_DATA] Resultado[%s] keys: %s", idx, data.keys() if isinstance(data, dict) else 'NO ES DICT')
+                if isinstance(data, dict) and 'order_line' in data:
+                    _logger.info("[STONE ORDER COPY_DATA] order_line en resultado: %s", data['order_line'])
+                    for line_idx, line_data in enumerate(data.get('order_line', [])):
+                        _logger.info("[STONE ORDER COPY_DATA] order_line[%s]: %s", line_idx, line_data)
+        
+        _logger.info("[STONE ORDER COPY_DATA] FIN")
+        _logger.info("=" * 80)
+        return result
+
+    def copy(self, default=None):
+        """
+        Método copy de la orden - usado al duplicar.
+        """
+        _logger.info("=" * 80)
+        _logger.info("[STONE ORDER COPY] INICIO - Orden ID: %s, Name: %s", self.id, self.name)
+        _logger.info("[STONE ORDER COPY] default: %s", default)
+        _logger.info("[STONE ORDER COPY] Contexto: %s", self.env.context)
+        
+        # Loguear lot_ids ANTES de duplicar
+        _logger.info("[STONE ORDER COPY] === LÍNEAS ORIGEN ===")
+        for line in self.order_line:
+            _logger.info("[STONE ORDER COPY] Línea ID %s -> lot_ids: %s (count: %s)", 
+                        line.id, line.lot_ids.ids, len(line.lot_ids))
+        
+        result = super(SaleOrder, self).copy(default)
+        
+        _logger.info("[STONE ORDER COPY] === ORDEN COPIADA ===")
+        _logger.info("[STONE ORDER COPY] Nueva orden ID: %s, Name: %s", result.id, result.name)
+        
+        _logger.info("[STONE ORDER COPY] === LÍNEAS DESTINO ===")
+        for line in result.order_line:
+            _logger.info("[STONE ORDER COPY] Nueva línea ID %s -> lot_ids: %s (count: %s)", 
+                        line.id, line.lot_ids.ids, len(line.lot_ids))
+        
+        _logger.info("[STONE ORDER COPY] FIN")
+        _logger.info("=" * 80)
+        return result
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        """
+        Interceptar creación de órdenes.
+        """
+        _logger.info("=" * 80)
+        _logger.info("[STONE ORDER CREATE] INICIO - Creando %s orden(es)", len(vals_list))
+        _logger.info("[STONE ORDER CREATE] Contexto: %s", self.env.context)
+        
+        for idx, vals in enumerate(vals_list):
+            _logger.info("[STONE ORDER CREATE] vals[%s] keys: %s", idx, vals.keys())
+            if 'order_line' in vals:
+                _logger.info("[STONE ORDER CREATE] vals[%s] order_line: %s", idx, vals['order_line'])
+        
+        result = super(SaleOrder, self).create(vals_list)
+        
+        _logger.info("[STONE ORDER CREATE] Órdenes creadas: %s", result.mapped('name'))
+        for order in result:
+            _logger.info("[STONE ORDER CREATE] Orden %s líneas:", order.name)
+            for line in order.order_line:
+                _logger.info("[STONE ORDER CREATE]   Línea ID %s -> lot_ids: %s", 
+                            line.id, line.lot_ids.ids)
+        
+        _logger.info("[STONE ORDER CREATE] FIN")
+        _logger.info("=" * 80)
+        return result
+
     def action_confirm(self):
         """
-        Confirmación con protección de contexto para evitar
-        que la sincronización bidireccional sobrescriba nuestra selección
-        durante el proceso de reserva inicial.
+        Confirmación con protección de contexto.
         """
-        # 1. Marcamos en el contexto que estamos en proceso de confirmación "Stone"
-        # Esto detendrá a _sync_lots_back_to_so en stock.move
-        ctx = dict(self.env.context, is_stone_confirming=True)
+        _logger.info("=" * 80)
+        _logger.info("[STONE ORDER CONFIRM] INICIO - Orden(es): %s", self.mapped('name'))
         
-        # 2. Ejecutar confirmación estándar (Genera Pickings y reserva FIFO)
+        for order in self:
+            _logger.info("[STONE ORDER CONFIRM] Orden %s - Estado: %s", order.name, order.state)
+            for line in order.order_line:
+                _logger.info("[STONE ORDER CONFIRM] Línea ID %s, lot_ids: %s", 
+                            line.id, line.lot_ids.ids)
+        
+        ctx = dict(self.env.context, is_stone_confirming=True)
         res = super(SaleOrder, self.with_context(ctx)).action_confirm()
         
-        # 3. Limpieza de reservas automáticas
         self._clear_auto_assigned_lots()
         
-        # 4. Asignación Estricta de Lotes Seleccionados
         for order in self:
-            # Solo procesar líneas que tengan lotes seleccionados manualmente
             lines_with_stone = order.order_line.filtered(lambda l: l.lot_ids)
             if not lines_with_stone:
                 continue
@@ -42,26 +135,27 @@ class SaleOrder(models.Model):
             if not pickings:
                 continue
 
-            _logger.info(f"[STONE] Iniciando asignación estricta para Orden {order.name}")
+            _logger.info("[STONE ORDER CONFIRM] Asignando lotes para Orden %s", order.name)
             for line in lines_with_stone:
                 order._assign_stone_lots_strict(pickings, line)
         
+        _logger.info("[STONE ORDER CONFIRM] FIN")
+        _logger.info("=" * 80)
         return res
 
     def _clear_auto_assigned_lots(self):
         """Limpia las reservas que Odoo hizo automáticamente por FIFO."""
         if PickingLotCleaner:
-            # _logger.info("[STONE] Ejecutando PickingLotCleaner...")
             cleaner = PickingLotCleaner(self.env)
             for order in self:
                 if order.picking_ids:
                     cleaner.clear_pickings_lots(order.picking_ids)
         else:
-            _logger.warning("[STONE] PickingLotCleaner no disponible. La reserva inicial no se limpió correctamente.")
+            _logger.warning("[STONE] PickingLotCleaner no disponible.")
 
     def _assign_stone_lots_strict(self, pickings, line):
         """
-        Crea las líneas de movimiento (stock.move.line) para los lotes seleccionados.
+        Crea las líneas de movimiento para los lotes seleccionados.
         """
         product = line.product_id
         selected_lots = line.lot_ids
@@ -70,13 +164,12 @@ class SaleOrder(models.Model):
             return
 
         for picking in pickings:
-            # Buscamos movimientos del producto de la línea
-            moves = picking.move_ids.filtered(lambda m: m.product_id.id == product.id and m.state not in ['done', 'cancel'])
+            moves = picking.move_ids.filtered(
+                lambda m: m.product_id.id == product.id and m.state not in ['done', 'cancel']
+            )
             
             for move in moves:
-                # Doble check: Asegurar que el movimiento esté limpio
                 if move.move_line_ids:
-                    # Si quedó algo sucio, limpiamos (solo si no está done)
                     move.move_line_ids.unlink()
                 
                 remaining_demand = move.product_uom_qty
@@ -85,60 +178,48 @@ class SaleOrder(models.Model):
                     if remaining_demand <= 0:
                         break
                         
-                    # --- CORRECCIÓN CRÍTICA DE BÚSQUEDA ---
-                    # No basta con quantity > 0, debe ser quantity - reserved > 0
-                    # Además, debemos buscar en la ubicación hija donde esté el lote
-                    
                     domain = [
                         ('lot_id', '=', lot.id),
                         ('location_id.usage', '=', 'internal'),
-                        ('location_id', 'child_of', move.location_id.id) # Debe estar dentro del almacén del movimiento
+                        ('location_id', 'child_of', move.location_id.id)
                     ]
                     
-                    # Buscamos todos los quants de ese lote
                     quants = self.env['stock.quant'].search(domain)
                     
                     target_quant = None
                     for q in quants:
-                        # Calculamos disponibilidad REAL para nosotros
                         available_qty = q.quantity - q.reserved_quantity
                         if available_qty > 0:
                             target_quant = q
                             break
                     
                     if not target_quant:
-                        _logger.warning(f"[STONE] Lote {lot.name} seleccionado en SO pero SIN STOCK DISPONIBLE (Físico o Reservado por otro).")
+                        _logger.warning("[STONE] Lote %s sin stock disponible.", lot.name)
                         continue
 
-                    # Reservar lo que necesitemos o lo que haya
-                    qty_to_reserve = min(target_quant.quantity - target_quant.reserved_quantity, remaining_demand)
+                    qty_to_reserve = min(
+                        target_quant.quantity - target_quant.reserved_quantity, 
+                        remaining_demand
+                    )
                     
                     if qty_to_reserve <= 0:
                         continue
 
                     try:
-                        # Crear la reserva manual
-                        # IMPORTANTE: location_id debe ser la ubicación REAL del quant (ej. Stock/Estante1)
-                        # aunque el movimiento sea generico (Stock).
                         self.env['stock.move.line'].create({
                             'move_id': move.id,
                             'picking_id': picking.id,
                             'product_id': product.id,
                             'lot_id': lot.id,
-                            'quantity': qty_to_reserve, # En Odoo 17+ 'quantity' es la reserva
+                            'quantity': qty_to_reserve,
                             'location_id': target_quant.location_id.id, 
                             'location_dest_id': move.location_dest_id.id,
                             'product_uom_id': product.uom_id.id,
                         })
-                        
                         remaining_demand -= qty_to_reserve
-                        # _logger.info(f"[STONE] Reservado {lot.name} ({qty_to_reserve}) en {picking.name}")
-                        
                     except Exception as e:
-                        _logger.error(f"[STONE] Error técnico reservando lote {lot.name}: {e}")
+                        _logger.error("[STONE] Error reservando lote %s: %s", lot.name, e)
             
-            # Forzar actualización del estado del picking para que refleje las reservas
-            # y Odoo no intente re-asignar automáticamente por FIFO
             try:
                 picking.move_ids._recompute_state()
             except:
