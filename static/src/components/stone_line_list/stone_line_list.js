@@ -38,7 +38,6 @@ export class StoneExpandButton extends Component {
     }
 
     async handleClick(ev) {
-        // Encontrar la fila (TR) padre
         const tr = ev.currentTarget.closest('tr');
         if (!tr) return;
 
@@ -46,35 +45,29 @@ export class StoneExpandButton extends Component {
             this.removeGrid();
             this.isExpanded = false;
         } else {
-            // Cerrar otros grids abiertos para mantener limpieza
             document.querySelectorAll('.o_stone_details_row_tr').forEach(e => e.remove());
-            
             await this.injectContainer(tr);
             this.isExpanded = true;
         }
-        this.render(); // Actualizar icono
+        this.render();
     }
 
     async injectContainer(currentRow) {
-        // Crear nueva fila TR
         const newTr = document.createElement('tr');
         newTr.className = 'o_stone_details_row_tr';
         
-        // Crear celda TD que ocupe todo el ancho
         const colCount = currentRow.querySelectorAll('td').length || 10;
         const newTd = document.createElement('td');
         newTd.colSpan = colCount;
         newTd.style.padding = '0';
-        newTd.style.borderTop = '2px solid #714B67'; // Borde visual
+        newTd.style.borderTop = '2px solid #714B67';
         
         this.containerNode = document.createElement('div');
         this.containerNode.className = 'bg-white';
         
-        // 1. Crear Barra de Filtros
         const filterBar = this.createFilterBar();
         this.containerNode.appendChild(filterBar);
 
-        // 2. Crear Contenedor del Grid
         this.gridNode = document.createElement('div');
         this.gridNode.className = 'stone-grid-content p-0';
         this.gridNode.style.maxHeight = '400px';
@@ -85,7 +78,6 @@ export class StoneExpandButton extends Component {
         newTd.appendChild(this.containerNode);
         newTr.appendChild(newTd);
         
-        // Insertar después de la fila actual
         currentRow.after(newTr);
         this.detailsRow = newTr;
 
@@ -131,7 +123,6 @@ export class StoneExpandButton extends Component {
             bar.appendChild(wrapper);
         });
 
-        // Botón cerrar en la barra
         const closeBtn = document.createElement('button');
         closeBtn.className = 'btn btn-sm btn-light border ms-auto';
         closeBtn.innerHTML = '<i class="fa fa-times"></i> Cerrar';
@@ -149,9 +140,9 @@ export class StoneExpandButton extends Component {
         if (!this.gridNode) return;
         
         const recordData = this.props.record.data;
-        let productId = false;
+        console.log("[STONE_JS] Data del registro:", recordData);
 
-        // Obtener ID producto de forma segura
+        let productId = false;
         if (recordData.product_id) {
             if (Array.isArray(recordData.product_id)) productId = recordData.product_id[0];
             else if (typeof recordData.product_id === 'number') productId = recordData.product_id;
@@ -163,16 +154,29 @@ export class StoneExpandButton extends Component {
             return;
         }
 
-        // Obtener IDs seleccionados actualmente en el campo many2many
+        // --- EXTRACCIÓN ROBUSTA DE LOTES ---
         let currentLotIds = [];
         const rawLots = this.props.record.data.lot_ids;
+        
+        // Debug para ver qué formato llega
+        console.log("[STONE_JS] Raw lots data:", rawLots);
+
         if (rawLots) {
-            if (Array.isArray(rawLots)) currentLotIds = [...rawLots];
-            else if (rawLots.currentIds) currentLotIds = [...rawLots.currentIds];
+            if (Array.isArray(rawLots)) {
+                // Caso simple: Lista de IDs
+                currentLotIds = [...rawLots];
+            } else if (rawLots.currentIds) {
+                // Caso Odoo Proxy (x2many)
+                currentLotIds = [...rawLots.currentIds];
+            } else if (rawLots.records) {
+                // Caso Records cargados
+                currentLotIds = rawLots.records.map(r => r.data.id);
+            }
         }
 
+        console.log("[STONE_JS] IDs Enviados al backend:", currentLotIds);
+
         try {
-            // Llamada al backend para obtener stock
             const quants = await this.orm.call(
                 'stock.quant', 
                 'search_stone_inventory_for_so', 
@@ -183,7 +187,8 @@ export class StoneExpandButton extends Component {
                     current_lot_ids: currentLotIds
                 }
             );
-
+            
+            console.log("[STONE_JS] Resultados recibidos:", quants.length);
             this.renderTable(quants, currentLotIds);
         } catch (error) {
             console.error(error);
@@ -197,7 +202,6 @@ export class StoneExpandButton extends Component {
             return;
         }
 
-        // Agrupar por bloque
         const groups = {};
         quants.forEach(q => {
             const b = q.x_bloque || 'Sin Bloque';
@@ -236,13 +240,14 @@ export class StoneExpandButton extends Component {
                 const lotId = q.lot_id ? q.lot_id[0] : 0;
                 const lotName = q.lot_id ? q.lot_id[1] : '';
                 const locName = q.location_id ? q.location_id[1].split('/').pop() : '';
+                
+                // Conversión segura a entero para comparación
                 const isChecked = selectedIds.includes(lotId);
                 const isReserved = q.reserved_quantity > 0;
 
                 let rowClass = isChecked ? 'table-primary' : '';
                 let statusBadge = '';
                 
-                // Mostrar estado visual
                 if (isChecked && isReserved) statusBadge = '<span class="badge bg-success" style="font-size:9px">Asignado</span>';
                 else if (isReserved) statusBadge = '<span class="badge bg-warning text-dark" style="font-size:9px">Reservado</span>';
                 else statusBadge = '<span class="badge bg-light text-muted border" style="font-size:9px">Libre</span>';
@@ -269,7 +274,6 @@ export class StoneExpandButton extends Component {
         
         this.gridNode.innerHTML = html;
 
-        // Añadir listeners a los checkboxes
         this.gridNode.querySelectorAll('.stone-chk').forEach(input => {
             input.addEventListener('change', (e) => this.onSelectionChange(e));
         });
@@ -280,18 +284,19 @@ export class StoneExpandButton extends Component {
         const isChecked = ev.target.checked;
         const row = ev.target.closest('tr');
         
-        // Efecto visual inmediato
         if (isChecked) row.classList.add('table-primary');
         else row.classList.remove('table-primary');
 
-        // Lógica de actualización de IDs
         let currentIds = [];
         const rawLots = this.props.record.data.lot_ids;
         
+        // Misma lógica de extracción robusta que en loadData
         if (rawLots) {
             if (Array.isArray(rawLots)) currentIds = [...rawLots];
             else if (rawLots.currentIds) currentIds = [...rawLots.currentIds];
         }
+
+        console.log(`[STONE_JS] Click en ID ${id}. Estado actual:`, currentIds);
 
         if (isChecked) {
             if (!currentIds.includes(id)) currentIds.push(id);
@@ -299,8 +304,7 @@ export class StoneExpandButton extends Component {
             currentIds = currentIds.filter(x => x !== id);
         }
 
-        // Actualizar el campo 'lot_ids' de la línea de venta
-        // Esto dispara el _onchange_lot_ids en el backend que recalcula los M2
+        console.log("[STONE_JS] Actualizando lot_ids a:", currentIds);
         this.props.record.update({ lot_ids: [[6, 0, currentIds]] });
     }
 
@@ -312,13 +316,11 @@ export class StoneExpandButton extends Component {
     }
 }
 
-// Registro del Widget en Odoo
 registry.category("fields").add("stone_expand_button", {
     component: StoneExpandButton,
     displayName: "Botón Selección Piedra",
 });
 
-// Registro de la vista de lista (boiler plate para Odoo 19)
 export const stoneOrderLineListView = {
     ...listView,
 };
