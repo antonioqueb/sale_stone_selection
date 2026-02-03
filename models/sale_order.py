@@ -4,10 +4,6 @@ import logging
 
 _logger = logging.getLogger(__name__)
 
-try:
-    from odoo.addons.stock_lot_dimensions.models.utils.picking_cleaner import PickingLotCleaner
-except ImportError:
-    PickingLotCleaner = None
 
 class SaleOrder(models.Model):
     _inherit = 'sale.order'
@@ -17,72 +13,81 @@ class SaleOrder(models.Model):
         Confirmación con asignación estricta de lotes seleccionados.
         """
         _logger.info("=" * 80)
-        _logger.info("[STONE ORDER CONFIRM] INICIO - Orden(es): %s", self.mapped('name'))
+        _logger.info("[STONE] ACTION_CONFIRM INICIO - Órdenes: %s", self.mapped('name'))
         
         # 1. GUARDAR los lotes ANTES de confirmar
         lines_lots_map = {}
+        all_protected_lot_ids = []
+        
         for order in self:
             for line in order.order_line.filtered(lambda l: l.lot_ids):
-                lines_lots_map[line.id] = line.lot_ids.ids.copy()
-                _logger.info("[STONE] Guardando lotes línea %s: %s", line.id, lines_lots_map[line.id])
+                lot_ids = line.lot_ids.ids.copy()
+                lines_lots_map[line.id] = {
+                    'lot_ids': lot_ids,
+                    'product_id': line.product_id.id,
+                }
+                all_protected_lot_ids.extend(lot_ids)
+                _logger.info("[STONE] Guardando línea %s: lotes=%s", line.id, lot_ids)
         
-        # 2. Confirmar con contexto de protección TOTAL
-        ctx = dict(self.env.context, 
-                   is_stone_confirming=True, 
-                   skip_stone_sync=True,
-                   skip_back_sync=True)
+        if not lines_lots_map:
+            _logger.info("[STONE] No hay líneas con lotes, confirmación normal")
+            return super().action_confirm()
+        
+        # 2. Confirmar con contexto que protege nuestros lotes
+        ctx = dict(self.env.context,
+                   skip_picking_clean=True,  # Evitar que el cleaner borre todo
+                   protected_lot_ids=all_protected_lot_ids,
+                   is_stone_confirming=True)
+        
         res = super(SaleOrder, self.with_context(ctx)).action_confirm()
         
-        # 3. Limpiar asignaciones automáticas FIFO
-        self.with_context(ctx)._clear_auto_assigned_lots()
+        _logger.info("[STONE] Confirmación base completada")
         
-        # 4. Asignar nuestros lotes seleccionados
+        # 3. Limpiar SOLO los lotes NO protegidos y asignar los nuestros
         for order in self:
             pickings = order.picking_ids.filtered(lambda p: p.state not in ['cancel', 'done'])
+            
             if not pickings:
                 continue
 
+            # Limpiar move_lines que NO son de nuestros lotes seleccionados
+            for picking in pickings:
+                for move in picking.move_ids.filtered(lambda m: m.state not in ['done', 'cancel']):
+                    lines_to_remove = move.move_line_ids.filtered(
+                        lambda ml: ml.lot_id.id not in all_protected_lot_ids
+                    )
+                    if lines_to_remove:
+                        _logger.info("[STONE] Limpiando %s move_lines NO protegidas", len(lines_to_remove))
+                        lines_to_remove.unlink()
+
+            # Asignar nuestros lotes
             for line in order.order_line:
-                lot_ids = lines_lots_map.get(line.id, [])
-                if not lot_ids:
+                line_data = lines_lots_map.get(line.id)
+                if not line_data:
                     continue
                     
-                lots = self.env['stock.lot'].browse(lot_ids)
-                _logger.info("[STONE] Asignando lotes %s a línea %s", lots.mapped('name'), line.id)
+                lots = self.env['stock.lot'].browse(line_data['lot_ids'])
+                _logger.info("[STONE] Asignando %s lotes a línea %s", len(lots), line.id)
                 self.with_context(ctx)._assign_stone_lots_to_picking(pickings, line, lots)
         
-        # 5. RESTAURAR lot_ids en las líneas (por si algo los borró)
-        for line_id, lot_ids in lines_lots_map.items():
+        # 4. Restaurar lot_ids en las líneas
+        for line_id, line_data in lines_lots_map.items():
             line = self.env['sale.order.line'].browse(line_id)
-            if line.exists() and set(line.lot_ids.ids) != set(lot_ids):
-                _logger.info("[STONE] Restaurando lot_ids en línea %s: %s", line_id, lot_ids)
-                line.with_context(ctx).write({'lot_ids': [(6, 0, lot_ids)]})
+            if line.exists() and set(line.lot_ids.ids) != set(line_data['lot_ids']):
+                _logger.info("[STONE] Restaurando lot_ids línea %s", line_id)
+                line.with_context(ctx).write({'lot_ids': [(6, 0, line_data['lot_ids'])]})
         
-        _logger.info("[STONE ORDER CONFIRM] FIN")
+        _logger.info("[STONE] ACTION_CONFIRM FIN")
         _logger.info("=" * 80)
         return res
 
-    def _clear_auto_assigned_lots(self):
-        """Limpia las reservas automáticas FIFO de los pickings."""
-        ctx = dict(self.env.context, skip_stone_sync=True, is_stone_confirming=True)
-        
-        for order in self:
-            for picking in order.picking_ids.filtered(lambda p: p.state not in ['cancel', 'done']):
-                for move in picking.move_ids.filtered(lambda m: m.state not in ['done', 'cancel']):
-                    if move.move_line_ids:
-                        _logger.info("[STONE] Limpiando %s move_lines de move %s", 
-                                    len(move.move_line_ids), move.id)
-                        move.move_line_ids.with_context(ctx).unlink()
-
     def _assign_stone_lots_to_picking(self, pickings, sale_line, lots):
-        """
-        Asigna los lotes seleccionados al picking.
-        """
+        """Asigna los lotes seleccionados al picking."""
         product = sale_line.product_id
         if not lots:
             return
 
-        ctx = dict(self.env.context, skip_stone_sync=True, is_stone_confirming=True)
+        ctx = dict(self.env.context, skip_stone_sync=True, skip_picking_clean=True)
 
         for picking in pickings:
             moves = picking.move_ids.filtered(
@@ -94,8 +99,15 @@ class SaleOrder(models.Model):
                 continue
             
             for move in moves:
+                # Verificar qué lotes ya están asignados
+                existing_lot_ids = move.move_line_ids.mapped('lot_id').ids
+                
                 for lot in lots:
-                    # Buscar quant
+                    # Si ya existe, no duplicar
+                    if lot.id in existing_lot_ids:
+                        _logger.info("[STONE] Lote %s ya asignado, omitiendo", lot.name)
+                        continue
+                    
                     quant = self.env['stock.quant'].search([
                         ('lot_id', '=', lot.id),
                         ('product_id', '=', product.id),
@@ -129,10 +141,6 @@ class SaleOrder(models.Model):
                     except Exception as e:
                         _logger.error("[STONE] ❌ Error: %s", str(e))
 
-    # =========================================================================
-    # Mantener los métodos de diagnóstico para copy
-    # =========================================================================
-    
     def copy_data(self, default=None):
         _logger.info("[STONE ORDER COPY_DATA] Orden: %s", self.name)
         return super().copy_data(default)
