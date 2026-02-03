@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="sale_stone_selection.StoneMoveGridField" owl="1">
+        <div class="o_stone_move_panel border rounded bg-white mt-2">
+            
+            <!-- 1. Barra de Filtros -->
+            <div class="d-flex flex-wrap gap-2 p-2 bg-light border-bottom align-items-end">
+                <div class="d-flex flex-column">
+                    <span class="text-muted fw-bold" style="font-size:10px;">LOTE</span>
+                    <input type="text" class="form-control form-control-sm" style="width:120px;" 
+                           placeholder="Buscar..."
+                           t-model="state.filters.lot_name" 
+                           t-on-input="(e) => this.onFilterChange('lot_name', e.target.value)"/>
+                </div>
+                <div class="d-flex flex-column">
+                    <span class="text-muted fw-bold" style="font-size:10px;">BLOQUE</span>
+                    <input type="text" class="form-control form-control-sm" style="width:80px;" 
+                           placeholder="B-01"
+                           t-model="state.filters.bloque" 
+                           t-on-input="(e) => this.onFilterChange('bloque', e.target.value)"/>
+                </div>
+                <div class="d-flex flex-column">
+                    <span class="text-muted fw-bold" style="font-size:10px;">ATADO</span>
+                    <input type="text" class="form-control form-control-sm" style="width:80px;" 
+                           placeholder="A-1"
+                           t-model="state.filters.atado" 
+                           t-on-input="(e) => this.onFilterChange('atado', e.target.value)"/>
+                </div>
+                <!-- Botón de recarga manual -->
+                <button class="btn btn-link btn-sm ms-auto" t-on-click="loadInventory" title="Actualizar">
+                    <i class="fa fa-refresh" t-att-class="state.isLoading ? 'fa-spin' : ''"/>
+                </button>
+            </div>
+
+            <!-- 2. Grid de Resultados -->
+            <div class="stone-grid-content p-0" style="max-height: 500px; overflow-y: auto;">
+                
+                <div t-if="state.isLoading" class="text-center py-5 text-muted">
+                    <i class="fa fa-circle-o-notch fa-spin fa-2x"/>
+                    <div class="mt-2">Cargando material...</div>
+                </div>
+
+                <div t-elif="state.quants.length === 0" class="alert alert-warning m-3">
+                    <i class="fa fa-exclamation-triangle me-2"/> No hay material disponible con estos filtros.
+                </div>
+
+                <table t-else="" class="table table-sm table-hover table-bordered mb-0" style="font-size: 12px;">
+                    <thead class="bg-light sticky-top" style="top:0; z-index:10;">
+                        <tr>
+                            <th width="40" class="text-center">#</th>
+                            <th>Lote</th>
+                            <th>Ubicación</th>
+                            <th class="text-end">Dimensión</th>
+                            <th class="text-end">M²</th>
+                            <th>Bloque</th>
+                            <th>Tipo</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <t t-foreach="groupedQuants" t-as="group" t-key="group.name">
+                            <!-- Cabecera de Grupo -->
+                            <tr class="table-secondary">
+                                <td colspan="7" class="fw-bold px-3 py-1">
+                                    <div class="d-flex justify-content-between">
+                                        <span><i class="fa fa-cubes me-1"/> Bloque: <t t-esc="group.name"/></span>
+                                        <span class="badge bg-dark">Total: <t t-esc="group.totalArea.toFixed(2)"/> m²</span>
+                                    </div>
+                                </td>
+                            </tr>
+                            
+                            <!-- Items -->
+                            <t t-foreach="group.items" t-as="q" t-key="q.id">
+                                <t t-set="isSelected" t-value="isLotSelected(q.lot_id ? q.lot_id[0] : 0)"/>
+                                <tr t-on-click="() => this.toggleLot(q)" 
+                                    style="cursor:pointer;"
+                                    t-att-class="isSelected ? 'bg-primary bg-opacity-25' : ''">
+                                    
+                                    <td class="text-center align-middle">
+                                        <input type="checkbox" class="form-check-input mt-0"
+                                               t-att-checked="isSelected"
+                                               style="pointer-events: none;"/>
+                                    </td>
+                                    
+                                    <td class="align-middle fw-bold font-monospace">
+                                        <t t-esc="q.lot_id ? q.lot_id[1] : 'S/L'"/>
+                                    </td>
+                                    <td class="align-middle text-muted small">
+                                        <t t-esc="q.location_id ? q.location_id[1].split('/').pop() : ''"/>
+                                    </td>
+                                    <td class="align-middle text-end font-monospace">
+                                        <t t-if="q.x_alto and q.x_ancho">
+                                            <t t-esc="q.x_alto"/> × <t t-esc="q.x_ancho"/>
+                                        </t>
+                                    </td>
+                                    <td class="align-middle text-end fw-bold">
+                                        <t t-esc="q.quantity.toFixed(2)"/>
+                                    </td>
+                                    <td class="align-middle text-muted"><t t-esc="q.x_bloque"/></td>
+                                    <td class="align-middle text-muted"><t t-esc="q.x_tipo"/></td>
+                                </tr>
+                            </t>
+                        </t>
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- 3. Footer -->
+            <div class="bg-light p-2 border-top d-flex justify-content-between text-muted small">
+                <span><i class="fa fa-info-circle"/> Selecciona las placas para asignarlas a este movimiento.</span>
+                <span class="fw-bold">
+                    <t t-esc="props.record.data.move_line_ids.records.length"/> placas asignadas
+                </span>
+            </div>
+        </div>
+    </t>
+</templates>
