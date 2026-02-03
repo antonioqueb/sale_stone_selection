@@ -1,12 +1,14 @@
 # ./__manifest__.py
 {
     'name': 'Stone Selection & Visual Sale Grid',
-    'version': '19.0.1.0.0', # <--- ACTUALIZADO A 19
+    'version': '19.0.1.1.0',
     'category': 'Sales/Sales',
-    'summary': 'Selección visual agrupada de placas (piedra/mármol) en ventas',
+    'summary': 'Selección visual de placas con reserva estricta (Anti-FIFO)',
     'description': """
-        Módulo profesional para la gestión de ventas de piedra natural.
-        Adapta la vista de lista (list view) de ventas para Odoo 19.
+        Módulo de venta de piedra natural.
+        1. Selección visual mediante Grid (Widget Stone Expand).
+        2. Reserva forzada de lotes seleccionados al confirmar la venta.
+        3. Visualización de asignaciones en Albaranes.
     """,
     'author': 'Alphaqueb Consulting SAS',
     'website': 'https://alphaqueb.com',

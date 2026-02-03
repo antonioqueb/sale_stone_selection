@@ -30,7 +30,7 @@ export class StoneMoveGridField extends Component {
         this.state.isLoading = true;
 
         // 1. Recopilar Lotes que YA están en el movimiento (Move Lines)
-        // Esto garantiza que se vean "mis" lotes
+        // Esto garantiza que veamos los lotes asignados por la venta
         const currentLines = recordData.move_line_ids.records || [];
         const currentLotIds = [];
         const virtualQuants = [];
@@ -40,13 +40,13 @@ export class StoneMoveGridField extends Component {
             if (lotData) {
                 const lotId = lotData[0];
                 currentLotIds.push(lotId);
-                // Crear un "Quant Virtual" visual
+                // Crear un "Quant Virtual" visual para mostrar lo asignado
                 virtualQuants.push({
                     id: `virtual_${lotId}`,
                     lot_id: lotData,
                     quantity: line.data.quantity || 0,
                     location_id: line.data.location_id || recordData.location_id,
-                    x_bloque: ' ASIGNADO', // Espacio al inicio para ordenar primero
+                    x_bloque: ' ASIGNADO', // Espacio para que salga al inicio
                     x_tipo: 'Placa',
                     is_virtual: true
                 });
@@ -60,14 +60,14 @@ export class StoneMoveGridField extends Component {
         }
 
         try {
-            // 2. Buscar stock real (pasando currentLotIds para que el backend los incluya con OR)
+            // 2. Buscar stock real, incluyendo los IDs actuales
             const quants = await this.orm.call('stock.quant', 'search_stone_inventory_for_so', [], {
                 product_id: productId,
                 filters: this.state.filters,
                 current_lot_ids: currentLotIds
             });
 
-            // 3. Fusión Inteligente (Server + Virtuales que faltaron)
+            // 3. Fusión: Usar datos del server, pero rellenar con virtuales si faltan
             const serverLotIds = new Set(quants.map(q => q.lot_id[0]));
             const missingVirtuals = virtualQuants.filter(vq => !serverLotIds.has(vq.lot_id[0]));
             
@@ -75,7 +75,6 @@ export class StoneMoveGridField extends Component {
 
         } catch (e) {
             console.error("Error cargando inventario:", e);
-            // Fallback: mostrar lo que ya tenemos
             this.state.quants = virtualQuants;
         } finally {
             this.state.isLoading = false;
@@ -86,7 +85,6 @@ export class StoneMoveGridField extends Component {
         if (this.state.quants.length === 0) return [];
 
         const groups = {};
-        // Ordenar: ASIGNADO primero, luego alfabético
         const sorted = this.state.quants.sort((a, b) => {
             const bla = a.x_bloque || 'zzz';
             const blb = b.x_bloque || 'zzz';
@@ -122,6 +120,7 @@ export class StoneMoveGridField extends Component {
         if (existingLine) {
             await x2many.removeRecord(existingLine);
         } else {
+            // Agregar reserva manual desde el picking
             await x2many.addNewRecord({
                 context: {
                     default_lot_id: lotId,
