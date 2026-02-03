@@ -5,10 +5,6 @@ import { standardFieldProps } from "@web/views/fields/standard_field_props";
 import { Component, xml, onWillUnmount } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 
-/**
- * Widget "Botón Expansor" para la línea de venta.
- * Al hacer clic, inyecta la tabla (grid) debajo de la fila.
- */
 export class StoneExpandButton extends Component {
     static template = xml`
         <div class="o_stone_toggle_btn cursor-pointer d-flex align-items-center justify-content-center" 
@@ -28,7 +24,6 @@ export class StoneExpandButton extends Component {
         this.gridNode = null;
         this.isExpanded = false;
         
-        // Filtros locales para el buscador dentro del grid
         this.filters = { lot_name: '', bloque: '', atado: '', alto_min: '', ancho_min: '' };
         this.searchTimeout = null;
         
@@ -136,12 +131,41 @@ export class StoneExpandButton extends Component {
         return bar;
     }
 
+    /**
+     * EXTRACTOR SEGURO DE IDS (Corrección Principal)
+     */
+    extractLotIds(rawLots) {
+        if (!rawLots) return [];
+        
+        // 1. Caso Array simple [1, 2, 3]
+        if (Array.isArray(rawLots)) {
+            return rawLots;
+        }
+        
+        // 2. Caso Odoo X2Many RecordList (la mayoría de los casos en V16+)
+        // `records` contiene objetos Proxy que tienen la data
+        if (rawLots.records && Array.isArray(rawLots.records)) {
+            return rawLots.records.map(r => r.resId || r.data.id).filter(id => id);
+        }
+
+        // 3. Caso Odoo Legacy o estructura especial
+        if (rawLots.currentIds && Array.isArray(rawLots.currentIds)) {
+            return rawLots.currentIds;
+        }
+
+        return [];
+    }
+
     async loadData() {
         if (!this.gridNode) return;
         
         const recordData = this.props.record.data;
-        console.log("[STONE_JS] Data del registro:", recordData);
-
+        
+        // --- LOGGING DIAGNÓSTICO EN CONSOLA NAVEGADOR ---
+        console.group("STONE SELECTION DEBUG");
+        console.log("Record Data:", recordData);
+        console.log("Raw lot_ids field:", recordData.lot_ids);
+        
         let productId = false;
         if (recordData.product_id) {
             if (Array.isArray(recordData.product_id)) productId = recordData.product_id[0];
@@ -151,30 +175,14 @@ export class StoneExpandButton extends Component {
 
         if (!productId) {
             this.gridNode.innerHTML = '<div class="alert alert-warning m-2">Selecciona un producto primero.</div>';
+            console.groupEnd();
             return;
         }
 
-        // --- EXTRACCIÓN ROBUSTA DE LOTES ---
-        let currentLotIds = [];
-        const rawLots = this.props.record.data.lot_ids;
-        
-        // Debug para ver qué formato llega
-        console.log("[STONE_JS] Raw lots data:", rawLots);
-
-        if (rawLots) {
-            if (Array.isArray(rawLots)) {
-                // Caso simple: Lista de IDs
-                currentLotIds = [...rawLots];
-            } else if (rawLots.currentIds) {
-                // Caso Odoo Proxy (x2many)
-                currentLotIds = [...rawLots.currentIds];
-            } else if (rawLots.records) {
-                // Caso Records cargados
-                currentLotIds = rawLots.records.map(r => r.data.id);
-            }
-        }
-
-        console.log("[STONE_JS] IDs Enviados al backend:", currentLotIds);
+        // Usamos el extractor robusto
+        const currentLotIds = this.extractLotIds(recordData.lot_ids);
+        console.log("IDs Extraídos para enviar al server:", currentLotIds);
+        console.groupEnd();
 
         try {
             const quants = await this.orm.call(
@@ -187,8 +195,7 @@ export class StoneExpandButton extends Component {
                     current_lot_ids: currentLotIds
                 }
             );
-            
-            console.log("[STONE_JS] Resultados recibidos:", quants.length);
+
             this.renderTable(quants, currentLotIds);
         } catch (error) {
             console.error(error);
@@ -241,7 +248,7 @@ export class StoneExpandButton extends Component {
                 const lotName = q.lot_id ? q.lot_id[1] : '';
                 const locName = q.location_id ? q.location_id[1].split('/').pop() : '';
                 
-                // Conversión segura a entero para comparación
+                // Asegurar comparación numérica
                 const isChecked = selectedIds.includes(lotId);
                 const isReserved = q.reserved_quantity > 0;
 
@@ -287,16 +294,8 @@ export class StoneExpandButton extends Component {
         if (isChecked) row.classList.add('table-primary');
         else row.classList.remove('table-primary');
 
-        let currentIds = [];
-        const rawLots = this.props.record.data.lot_ids;
-        
-        // Misma lógica de extracción robusta que en loadData
-        if (rawLots) {
-            if (Array.isArray(rawLots)) currentIds = [...rawLots];
-            else if (rawLots.currentIds) currentIds = [...rawLots.currentIds];
-        }
-
-        console.log(`[STONE_JS] Click en ID ${id}. Estado actual:`, currentIds);
+        // Usamos el mismo extractor para obtener el estado actual base
+        let currentIds = this.extractLotIds(this.props.record.data.lot_ids);
 
         if (isChecked) {
             if (!currentIds.includes(id)) currentIds.push(id);
@@ -304,7 +303,7 @@ export class StoneExpandButton extends Component {
             currentIds = currentIds.filter(x => x !== id);
         }
 
-        console.log("[STONE_JS] Actualizando lot_ids a:", currentIds);
+        // Actualizamos usando el comando [6, 0, IDs]
         this.props.record.update({ lot_ids: [[6, 0, currentIds]] });
     }
 
