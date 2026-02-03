@@ -5,13 +5,10 @@ $stone-primary: #714B67;
 .o_stone_toggle_btn {
     color: $stone-primary !important;
     transition: color 0.2s;
-    
-    &:hover {
-        color: darken($stone-primary, 15%) !important;
-    }
+    &:hover { color: darken($stone-primary, 15%) !important; }
 }
 
-// Checkbox personalizado para que se vea bien en tamaño pequeño
+// Checkbox personalizado
 .stone-chk {
     cursor: pointer;
     border-color: #adb5bd;
@@ -21,52 +18,62 @@ $stone-primary: #714B67;
     }
 }
 
-// Ajuste fino para la fila expandida
-.o_stone_details_row_tr {
-    td {
-        background-color: #f8f9fa; // Fondo gris muy claro para diferenciar del resto
-    }
+// Fila expandida
+.o_stone_details_row_tr td {
+    background-color: #f8f9fa;
+    padding: 0 !important;
 }
 
+/* --- SOLUCIÓN TAMAÑO DE MODAL Y GRILLA (ESTILO CARRITO) --- */
 
-
-
-
-
-
-
-
-// ... (estilos anteriores)
-
-/* --- FORZAR MODAL GRANDE (CASI FULL SCREEN) --- */
-/* Detectamos si el modal contiene nuestro widget de piedra */
-.o_dialog:has(.o_stone_move_panel) .modal-dialog,
-.modal-dialog:has(.o_stone_move_panel) {
-    max-width: 95vw !important; /* 95% del ancho de la pantalla */
+/* 1. Modal Gigante (95% pantalla) */
+/* Detectamos si el modal contiene nuestro widget */
+.o_dialog:has(.o_stone_move_panel),
+.o_dialog:has(.stone-grid-wrapper),
+.modal-dialog:has(.stone-grid-wrapper) {
+    max-width: 95vw !important;
     width: 95vw !important;
     margin: 10px auto !important;
+    height: 95vh !important;
+    display: flex;
+    flex-direction: column;
 }
 
 .o_dialog:has(.o_stone_move_panel) .modal-content,
 .modal-dialog:has(.o_stone_move_panel) .modal-content {
-    height: 90vh !important; /* 90% del alto */
+    height: 100%;
     display: flex;
     flex-direction: column;
 }
 
 .o_dialog:has(.o_stone_move_panel) .modal-body {
     flex: 1 1 auto;
-    overflow-y: auto;
-}
-
-/* Ajuste para que la tabla interna aproveche el espacio */
-.o_stone_move_panel {
-    height: 100%;
+    overflow: hidden !important; /* El scroll lo maneja el div interno */
+    padding: 0 !important;
     display: flex;
     flex-direction: column;
 }
 
-.stone-grid-content {
-    flex: 1; /* Que ocupe todo el espacio vertical restante */
-    max-height: none !important; /* Quitar límite fijo */
+/* 2. Contenedor Flexible */
+.o_stone_move_panel,
+.o_stone_selection_panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+    background-color: white;
+}
+
+/* 3. Área de Scroll de la Tabla */
+.stone-grid-content,
+.stone-grid-wrapper {
+    flex: 1 1 auto; /* Ocupar todo el espacio vertical disponible */
+    overflow-y: auto !important;
+    max-height: none !important; /* Eliminar restricción de altura */
+    min-height: 400px;
+}
+
+/* 4. Tabla Ancha */
+.o_stone_table {
+    width: 100%;
 }
