@@ -5,11 +5,13 @@ class SaleOrderLine(models.Model):
     _inherit = 'sale.order.line'
 
     # Almacena la selección visual
+    # CAMBIO: Se cambia copy=False a copy=True para permitir que la selección
+    # persista al duplicar la cotización hacia la orden de venta.
     lot_ids = fields.Many2many(
         'stock.lot',
         string='Placas Seleccionadas',
         domain="[('product_id', '=', product_id)]",
-        copy=False
+        copy=True
     )
 
     is_stone_expanded = fields.Boolean("Detalles Desplegados", default=False)
