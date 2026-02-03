@@ -13,31 +13,55 @@ class StockMove(models.Model):
         """
         res = super(StockMove, self)._recompute_state()
         
-        # PROTEGER LA SELECCIÓN:
-        # Si estamos en medio de la confirmación de la venta (is_stone_confirming),
-        # NO sincronizamos hacia atrás. Confiamos en que la SO es la fuente de la verdad.
+        # PROTECCIÓN CRÍTICA:
+        # 1. Durante confirmación inicial (is_stone_confirming)
+        # 2. Si ya estamos en una sincronización (skip_back_sync)  
+        # 3. Si estamos en el proceso de limpieza de pickings (skip_stone_sync)
         if self.env.context.get('is_stone_confirming'):
             return res
+            
+        if self.env.context.get('skip_back_sync'):
+            return res
+            
+        if self.env.context.get('skip_stone_sync'):
+            return res
 
-        if not self.env.context.get('skip_back_sync'):
-            self._sync_lots_back_to_so()
+        # Solo sincronizar si NO estamos en proceso de asignación
+        # y si el picking ya está en un estado estable
+        for move in self:
+            if move.picking_id and move.picking_id.state in ('assigned', 'done'):
+                self._sync_lots_back_to_so()
+                break
             
         return res
 
     def _sync_lots_back_to_so(self):
-        """ Sincroniza stock.move.line -> sale.order.line.lot_ids """
+        """
+        Sincroniza stock.move.line -> sale.order.line.lot_ids
+        SOLO cuando el usuario modifica manualmente el picking.
+        """
+        # Verificar contexto de protección
+        if self.env.context.get('is_stone_confirming'):
+            return
+        if self.env.context.get('skip_stone_sync'):
+            return
+            
         for move in self:
-            if move.sale_line_id and move.picking_type_id.code == 'outgoing':
-                # Obtener lotes actuales en el movimiento
-                current_reservation_lots = move.move_line_ids.mapped('lot_id')
+            if not move.sale_line_id:
+                continue
+            if not move.picking_type_id or move.picking_type_id.code != 'outgoing':
+                continue
+            
+            # Solo sincronizar si el picking está completamente asignado
+            if move.picking_id.state not in ('assigned', 'done'):
+                continue
                 
-                # Obtener lotes en la SO
-                so_lots = move.sale_line_id.lot_ids
-                
-                # Comparación de IDs (Set)
-                if set(current_reservation_lots.ids) != set(so_lots.ids):
-                    _logger.info(f"[STONE] Sincronizando Picking {move.picking_id.name} -> SO {move.sale_line_id.order_id.name}")
-                    # Usamos skip_stock_sync para evitar bucles infinitos si escribimos en la SO
-                    move.sale_line_id.with_context(skip_stock_sync=True).write({
-                        'lot_ids': [(6, 0, current_reservation_lots.ids)]
-                    })
+            current_reservation_lots = move.move_line_ids.mapped('lot_id')
+            so_lots = move.sale_line_id.lot_ids
+            
+            if set(current_reservation_lots.ids) != set(so_lots.ids):
+                _logger.info("[STONE] Sincronizando Picking %s -> SO %s", 
+                            move.picking_id.name, move.sale_line_id.order_id.name)
+                move.sale_line_id.with_context(skip_stock_sync=True).write({
+                    'lot_ids': [(6, 0, current_reservation_lots.ids)]
+                })

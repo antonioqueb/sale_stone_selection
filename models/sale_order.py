@@ -163,6 +163,9 @@ class SaleOrder(models.Model):
         if not selected_lots:
             return
 
+        # Usar contexto para evitar que _sync_lots_back_to_so interfiera
+        ctx = dict(self.env.context, skip_stone_sync=True)
+
         for picking in pickings:
             moves = picking.move_ids.filtered(
                 lambda m: m.product_id.id == product.id and m.state not in ['done', 'cancel']
@@ -170,7 +173,7 @@ class SaleOrder(models.Model):
             
             for move in moves:
                 if move.move_line_ids:
-                    move.move_line_ids.unlink()
+                    move.with_context(ctx).move_line_ids.unlink()
                 
                 remaining_demand = move.product_uom_qty
                 
@@ -206,7 +209,7 @@ class SaleOrder(models.Model):
                         continue
 
                     try:
-                        self.env['stock.move.line'].create({
+                        self.env['stock.move.line'].with_context(ctx).create({
                             'move_id': move.id,
                             'picking_id': picking.id,
                             'product_id': product.id,
@@ -221,6 +224,6 @@ class SaleOrder(models.Model):
                         _logger.error("[STONE] Error reservando lote %s: %s", lot.name, e)
             
             try:
-                picking.move_ids._recompute_state()
+                picking.with_context(ctx).move_ids._recompute_state()
             except:
                 pass
