@@ -27,3 +27,46 @@ $stone-primary: #714B67;
         background-color: #f8f9fa; // Fondo gris muy claro para diferenciar del resto
     }
 }
+
+
+
+
+
+
+
+
+
+// ... (estilos anteriores)
+
+/* --- FORZAR MODAL GRANDE (CASI FULL SCREEN) --- */
+/* Detectamos si el modal contiene nuestro widget de piedra */
+.o_dialog:has(.o_stone_move_panel) .modal-dialog,
+.modal-dialog:has(.o_stone_move_panel) {
+    max-width: 95vw !important; /* 95% del ancho de la pantalla */
+    width: 95vw !important;
+    margin: 10px auto !important;
+}
+
+.o_dialog:has(.o_stone_move_panel) .modal-content,
+.modal-dialog:has(.o_stone_move_panel) .modal-content {
+    height: 90vh !important; /* 90% del alto */
+    display: flex;
+    flex-direction: column;
+}
+
+.o_dialog:has(.o_stone_move_panel) .modal-body {
+    flex: 1 1 auto;
+    overflow-y: auto;
+}
+
+/* Ajuste para que la tabla interna aproveche el espacio */
+.o_stone_move_panel {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.stone-grid-content {
+    flex: 1; /* Que ocupe todo el espacio vertical restante */
+    max-height: none !important; /* Quitar límite fijo */
+}
