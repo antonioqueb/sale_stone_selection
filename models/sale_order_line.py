@@ -117,8 +117,9 @@ class SaleOrderLine(models.Model):
 
     def write(self, vals):
         """
-        Interceptar escritura para ver cambios en lot_ids.
+        Interceptar escritura para ver cambios en lot_ids y sincronizar Pickings.
         """
+        # --- LOGGING PREVIO ---
         if 'lot_ids' in vals:
             _logger.info("=" * 80)
             _logger.info("[STONE LINE WRITE] Líneas IDs: %s", self.ids)
@@ -126,14 +127,97 @@ class SaleOrderLine(models.Model):
             _logger.info("[STONE LINE WRITE] lot_ids EN vals: %s", vals['lot_ids'])
             _logger.info("[STONE LINE WRITE] Contexto: %s", self.env.context)
         
+        # --- EJECUCIÓN SUPER ---
         result = super(SaleOrderLine, self).write(vals)
         
+        # --- SINCRONIZACIÓN BIDIRECCIONAL (SO -> PICKING) ---
+        # Si cambiaron lot_ids, la orden no es nueva y no venimos del Picking (evitar bucle)
+        if 'lot_ids' in vals and not self.env.context.get('skip_stone_sync_picking'):
+            for line in self:
+                # Solo sincronizar si la orden ya generó movimientos
+                if line.state in ['sale', 'done'] and line.move_ids:
+                    _logger.info("[STONE SYNC] Detectado cambio en lotes SO para línea %s. Sincronizando Picking...", line.id)
+                    line._sync_lots_to_picking_moves()
+
+        # --- LOGGING POSTERIOR ---
         if 'lot_ids' in vals:
             _logger.info("[STONE LINE WRITE] lot_ids DESPUÉS: %s", {l.id: l.lot_ids.ids for l in self})
             _logger.info("[STONE LINE WRITE] FIN")
             _logger.info("=" * 80)
         
         return result
+
+    def _sync_lots_to_picking_moves(self):
+        """
+        Refleja los cambios de lotes de la SO hacia los movimientos de stock (Pickings).
+        Maneja adiciones y eliminaciones.
+        """
+        # Contexto para:
+        # 1. skip_stone_sync_so: Evitar que el Picking intente escribir de vuelta a la SO (Loop Infinito)
+        # 2. skip_picking_clean: Evitar que otros módulos borren lo que estamos haciendo
+        # 3. skip_hold_validation: Permitir mover lotes aunque tengan reserva/hold
+        ctx = dict(self.env.context, 
+                   skip_stone_sync_so=True,
+                   skip_picking_clean=True,
+                   skip_hold_validation=True)
+
+        target_lots = self.lot_ids
+        
+        # Iterar sobre movimientos asociados que no estén cancelados ni finalizados
+        moves = self.move_ids.filtered(lambda m: m.state not in ['cancel', 'done'])
+        
+        for move in moves:
+            picking = move.picking_id
+            existing_move_lines = move.move_line_ids
+            existing_lots = existing_move_lines.mapped('lot_id')
+
+            # A. DETECTAR QUÉ BORRAR (Están en Picking pero ya no en SO)
+            lots_to_remove = existing_lots - target_lots
+            if lots_to_remove:
+                lines_to_unlink = existing_move_lines.filtered(lambda ml: ml.lot_id in lots_to_remove)
+                _logger.info("[STONE SYNC] Eliminando %s lotes del picking %s", len(lines_to_unlink), picking.name)
+                lines_to_unlink.with_context(ctx).unlink()
+
+            # B. DETECTAR QUÉ AGREGAR (Están en SO pero no en Picking)
+            lots_to_add = target_lots - existing_lots
+            if lots_to_add:
+                _logger.info("[STONE SYNC] Agregando %s lotes al picking %s", len(lots_to_add), picking.name)
+                for lot in lots_to_add:
+                    # 1. Buscar disponibilidad física real (donde esté el lote actualmente)
+                    # Intentamos primero en la ubicación del movimiento o sus hijos
+                    quant = self.env['stock.quant'].search([
+                        ('lot_id', '=', lot.id),
+                        ('product_id', '=', self.product_id.id),
+                        ('location_id', 'child_of', move.location_id.id),
+                        ('quantity', '>', 0)
+                    ], limit=1)
+                    
+                    # 2. Fallback: Si no está ahí (ej. se movió), buscar en cualquier ubicación interna
+                    if not quant:
+                        quant = self.env['stock.quant'].search([
+                            ('lot_id', '=', lot.id),
+                            ('product_id', '=', self.product_id.id),
+                            ('location_id.usage', '=', 'internal'),
+                            ('quantity', '>', 0)
+                        ], limit=1)
+
+                    if quant:
+                        move_line_vals = {
+                            'move_id': move.id,
+                            'picking_id': picking.id,
+                            'product_id': self.product_id.id,
+                            'product_uom_id': move.product_uom.id,
+                            'lot_id': lot.id,
+                            'location_id': quant.location_id.id, # Usar ubicación real del lote
+                            'location_dest_id': move.location_dest_id.id,
+                            'quantity': quant.quantity, # Cantidad total del quant
+                        }
+                        try:
+                            self.env['stock.move.line'].with_context(ctx).create(move_line_vals)
+                        except Exception as e:
+                            _logger.error("[STONE SYNC] Error creando move line para lote %s: %s", lot.name, str(e))
+                    else:
+                        _logger.warning("[STONE SYNC] No se pudo sincronizar lote %s: No stock físico encontrado", lot.name)
 
     def read(self, fields=None, load='_classic_read'):
         """
