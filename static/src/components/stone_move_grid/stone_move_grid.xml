@@ -5,40 +5,37 @@
             
             <!-- HEADER -->
             <div class="stone-header">
-                <div class="d-flex align-items-center gap-2">
-                    <span class="text-white-50 small">Lote:</span>
-                    <input type="text" class="form-control form-control-sm" style="width:120px;" 
+                <div class="input-group input-group-sm" style="width: auto;">
+                    <span class="input-group-text">Lote</span>
+                    <input type="text" class="form-control" style="width:120px;" 
                            placeholder="Buscar..."
                            t-model="state.filters.lot_name" 
                            t-on-input="(e) => this.onFilterChange('lot_name', e.target.value)"/>
                 </div>
-                <div class="d-flex align-items-center gap-2">
-                    <span class="text-white-50 small">Bloque:</span>
-                    <input type="text" class="form-control form-control-sm" style="width:100px;" 
+                <div class="input-group input-group-sm" style="width: auto;">
+                    <span class="input-group-text">Bloque</span>
+                    <input type="text" class="form-control" style="width:100px;" 
                            t-model="state.filters.bloque" 
                            t-on-input="(e) => this.onFilterChange('bloque', e.target.value)"/>
                 </div>
-                <div class="d-flex align-items-center gap-2">
-                    <span class="text-white-50 small">Atado:</span>
-                    <input type="text" class="form-control form-control-sm" style="width:80px;" 
+                <div class="input-group input-group-sm" style="width: auto;">
+                    <span class="input-group-text">Atado</span>
+                    <input type="text" class="form-control" style="width:80px;" 
                            t-model="state.filters.atado" 
                            t-on-input="(e) => this.onFilterChange('atado', e.target.value)"/>
                 </div>
                 
-                <div class="d-flex align-items-center gap-4 ms-auto">
-                    <div class="text-white">
-                        <span class="opacity-75">Disponibles:</span>
-                        <strong class="ms-1"><t t-esc="state.quants.length"/></strong>
-                    </div>
-                    <div class="text-success">
-                        <span class="opacity-75">Seleccionadas:</span>
-                        <strong class="ms-1"><t t-esc="selectedCount"/></strong>
-                    </div>
-                    <div class="text-info">
-                        <span class="opacity-75">Total:</span>
-                        <strong class="ms-1"><t t-esc="selectedTotalArea"/> m²</strong>
-                    </div>
-                    <button class="btn btn-sm btn-outline-light" t-on-click="loadInventory" title="Actualizar">
+                <div class="ms-auto d-flex align-items-center gap-3">
+                    <span class="text-muted">
+                        <t t-esc="state.quants.length"/> disponibles
+                    </span>
+                    <span class="text-success fw-bold">
+                        <t t-esc="selectedCount"/> seleccionadas
+                    </span>
+                    <span class="text-primary fw-bold">
+                        <t t-esc="selectedTotalArea"/> m²
+                    </span>
+                    <button class="btn btn-sm btn-outline-secondary" t-on-click="onRefresh" title="Actualizar">
                         <i class="fa fa-refresh" t-att-class="state.isLoading ? 'fa-spin' : ''"/>
                     </button>
                 </div>
@@ -47,29 +44,25 @@
             <!-- BODY -->
             <div class="stone-body">
                 
-                <!-- Loading -->
                 <div t-if="state.isLoading" class="stone-empty">
-                    <i class="fa fa-spinner fa-spin fa-3x text-muted"/>
-                    <div class="mt-3">Cargando inventario...</div>
+                    <i class="fa fa-spinner fa-spin fa-2x text-muted"/>
+                    <div class="mt-2 text-muted">Cargando...</div>
                 </div>
 
-                <!-- Error -->
                 <div t-elif="state.error" class="stone-empty">
-                    <i class="fa fa-exclamation-triangle fa-3x text-danger"/>
-                    <div class="mt-3 text-danger"><t t-esc="state.error"/></div>
+                    <i class="fa fa-exclamation-triangle fa-2x text-danger"/>
+                    <div class="mt-2 text-danger"><t t-esc="state.error"/></div>
                 </div>
 
-                <!-- Empty -->
                 <div t-elif="state.quants.length === 0" class="stone-empty">
-                    <i class="fa fa-inbox fa-3x text-muted"/>
-                    <div class="mt-3">No hay placas disponibles</div>
+                    <i class="fa fa-inbox fa-2x text-muted"/>
+                    <div class="mt-2 text-muted">No hay placas disponibles</div>
                 </div>
 
-                <!-- Table -->
                 <table t-else="" class="stone-table">
                     <thead>
                         <tr>
-                            <th style="width:40px;" class="text-center">✓</th>
+                            <th class="col-check">✓</th>
                             <th>Lote</th>
                             <th>Bloque</th>
                             <th>Atado</th>
@@ -89,10 +82,12 @@
                         <t t-foreach="allItems" t-as="q" t-key="q.id">
                             <t t-set="isSelected" t-value="isLotSelected(q.lot_id ? q.lot_id[0] : 0)"/>
                             <tr t-on-click="() => this.toggleLot(q)" 
-                                t-att-class="isSelected ? 'selected' : ''">
+                                t-att-class="isSelected ? 'row-selected' : ''">
                                 
-                                <td class="text-center">
-                                    <input type="checkbox" t-att-checked="isSelected" onclick="event.stopPropagation()"/>
+                                <td class="col-check">
+                                    <input type="checkbox" 
+                                           class="form-check-input"
+                                           t-att-checked="isSelected"/>
                                 </td>
                                 <td class="fw-bold font-monospace">
                                     <t t-esc="q.lot_id ? q.lot_id[1] : '-'"/>
@@ -108,21 +103,23 @@
                                 <td class="text-center">
                                     <t t-esc="q.x_grosor or '-'"/>
                                 </td>
-                                <td class="text-end fw-bold text-success">
+                                <td class="text-end fw-bold">
                                     <t t-esc="q.quantity ? q.quantity.toFixed(2) : '0.00'"/>
                                 </td>
                                 <td><t t-esc="q.x_tipo or '-'"/></td>
                                 <td><t t-esc="q.x_color or '-'"/></td>
-                                <td>
+                                <td class="text-muted">
                                     <t t-esc="(q.location_id and q.location_id[1]) ? q.location_id[1].split('/').pop() : '-'"/>
                                 </td>
                                 <td><t t-esc="q.x_origen or '-'"/></td>
-                                <td class="font-monospace"><t t-esc="q.x_pedimento or '-'"/></td>
+                                <td class="font-monospace text-muted">
+                                    <t t-esc="q.x_pedimento or '-'"/>
+                                </td>
                                 <td>
-                                    <span t-if="q.x_detalles_placa" class="text-warning" t-att-title="q.x_detalles_placa">
-                                        <i class="fa fa-exclamation-triangle"/>
-                                    </span>
-                                    <span t-else="">-</span>
+                                    <i t-if="q.x_detalles_placa" 
+                                       class="fa fa-exclamation-triangle text-warning" 
+                                       t-att-title="q.x_detalles_placa"/>
+                                    <span t-else="" class="text-muted">-</span>
                                 </td>
                             </tr>
                         </t>
@@ -132,7 +129,10 @@
 
             <!-- FOOTER -->
             <div class="stone-footer">
-                <span><i class="fa fa-mouse-pointer me-1"/> Clic en fila para seleccionar/deseleccionar</span>
+                <span class="text-muted">
+                    <i class="fa fa-info-circle me-1"/>
+                    Clic en fila para seleccionar/deseleccionar
+                </span>
                 <span>
                     <strong><t t-esc="selectedCount"/></strong> placas = 
                     <strong><t t-esc="selectedTotalArea"/></strong> m²
