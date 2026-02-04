@@ -10,13 +10,12 @@ export class StoneMoveGridField extends Component {
         this.state = useState({
             isLoading: true,
             quants: [],
-            selectedLotIds: new Set(),
+            assignedLots: [], // Lotes ya asignados en move_line_ids
             filters: { lot_name: '', bloque: '', atado: '' }
         });
         this.searchTimeout = null;
 
         onWillStart(async () => { 
-            this._syncSelectedFromRecord();
             await this.loadInventory(); 
         });
         
@@ -26,26 +25,62 @@ export class StoneMoveGridField extends Component {
             if (oldId !== newId) {
                 await this.loadInventory(nextProps);
             }
-            this._syncSelectedFromRecord(nextProps);
         });
     }
 
     /**
-     * Sincroniza los IDs seleccionados desde el record (move_line_ids)
+     * Extrae los lotes asignados desde move_line_ids
      */
-    _syncSelectedFromRecord(props = this.props) {
+    _getAssignedLotIds(props = this.props) {
         const lines = props.record.data.move_line_ids;
-        const selectedIds = new Set();
+        const ids = [];
         
         if (lines && lines.records) {
             for (const line of lines.records) {
                 const lotData = line.data.lot_id;
-                if (lotData) {
-                    selectedIds.add(lotData[0]);
+                if (lotData && lotData[0]) {
+                    ids.push(lotData[0]);
                 }
             }
         }
-        this.state.selectedLotIds = selectedIds;
+        return ids;
+    }
+
+    /**
+     * Extrae información de los lotes asignados para mostrar aunque no estén en quants
+     */
+    _getAssignedLotsData(props = this.props) {
+        const lines = props.record.data.move_line_ids;
+        const lotsData = [];
+        
+        if (lines && lines.records) {
+            for (const line of lines.records) {
+                const lotData = line.data.lot_id;
+                const locData = line.data.location_id;
+                if (lotData && lotData[0]) {
+                    lotsData.push({
+                        id: `assigned_${lotData[0]}`,
+                        lot_id: lotData,
+                        quantity: line.data.quantity || 0,
+                        reserved_quantity: line.data.quantity || 0,
+                        location_id: locData || false,
+                        x_bloque: '',
+                        x_atado: '',
+                        x_alto: 0,
+                        x_ancho: 0,
+                        x_grosor: 0,
+                        x_tipo: '',
+                        x_color: '',
+                        x_origen: '',
+                        x_pedimento: '',
+                        x_detalles_placa: '',
+                        _isAssigned: true,
+                        _needsEnrichment: true
+                    });
+                }
+            }
+        }
+        return lotsData;
     }
 
     async loadInventory(props = this.props) {
@@ -56,136 +91,164 @@ export class StoneMoveGridField extends Component {
 
         if (!productId) {
             this.state.quants = [];
+            this.state.assignedLots = [];
             this.state.isLoading = false;
             return;
         }
 
-        // Obtener IDs de lotes ya asignados
-        const currentLotIds = Array.from(this.state.selectedLotIds);
+        // Obtener lotes ya asignados
+        const assignedLotIds = this._getAssignedLotIds(props);
+        const assignedLotsData = this._getAssignedLotsData(props);
 
         try {
-            // Llamar al servidor para obtener TODOS los datos de los lotes
+            // Llamar al servidor incluyendo los IDs asignados para que los traiga
             const quants = await this.orm.call('stock.quant', 'search_stone_inventory_for_so', [], {
                 product_id: productId,
                 filters: this.state.filters,
-                current_lot_ids: currentLotIds
+                current_lot_ids: assignedLotIds
             });
             
-            this.state.quants = quants;
+            // Enriquecer los lotes asignados con datos del servidor si están disponibles
+            const quantsMap = new Map();
+            for (const q of quants) {
+                if (q.lot_id) {
+                    quantsMap.set(q.lot_id[0], q);
+                }
+            }
+
+            // Marcar quants que están asignados
+            const enrichedQuants = quants.map(q => ({
+                ...q,
+                _isAssigned: q.lot_id ? assignedLotIds.includes(q.lot_id[0]) : false
+            }));
+
+            // Agregar lotes asignados que no aparecieron en quants (por estar completamente reservados)
+            for (const assigned of assignedLotsData) {
+                const lotId = assigned.lot_id[0];
+                if (!quantsMap.has(lotId)) {
+                    // Buscar datos del lote directamente
+                    try {
+                        const lotData = await this.orm.read('stock.lot', [lotId], [
+                            'name', 'x_bloque', 'x_atado', 'x_alto', 'x_ancho', 
+                            'x_grosor', 'x_tipo', 'x_color', 'x_origen', 
+                            'x_pedimento', 'x_detalles_placa'
+                        ]);
+                        if (lotData && lotData[0]) {
+                            const lot = lotData[0];
+                            enrichedQuants.unshift({
+                                ...assigned,
+                                lot_id: [lotId, lot.name],
+                                x_bloque: lot.x_bloque || '',
+                                x_atado: lot.x_atado || '',
+                                x_alto: lot.x_alto || 0,
+                                x_ancho: lot.x_ancho || 0,
+                                x_grosor: lot.x_grosor || 0,
+                                x_tipo: lot.x_tipo || '',
+                                x_color: lot.x_color || '',
+                                x_origen: lot.x_origen || '',
+                                x_pedimento: lot.x_pedimento || '',
+                                x_detalles_placa: lot.x_detalles_placa || '',
+                                _isAssigned: true
+                            });
+                        }
+                    } catch (e) {
+                        console.warn("No se pudo obtener datos del lote", lotId, e);
+                        enrichedQuants.unshift(assigned);
+                    }
+                }
+            }
+            
+            this.state.quants = enrichedQuants;
+            this.state.assignedLots = assignedLotIds;
         } catch (e) {
             console.error("Error cargando inventario:", e);
-            this.state.quants = [];
+            this.state.quants = assignedLotsData; // Al menos mostrar los asignados
+            this.state.assignedLots = assignedLotIds;
         } finally {
             this.state.isLoading = false;
         }
     }
 
-    get groupedQuants() {
-        if (this.state.quants.length === 0) return [];
-        
-        const groups = {};
-        
-        // Ordenar: seleccionados primero, luego por bloque
-        const sorted = [...this.state.quants].sort((a, b) => {
-            const aSelected = this.isLotSelected(a.lot_id ? a.lot_id[0] : 0) ? 0 : 1;
-            const bSelected = this.isLotSelected(b.lot_id ? b.lot_id[0] : 0) ? 0 : 1;
-            if (aSelected !== bSelected) return aSelected - bSelected;
-            
+    get allItems() {
+        // Ordenar: asignados primero
+        return [...this.state.quants].sort((a, b) => {
+            if (a._isAssigned && !b._isAssigned) return -1;
+            if (!a._isAssigned && b._isAssigned) return 1;
             const bla = a.x_bloque || 'zzz';
             const blb = b.x_bloque || 'zzz';
             return bla.localeCompare(blb);
         });
-
-        for (const q of sorted) {
-            const isSelected = this.isLotSelected(q.lot_id ? q.lot_id[0] : 0);
-            const blockName = isSelected ? '★ SELECCIONADOS' : (q.x_bloque || 'Sin Bloque').trim();
-            
-            if (!groups[blockName]) {
-                groups[blockName] = { 
-                    name: blockName, 
-                    items: [], 
-                    totalArea: 0,
-                    isSelectedGroup: isSelected
-                };
-            }
-            groups[blockName].items.push(q);
-            groups[blockName].totalArea += q.quantity;
-        }
-        
-        // Ordenar grupos: seleccionados primero
-        return Object.values(groups).sort((a, b) => {
-            if (a.isSelectedGroup && !b.isSelectedGroup) return -1;
-            if (!a.isSelectedGroup && b.isSelectedGroup) return 1;
-            return a.name.localeCompare(b.name);
-        });
     }
 
     get selectedCount() {
-        return this.state.selectedLotIds.size;
+        return this.state.assignedLots.length;
     }
 
     get selectedTotalArea() {
         let total = 0;
         for (const q of this.state.quants) {
-            if (q.lot_id && this.state.selectedLotIds.has(q.lot_id[0])) {
-                total += q.quantity;
+            if (q._isAssigned) {
+                total += q.quantity || 0;
             }
         }
         return total.toFixed(2);
     }
 
     isLotSelected(lotId) {
-        return this.state.selectedLotIds.has(lotId);
+        return this.state.assignedLots.includes(lotId);
     }
 
     async toggleLot(quant) {
         if (!quant.lot_id) return;
         
         const lotId = quant.lot_id[0];
-        const field = this.props.record.fields.move_line_ids;
-        const list = this.props.record.data.move_line_ids;
+        const isCurrentlySelected = this.isLotSelected(lotId);
+        const recordData = this.props.record.data;
+        const lines = recordData.move_line_ids;
         
-        if (this.state.selectedLotIds.has(lotId)) {
-            // DESELECCIONAR: Buscar y eliminar la línea
-            const lineToRemove = list.records.find(
-                line => line.data.lot_id && line.data.lot_id[0] === lotId
-            );
-            
-            if (lineToRemove) {
-                // Odoo 19: usar delete en el command list
-                const currentIds = list.records
-                    .filter(r => r.data.lot_id && r.data.lot_id[0] !== lotId)
-                    .map(r => r.resId)
-                    .filter(id => id);
+        try {
+            if (isCurrentlySelected) {
+                // DESELECCIONAR: Buscar línea a eliminar
+                let lineIndex = -1;
+                if (lines && lines.records) {
+                    lineIndex = lines.records.findIndex(
+                        line => line.data.lot_id && line.data.lot_id[0] === lotId
+                    );
+                }
                 
-                // Actualizar con comando de reemplazo
+                if (lineIndex >= 0) {
+                    const lineRecord = lines.records[lineIndex];
+                    // Usar comando de eliminación
+                    if (lineRecord.resId) {
+                        await this.props.record.update({
+                            move_line_ids: [[2, lineRecord.resId, 0]]
+                        });
+                    } else {
+                        // Línea nueva no guardada - usar comando 3
+                        await this.props.record.update({
+                            move_line_ids: [[3, lineIndex, 0]]
+                        });
+                    }
+                }
+            } else {
+                // SELECCIONAR: Crear nueva línea
+                const newLineVals = {
+                    lot_id: lotId,
+                    quantity: quant.quantity || 0,
+                    location_id: quant.location_id ? quant.location_id[0] : (recordData.location_id ? recordData.location_id[0] : false),
+                    location_dest_id: recordData.location_dest_id ? recordData.location_dest_id[0] : false,
+                };
+                
                 await this.props.record.update({
-                    move_line_ids: [[5, 0, 0], ...currentIds.map(id => [4, id, 0])]
+                    move_line_ids: [[0, 0, newLineVals]]
                 });
             }
             
-            this.state.selectedLotIds.delete(lotId);
-        } else {
-            // SELECCIONAR: Crear nueva línea
-            const recordData = this.props.record.data;
-            
-            // Comando para crear nueva línea (0, 0, values)
-            const newLineVals = {
-                lot_id: lotId,
-                quantity: quant.quantity,
-                location_id: quant.location_id ? quant.location_id[0] : (recordData.location_id ? recordData.location_id[0] : false),
-                location_dest_id: recordData.location_dest_id ? recordData.location_dest_id[0] : false,
-            };
-            
-            await this.props.record.update({
-                move_line_ids: [[0, 0, newLineVals]]
-            });
-            
-            this.state.selectedLotIds.add(lotId);
+            // Recargar datos
+            await this.loadInventory();
+        } catch (e) {
+            console.error("Error en toggleLot:", e);
         }
-        
-        // Recargar para refrescar grupos
-        await this.loadInventory();
     }
 
     onFilterChange(key, value) {
