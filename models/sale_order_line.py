@@ -127,11 +127,19 @@ class SaleOrderLine(models.Model):
             _logger.info("[STONE LINE WRITE] lot_ids EN vals: %s", vals['lot_ids'])
             _logger.info("[STONE LINE WRITE] Contexto: %s", self.env.context)
         
+        # 1. BLOQUEAR SYNC INVERSO (CORRECCIÓN CRÍTICA)
+        # Añadimos 'skip_stone_sync_so' al contexto antes de llamar a super().
+        # Esto evita que si Odoo crea asignaciones automáticas (FIFO) durante el write,
+        # esas asignaciones sobrescriban nuestra selección en la Sale Order.
+        ctx = dict(self.env.context, skip_stone_sync_so=True)
+
         # --- EJECUCIÓN SUPER ---
-        result = super(SaleOrderLine, self).write(vals)
+        result = super(SaleOrderLine, self.with_context(ctx)).write(vals)
         
         # --- SINCRONIZACIÓN BIDIRECCIONAL (SO -> PICKING) ---
         # Si cambiaron lot_ids, la orden no es nueva y no venimos del Picking (evitar bucle)
+        # Usamos el contexto original self.env.context para respetar flags externos, 
+        # pero ya protegimos el super() arriba.
         if 'lot_ids' in vals and not self.env.context.get('skip_stone_sync_picking'):
             for line in self:
                 # Solo sincronizar si la orden ya generó movimientos
@@ -150,7 +158,7 @@ class SaleOrderLine(models.Model):
     def _sync_lots_to_picking_moves(self):
         """
         Refleja los cambios de lotes de la SO hacia los movimientos de stock (Pickings).
-        Maneja adiciones y eliminaciones.
+        Maneja adiciones, eliminaciones y corrección de cantidades.
         """
         # Contexto para:
         # 1. skip_stone_sync_so: Evitar que el Picking intente escribir de vuelta a la SO (Loop Infinito)
@@ -167,15 +175,28 @@ class SaleOrderLine(models.Model):
         moves = self.move_ids.filtered(lambda m: m.state not in ['cancel', 'done'])
         
         for move in moves:
+            # 1. Asegurar que la demanda del movimiento coincida con la suma de nuestros lotes
+            # Esto evita que Odoo intente rellenar huecos con FIFO
+            total_area = sum(target_lots.mapped(lambda l: self.env['stock.quant'].search([
+                ('lot_id', '=', l.id),
+                ('location_id.usage', '=', 'internal'),
+                ('quantity', '>', 0)
+            ], limit=1).quantity or 0.0))
+
+            if total_area > 0 and move.product_uom_qty != total_area:
+                 _logger.info("[STONE SYNC] Ajustando demanda Move %s de %s a %s", move.id, move.product_uom_qty, total_area)
+                 move.with_context(ctx).write({'product_uom_qty': total_area})
+
             picking = move.picking_id
             existing_move_lines = move.move_line_ids
             existing_lots = existing_move_lines.mapped('lot_id')
 
-            # A. DETECTAR QUÉ BORRAR (Están en Picking pero ya no en SO)
+            # A. DETECTAR QUÉ BORRAR (Están en Picking pero NO en nuestra selección SO)
+            # NOTA: Esto eliminará también los lotes "basura" que Odoo haya asignado por FIFO
             lots_to_remove = existing_lots - target_lots
             if lots_to_remove:
                 lines_to_unlink = existing_move_lines.filtered(lambda ml: ml.lot_id in lots_to_remove)
-                _logger.info("[STONE SYNC] Eliminando %s lotes del picking %s", len(lines_to_unlink), picking.name)
+                _logger.info("[STONE SYNC] Eliminando %s lotes del picking %s (Usuario o FIFO)", len(lines_to_unlink), picking.name)
                 lines_to_unlink.with_context(ctx).unlink()
 
             # B. DETECTAR QUÉ AGREGAR (Están en SO pero no en Picking)
