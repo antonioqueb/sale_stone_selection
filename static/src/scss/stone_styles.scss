@@ -15,7 +15,7 @@ $stone-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// CHECKBOX PERSONALIZADO
+// CHECKBOX PERSONALIZADO (General)
 // ═══════════════════════════════════════════════════════════════════════════
 .stone-chk {
     cursor: pointer;
@@ -111,116 +111,134 @@ $stone-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TABLA ANCHA
+// TABLA ANCHA (Legacy)
 // ═══════════════════════════════════════════════════════════════════════════
 .o_stone_table {
     width: 100%;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// STONE CARDS - VISTA DE PLACAS
+// TABLA DE PLACAS - ESTILOS PRINCIPALES
 // ═══════════════════════════════════════════════════════════════════════════
-.stone-card {
-    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-    border-radius: 12px !important;
-    overflow: hidden;
+.stone-table {
+    font-size: 12px;
+    border-collapse: separate;
+    border-spacing: 0;
+    
+    thead {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        
+        th {
+            background: #2d3748 !important;
+            color: white !important;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-size: 10px;
+            border: none !important;
+            padding: 12px 8px !important;
+            white-space: nowrap;
+            
+            &:first-child {
+                border-radius: 0;
+            }
+            
+            &:last-child {
+                border-radius: 0;
+            }
+        }
+    }
+    
+    tbody {
+        tr {
+            transition: all 0.15s ease;
+        }
+        
+        td {
+            vertical-align: middle;
+            padding: 10px 8px !important;
+            border-bottom: 1px solid #e9ecef;
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FILA DE GRUPO (Bloque)
+// ═══════════════════════════════════════════════════════════════════════════
+.stone-group-row {
+    background: linear-gradient(90deg, #f8f9fa 0%, #e9ecef 100%) !important;
+    border-left: 4px solid $stone-primary !important;
+    
+    td {
+        border: none !important;
+        padding: 12px 16px !important;
+    }
     
     &:hover {
-        transform: translateY(-6px);
-        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18) !important;
+        background: linear-gradient(90deg, #f8f9fa 0%, #e9ecef 100%) !important;
     }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FILA DE ITEM (Placa)
+// ═══════════════════════════════════════════════════════════════════════════
+.stone-item-row {
+    transition: all 0.15s ease;
     
-    // Card seleccionada
-    &.border-primary {
-        border-color: $stone-primary !important;
-        box-shadow: 
-            0 0 0 3px rgba($stone-primary, 0.25),
-            0 8px 25px rgba($stone-primary, 0.2) !important;
+    &:hover {
+        background-color: rgba($stone-primary, 0.06) !important;
         
-        .card-body {
-            background: linear-gradient(180deg, rgba($stone-primary, 0.05) 0%, transparent 100%);
+        td {
+            color: #333;
         }
     }
     
-    // Header con imagen
-    .card-img-top-wrapper {
-        position: relative;
-        height: 140px;
-        overflow: hidden;
-        background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%);
-    }
-    
-    // Badges sobre la imagen
-    .stone-badge-overlay {
-        position: absolute;
-        z-index: 5;
-    }
-    
-    // Footer compacto
-    .card-footer {
-        font-size: 10px;
-        background: #fafafa;
-    }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// ANIMACIONES
-// ═══════════════════════════════════════════════════════════════════════════
-@keyframes pulse-selection {
-    0% { 
-        transform: scale(1); 
-        box-shadow: 0 0 0 0 rgba($stone-primary, 0.4);
-    }
-    50% { 
-        transform: scale(1.02); 
-        box-shadow: 0 0 0 10px rgba($stone-primary, 0);
-    }
-    100% { 
-        transform: scale(1); 
-        box-shadow: 0 0 0 0 rgba($stone-primary, 0);
-    }
-}
-
-.stone-card.border-primary {
-    animation: pulse-selection 0.4s ease;
-}
-
-@keyframes fade-in-up {
-    from {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-.stone-card {
-    animation: fade-in-up 0.3s ease forwards;
-    
-    @for $i from 1 through 20 {
-        &:nth-child(#{$i}) {
-            animation-delay: #{$i * 0.03}s;
+    // Fila seleccionada
+    &.stone-row-selected,
+    &.table-primary {
+        background-color: rgba($stone-primary, 0.12) !important;
+        
+        td {
+            border-color: rgba($stone-primary, 0.2) !important;
+        }
+        
+        td:first-child {
+            border-left: 4px solid $stone-primary !important;
+            padding-left: 4px !important;
+        }
+        
+        &:hover {
+            background-color: rgba($stone-primary, 0.18) !important;
         }
     }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// BADGES Y ETIQUETAS
+// CHECKBOX EN TABLA
 // ═══════════════════════════════════════════════════════════════════════════
-.stone-card .badge {
-    font-weight: 600;
+.stone-checkbox {
+    cursor: pointer;
+    border: 2px solid #adb5bd;
+    border-radius: 4px !important;
+    width: 18px !important;
+    height: 18px !important;
+    transition: all 0.15s ease;
+    
+    &:checked {
+        background-color: $stone-primary !important;
+        border-color: $stone-primary !important;
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BADGES EN TABLA
+// ═══════════════════════════════════════════════════════════════════════════
+.stone-table .badge {
+    font-weight: 500;
     letter-spacing: 0.3px;
-}
-
-// Badge de M² destacado
-.stone-qty-badge {
-    font-size: 15px !important;
-    font-weight: 700;
-    padding: 6px 12px;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    padding: 4px 8px;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -247,46 +265,6 @@ $stone-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// INFO BOXES DENTRO DE CARDS
-// ═══════════════════════════════════════════════════════════════════════════
-.stone-info-box {
-    background: #f8f9fa;
-    border-radius: 6px;
-    padding: 6px 8px;
-    text-align: center;
-    
-    .stone-info-label {
-        font-size: 9px;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        color: #6c757d;
-        margin-bottom: 2px;
-    }
-    
-    .stone-info-value {
-        font-size: 12px;
-        font-weight: 600;
-        color: #333;
-    }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// PLACEHOLDER DE IMAGEN
-// ═══════════════════════════════════════════════════════════════════════════
-.stone-img-placeholder {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 100%);
-    
-    i {
-        font-size: 48px;
-        color: #ccc;
-    }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
 // FOOTER FIJO
 // ═══════════════════════════════════════════════════════════════════════════
 .stone-footer {
@@ -295,42 +273,14 @@ $stone-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// DETALLES ESPECIALES (Warning)
+// DETALLES ESPECIALES (Warning Badge)
 // ═══════════════════════════════════════════════════════════════════════════
 .stone-detail-warning {
-    background: rgba(255, 193, 7, 0.1);
+    background: rgba(255, 193, 7, 0.15);
     border-left: 3px solid #ffc107;
     border-radius: 4px;
     padding: 4px 8px;
     font-size: 10px;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// GRUPO HEADER (Bloque)
-// ═══════════════════════════════════════════════════════════════════════════
-.stone-group-header {
-    position: sticky;
-    top: 0;
-    z-index: 10;
-    background: white;
-    padding: 12px 0;
-    margin-bottom: 12px;
-    border-bottom: 2px solid #e9ecef;
-    
-    .stone-group-title {
-        font-size: 16px;
-        font-weight: 700;
-        color: #333;
-        
-        i {
-            color: $stone-primary;
-        }
-    }
-    
-    .stone-group-total {
-        font-size: 14px;
-        font-weight: 600;
-    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -346,20 +296,16 @@ $stone-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         border-radius: 0 !important;
     }
     
-    .stone-card {
-        margin-bottom: 12px;
+    .stone-table {
+        font-size: 10px;
         
-        .card-body {
-            padding: 10px !important;
+        thead th {
+            padding: 8px 4px !important;
+            font-size: 9px;
         }
-    }
-    
-    .stone-filter-bar {
-        flex-direction: column;
-        gap: 8px !important;
         
-        input.form-control {
-            width: 100% !important;
+        tbody td {
+            padding: 8px 4px !important;
         }
     }
 }
@@ -368,29 +314,29 @@ $stone-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 // DARK MODE SUPPORT (Odoo 17+)
 // ═══════════════════════════════════════════════════════════════════════════
 .o_dark_mode {
-    .stone-card {
-        background: #2d3748;
-        border-color: #4a5568;
-        
-        .card-body {
-            color: #e2e8f0;
+    .stone-table {
+        thead th {
+            background: #1a202c !important;
         }
         
-        .stone-info-box {
-            background: #4a5568;
-            
-            .stone-info-value {
-                color: #e2e8f0;
+        tbody td {
+            background: #2d3748;
+            color: #e2e8f0;
+            border-color: #4a5568 !important;
+        }
+        
+        .stone-group-row {
+            background: linear-gradient(90deg, #2d3748 0%, #1a202c 100%) !important;
+        }
+        
+        .stone-item-row {
+            &:hover {
+                background-color: rgba(255, 255, 255, 0.05) !important;
             }
-        }
-    }
-    
-    .stone-group-header {
-        background: #1a202c;
-        border-color: #4a5568;
-        
-        .stone-group-title {
-            color: #e2e8f0;
+            
+            &.stone-row-selected {
+                background-color: rgba($stone-primary, 0.25) !important;
+            }
         }
     }
     
@@ -400,5 +346,48 @@ $stone-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         &::-webkit-scrollbar-track {
             background: #2d3748;
         }
+    }
+    
+    .o_stone_move_panel {
+        background-color: #1a202c;
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ANIMACIONES SUTILES
+// ═══════════════════════════════════════════════════════════════════════════
+@keyframes row-highlight {
+    0% {
+        background-color: rgba($stone-primary, 0.3);
+    }
+    100% {
+        background-color: rgba($stone-primary, 0.12);
+    }
+}
+
+.stone-item-row.stone-row-selected {
+    animation: row-highlight 0.3s ease;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// UTILIDADES ADICIONALES
+// ═══════════════════════════════════════════════════════════════════════════
+.font-monospace {
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace !important;
+}
+
+// Hover effect para badges clickeables
+.stone-table .badge {
+    transition: all 0.15s ease;
+}
+
+// Iconos en tabla
+.stone-table {
+    .fa {
+        opacity: 0.7;
+    }
+    
+    tr:hover .fa {
+        opacity: 1;
     }
 }
