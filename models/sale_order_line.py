@@ -22,59 +22,69 @@ class SaleOrderLine(models.Model):
 
     def copy_data(self, default=None):
         """
-        Método que prepara los datos para copiar una línea.
+        Método que prepara los datos para copiar líneas.
+        NOTA: Puede recibir múltiples registros (NO es singleton).
         """
-        _logger.info("=" * 80)
-        _logger.info("[STONE COPY_DATA] INICIO - Línea ID: %s", self.id)
-        _logger.info("[STONE COPY_DATA] self.lot_ids ANTES: %s (IDs: %s)", self.lot_ids, self.lot_ids.ids if self.lot_ids else [])
-        _logger.info("[STONE COPY_DATA] default recibido: %s", default)
-        _logger.info("[STONE COPY_DATA] Contexto: %s", self.env.context)
-        
         if default is None:
             default = {}
         
-        # Verificar si lot_ids ya está en default
-        if 'lot_ids' in default:
-            _logger.info("[STONE COPY_DATA] lot_ids YA está en default: %s", default['lot_ids'])
-        else:
-            if self.lot_ids:
-                _logger.info("[STONE COPY_DATA] Agregando lot_ids a default: %s", self.lot_ids.ids)
-                default['lot_ids'] = [(6, 0, self.lot_ids.ids)]
+        # Solo procesar individualmente si es singleton
+        if len(self) == 1:
+            _logger.info("=" * 80)
+            _logger.info("[STONE COPY_DATA] INICIO - Línea ID: %s", self.id)
+            _logger.info("[STONE COPY_DATA] self.lot_ids ANTES: %s (IDs: %s)", self.lot_ids, self.lot_ids.ids if self.lot_ids else [])
+            _logger.info("[STONE COPY_DATA] default recibido: %s", default)
+            _logger.info("[STONE COPY_DATA] Contexto: %s", self.env.context)
+            
+            # Verificar si lot_ids ya está en default
+            if 'lot_ids' in default:
+                _logger.info("[STONE COPY_DATA] lot_ids YA está en default: %s", default['lot_ids'])
             else:
-                _logger.info("[STONE COPY_DATA] NO hay lot_ids para copiar")
+                if self.lot_ids:
+                    _logger.info("[STONE COPY_DATA] Agregando lot_ids a default: %s", self.lot_ids.ids)
+                    default['lot_ids'] = [(6, 0, self.lot_ids.ids)]
+                else:
+                    _logger.info("[STONE COPY_DATA] NO hay lot_ids para copiar")
+        else:
+            _logger.info("[STONE COPY_DATA] Multi-registro: %s líneas, delegando a super()", len(self))
         
         result = super(SaleOrderLine, self).copy_data(default)
         
-        _logger.info("[STONE COPY_DATA] Resultado de super().copy_data: %s", result)
+        if len(self) == 1:
+            _logger.info("[STONE COPY_DATA] Resultado de super().copy_data: %s", result)
+            
+            # Verificar si lot_ids está en el resultado
+            if result:
+                for idx, data in enumerate(result):
+                    if 'lot_ids' in data:
+                        _logger.info("[STONE COPY_DATA] lot_ids EN RESULTADO[%s]: %s", idx, data['lot_ids'])
+                    else:
+                        _logger.info("[STONE COPY_DATA] lot_ids NO ESTÁ en resultado[%s]", idx)
+            
+            _logger.info("[STONE COPY_DATA] FIN")
+            _logger.info("=" * 80)
         
-        # Verificar si lot_ids está en el resultado
-        if result:
-            for idx, data in enumerate(result):
-                if 'lot_ids' in data:
-                    _logger.info("[STONE COPY_DATA] lot_ids EN RESULTADO[%s]: %s", idx, data['lot_ids'])
-                else:
-                    _logger.info("[STONE COPY_DATA] lot_ids NO ESTÁ en resultado[%s]", idx)
-        
-        _logger.info("[STONE COPY_DATA] FIN")
-        _logger.info("=" * 80)
         return result
 
     def copy(self, default=None):
         """
         Método copy directo de la línea.
         """
-        _logger.info("=" * 80)
-        _logger.info("[STONE LINE COPY] INICIO - Línea ID: %s", self.id)
-        _logger.info("[STONE LINE COPY] lot_ids actuales: %s", self.lot_ids.ids if self.lot_ids else [])
-        _logger.info("[STONE LINE COPY] default recibido: %s", default)
-        _logger.info("[STONE LINE COPY] Contexto: %s", self.env.context)
+        if len(self) == 1:
+            _logger.info("=" * 80)
+            _logger.info("[STONE LINE COPY] INICIO - Línea ID: %s", self.id)
+            _logger.info("[STONE LINE COPY] lot_ids actuales: %s", self.lot_ids.ids if self.lot_ids else [])
+            _logger.info("[STONE LINE COPY] default recibido: %s", default)
+            _logger.info("[STONE LINE COPY] Contexto: %s", self.env.context)
         
         result = super(SaleOrderLine, self).copy(default)
         
-        _logger.info("[STONE LINE COPY] Nueva línea creada ID: %s", result.id if result else None)
-        _logger.info("[STONE LINE COPY] lot_ids en nueva línea: %s", result.lot_ids.ids if result and result.lot_ids else [])
-        _logger.info("[STONE LINE COPY] FIN")
-        _logger.info("=" * 80)
+        if len(self) == 1:
+            _logger.info("[STONE LINE COPY] Nueva línea creada ID: %s", result.id if result else None)
+            _logger.info("[STONE LINE COPY] lot_ids en nueva línea: %s", result.lot_ids.ids if result and result.lot_ids else [])
+            _logger.info("[STONE LINE COPY] FIN")
+            _logger.info("=" * 80)
+        
         return result
 
     @api.model_create_multi
