@@ -27,14 +27,14 @@ class SaleOrder(models.Model):
                     'product_id': line.product_id.id,
                 }
                 all_protected_lot_ids.extend(lot_ids)
-                _logger.info("[STONE] Protegiendo línea %s: %s lotes", line.id, len(lot_ids))
+                _logger.info("[STONE] Protegiendo para línea %s: %s lotes", line.id, len(lot_ids))
         
         if not lines_lots_map:
             return super().action_confirm()
         
         # 2. Definir Contexto de Protección
-        # skip_picking_clean: Le dice a stock_lot_dimensions que NO borre nada
-        # protected_lot_ids: Lista de seguridad adicional
+        # skip_picking_clean: CRÍTICO. Le dice a 'stock_lot_dimensions' Y 'inventory_shopping_cart' 
+        # que NO ejecuten sus limpiezas automáticas.
         ctx = dict(self.env.context,
                    skip_picking_clean=True,
                    protected_lot_ids=all_protected_lot_ids,
@@ -42,8 +42,9 @@ class SaleOrder(models.Model):
         
         _logger.info("[STONE] Llamando a super() con skip_picking_clean=True...")
         
-        # Al llamar a super con este contexto, si el manifiesto está correcto,
-        # stock_lot_dimensions recibirá esta señal y abortará su limpieza.
+        # Al depender de 'inventory_shopping_cart', este super() llamará al Carrito con el contexto activado.
+        # El Carrito verá el flag 'skip_picking_clean' en su código interno (si lo tiene implementado correctamente)
+        # o al menos 'PickingLotCleaner' (usado por el Carrito) lo verá y se detendrá.
         res = super(SaleOrder, self.with_context(ctx)).action_confirm()
         
         _logger.info("[STONE] Retorno de super(). Iniciando asignación forzada.")

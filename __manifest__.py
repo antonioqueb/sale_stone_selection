@@ -13,7 +13,7 @@
     'author': 'Alphaqueb Consulting SAS',
     'website': 'https://alphaqueb.com',
     # IMPORTANTE: Se agrega stock_lot_dimensions para garantizar el orden de ejecución correcto
-    'depends': ['sale_management', 'stock', 'stock_lot_dimensions'],
+    'depends': ['sale_management', 'stock', 'stock_lot_dimensions', 'inventory_shopping_cart'],
     'data': [
         'views/sale_views.xml',
         'views/stock_views.xml',
