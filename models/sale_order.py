@@ -11,6 +11,7 @@ class SaleOrder(models.Model):
     def action_confirm(self):
         """
         Confirmación con asignación estricta de lotes seleccionados.
+        CRÍTICO: Asigna el lote COMPLETO, no cantidades parciales.
         """
         _logger.info("=" * 80)
         _logger.info("[STONE] ACTION_CONFIRM INICIO - Orden: %s", self.name)
@@ -33,18 +34,14 @@ class SaleOrder(models.Model):
             return super().action_confirm()
         
         # 2. Definir Contexto de Protección
-        # skip_picking_clean: CRÍTICO. Le dice a 'stock_lot_dimensions' Y 'inventory_shopping_cart' 
-        # que NO ejecuten sus limpiezas automáticas.
         ctx = dict(self.env.context,
                    skip_picking_clean=True,
                    protected_lot_ids=all_protected_lot_ids,
-                   is_stone_confirming=True)
+                   is_stone_confirming=True,
+                   skip_stone_sync_so=True)  # Evitar sync durante confirmación
         
         _logger.info("[STONE] Llamando a super() con skip_picking_clean=True...")
         
-        # Al depender de 'inventory_shopping_cart', este super() llamará al Carrito con el contexto activado.
-        # El Carrito verá el flag 'skip_picking_clean' en su código interno (si lo tiene implementado correctamente)
-        # o al menos 'PickingLotCleaner' (usado por el Carrito) lo verá y se detendrá.
         res = super(SaleOrder, self.with_context(ctx)).action_confirm()
         
         _logger.info("[STONE] Retorno de super(). Iniciando asignación forzada.")
@@ -66,9 +63,9 @@ class SaleOrder(models.Model):
                     )
                     if lines_to_remove:
                         _logger.info("[STONE] Eliminando %s asignaciones automáticas incorrectas (FIFO)", len(lines_to_remove))
-                        lines_to_remove.unlink()
+                        lines_to_remove.with_context(ctx).unlink()
 
-            # B. Inyectar nuestros lotes
+            # B. Inyectar nuestros lotes con CANTIDAD COMPLETA
             for line in order.order_line:
                 line_data = lines_lots_map.get(line.id)
                 if not line_data:
@@ -76,7 +73,6 @@ class SaleOrder(models.Model):
                     
                 lots = self.env['stock.lot'].browse(line_data['lot_ids'])
                 if lots:
-                    # Pasamos el contexto también aquí para evitar bloqueos por Hold
                     self.with_context(ctx)._assign_stone_lots_to_picking(pickings, line, lots)
         
         # 4. Restaurar visualización en Sale Order (por si se perdió)
@@ -90,17 +86,19 @@ class SaleOrder(models.Model):
         return res
 
     def _assign_stone_lots_to_picking(self, pickings, sale_line, lots):
-        """Asigna los lotes seleccionados al picking."""
+        """
+        Asigna los lotes seleccionados al picking.
+        CRÍTICO: Usa la CANTIDAD TOTAL del quant, no cantidades parciales.
+        """
         product = sale_line.product_id
         if not lots:
             return
 
-        # Contexto reforzado para la creación de move_lines
-        # skip_hold_validation: CRÍTICO para permitir mover lotes apartados/reservados
         ctx = dict(self.env.context, 
                    skip_stone_sync=True, 
                    skip_picking_clean=True,
-                   skip_hold_validation=True)
+                   skip_hold_validation=True,
+                   skip_stone_sync_so=True)
 
         for picking in pickings:
             moves = picking.move_ids.filtered(
@@ -113,6 +111,19 @@ class SaleOrder(models.Model):
                 
                 for lot in lots:
                     if lot.id in existing_lot_ids:
+                        _logger.info("[STONE] Lote %s ya existe en move %s, verificando cantidad...", lot.name, move.id)
+                        # Verificar si la cantidad es correcta
+                        existing_line = move.move_line_ids.filtered(lambda ml: ml.lot_id.id == lot.id)
+                        if existing_line:
+                            quant = self.env['stock.quant'].search([
+                                ('lot_id', '=', lot.id),
+                                ('product_id', '=', product.id),
+                                ('location_id', 'child_of', move.location_id.id),
+                                ('quantity', '>', 0)
+                            ], limit=1)
+                            if quant and existing_line.quantity != quant.quantity:
+                                _logger.info("[STONE] Corrigiendo cantidad de %s a %s", existing_line.quantity, quant.quantity)
+                                existing_line.with_context(ctx).write({'quantity': quant.quantity})
                         continue
                     
                     # Buscar Stock Físico Total
@@ -124,11 +135,22 @@ class SaleOrder(models.Model):
                     ], limit=1)
                     
                     if not quant:
-                        _logger.warning("[STONE] Lote %s no encontrado físicamente en %s", lot.name, move.location_id.name)
+                        # Fallback: buscar en cualquier ubicación interna
+                        quant = self.env['stock.quant'].search([
+                            ('lot_id', '=', lot.id),
+                            ('product_id', '=', product.id),
+                            ('location_id.usage', '=', 'internal'),
+                            ('quantity', '>', 0)
+                        ], limit=1)
+                    
+                    if not quant:
+                        _logger.warning("[STONE] Lote %s no encontrado físicamente", lot.name)
                         continue
                     
-                    # USAR CANTIDAD TOTAL (Ignorar reservas previas porque las acabamos de limpiar)
+                    # CRÍTICO: USAR CANTIDAD TOTAL DEL QUANT (El lote completo)
                     qty_to_assign = quant.quantity
+                    
+                    _logger.info("[STONE] Asignando lote %s con cantidad COMPLETA: %s m²", lot.name, qty_to_assign)
                     
                     move_line_vals = {
                         'move_id': move.id,
@@ -138,12 +160,12 @@ class SaleOrder(models.Model):
                         'lot_id': lot.id,
                         'location_id': quant.location_id.id,
                         'location_dest_id': move.location_dest_id.id,
-                        'quantity': qty_to_assign, # Forzar cantidad total
+                        'quantity': qty_to_assign,
                     }
                     
                     try:
                         self.env['stock.move.line'].with_context(ctx).create(move_line_vals)
-                        _logger.info("[STONE] > Asignado Lote %s (Qty: %s) a Picking %s", lot.name, qty_to_assign, picking.name)
+                        _logger.info("[STONE] ✓ Asignado Lote %s (Qty: %s) a Picking %s", lot.name, qty_to_assign, picking.name)
                     except Exception as e:
                         _logger.error("[STONE] Error asignando lote %s: %s", lot.name, str(e))
 
