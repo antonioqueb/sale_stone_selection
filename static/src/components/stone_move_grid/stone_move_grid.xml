@@ -1,57 +1,76 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
     <t t-name="sale_stone_selection.StoneMoveGridField" owl="1">
-        <div class="o_stone_move_panel d-flex flex-column h-100 bg-white">
+        <div class="o_stone_move_panel">
             
-            <!-- HEADER: Filtros compactos -->
-            <div class="d-flex flex-wrap gap-2 p-2 bg-dark align-items-center">
-                <div class="d-flex align-items-center gap-1">
-                    <span class="text-white small">Lote:</span>
-                    <input type="text" class="form-control form-control-sm" style="width:100px;" 
+            <!-- HEADER -->
+            <div class="stone-header">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="text-white-50 small">Lote:</span>
+                    <input type="text" class="form-control form-control-sm" style="width:120px;" 
                            placeholder="Buscar..."
                            t-model="state.filters.lot_name" 
                            t-on-input="(e) => this.onFilterChange('lot_name', e.target.value)"/>
                 </div>
-                <div class="d-flex align-items-center gap-1">
-                    <span class="text-white small">Bloque:</span>
-                    <input type="text" class="form-control form-control-sm" style="width:80px;" 
+                <div class="d-flex align-items-center gap-2">
+                    <span class="text-white-50 small">Bloque:</span>
+                    <input type="text" class="form-control form-control-sm" style="width:100px;" 
                            t-model="state.filters.bloque" 
                            t-on-input="(e) => this.onFilterChange('bloque', e.target.value)"/>
                 </div>
-                <div class="d-flex align-items-center gap-1">
-                    <span class="text-white small">Atado:</span>
-                    <input type="text" class="form-control form-control-sm" style="width:60px;" 
+                <div class="d-flex align-items-center gap-2">
+                    <span class="text-white-50 small">Atado:</span>
+                    <input type="text" class="form-control form-control-sm" style="width:80px;" 
                            t-model="state.filters.atado" 
                            t-on-input="(e) => this.onFilterChange('atado', e.target.value)"/>
                 </div>
                 
-                <div class="ms-auto d-flex align-items-center gap-3 text-white">
-                    <span><strong><t t-esc="state.quants.length"/></strong> disponibles</span>
-                    <span class="text-success"><strong><t t-esc="selectedCount"/></strong> seleccionadas</span>
-                    <span class="text-info"><strong><t t-esc="selectedTotalArea"/></strong> m²</span>
-                    <button class="btn btn-sm btn-outline-light" t-on-click="loadInventory">
+                <div class="d-flex align-items-center gap-4 ms-auto">
+                    <div class="text-white">
+                        <span class="opacity-75">Disponibles:</span>
+                        <strong class="ms-1"><t t-esc="state.quants.length"/></strong>
+                    </div>
+                    <div class="text-success">
+                        <span class="opacity-75">Seleccionadas:</span>
+                        <strong class="ms-1"><t t-esc="selectedCount"/></strong>
+                    </div>
+                    <div class="text-info">
+                        <span class="opacity-75">Total:</span>
+                        <strong class="ms-1"><t t-esc="selectedTotalArea"/> m²</strong>
+                    </div>
+                    <button class="btn btn-sm btn-outline-light" t-on-click="loadInventory" title="Actualizar">
                         <i class="fa fa-refresh" t-att-class="state.isLoading ? 'fa-spin' : ''"/>
                     </button>
                 </div>
             </div>
 
-            <!-- BODY: Tabla -->
-            <div class="flex-grow-1 overflow-auto">
+            <!-- BODY -->
+            <div class="stone-body">
                 
-                <div t-if="state.isLoading" class="text-center py-5">
-                    <i class="fa fa-spinner fa-spin fa-2x text-muted"/>
-                    <div class="mt-2 text-muted">Cargando...</div>
+                <!-- Loading -->
+                <div t-if="state.isLoading" class="stone-empty">
+                    <i class="fa fa-spinner fa-spin fa-3x text-muted"/>
+                    <div class="mt-3">Cargando inventario...</div>
                 </div>
 
-                <div t-elif="state.quants.length === 0" class="text-center py-5 text-muted">
-                    <i class="fa fa-inbox fa-3x mb-2"/>
-                    <div>No hay placas disponibles</div>
+                <!-- Error -->
+                <div t-elif="state.error" class="stone-empty">
+                    <i class="fa fa-exclamation-triangle fa-3x text-danger"/>
+                    <div class="mt-3 text-danger"><t t-esc="state.error"/></div>
                 </div>
 
-                <table t-else="" class="table table-sm table-bordered table-hover mb-0" style="font-size: 11px;">
-                    <thead class="table-dark sticky-top">
+                <!-- Empty -->
+                <div t-elif="state.quants.length === 0" class="stone-empty">
+                    <i class="fa fa-inbox fa-3x text-muted"/>
+                    <div class="mt-3">No hay placas disponibles</div>
+                    <div class="text-muted small">Verifica los filtros o el producto</div>
+                </div>
+
+                <!-- Table -->
+                <table t-else="" class="stone-table">
+                    <thead>
                         <tr>
-                            <th class="text-center" style="width:30px;">✓</th>
+                            <th style="width:40px;" class="text-center">✓</th>
                             <th>Lote</th>
                             <th>Bloque</th>
                             <th>Atado</th>
@@ -71,38 +90,40 @@
                         <t t-foreach="allItems" t-as="q" t-key="q.id">
                             <t t-set="isSelected" t-value="isLotSelected(q.lot_id ? q.lot_id[0] : 0)"/>
                             <tr t-on-click="() => this.toggleLot(q)" 
-                                style="cursor: pointer;"
-                                t-att-class="isSelected ? 'table-success' : ''">
+                                t-att-class="isSelected ? 'selected' : ''">
                                 
                                 <td class="text-center">
-                                    <input type="checkbox" 
-                                           t-att-checked="isSelected"
-                                           style="pointer-events: none;"/>
+                                    <input type="checkbox" t-att-checked="isSelected" onclick="event.stopPropagation()"/>
                                 </td>
                                 <td class="fw-bold font-monospace">
                                     <t t-esc="q.lot_id ? q.lot_id[1] : '-'"/>
                                 </td>
                                 <td><t t-esc="q.x_bloque || '-'"/></td>
                                 <td><t t-esc="q.x_atado || '-'"/></td>
-                                <td class="text-center"><t t-esc="q.x_alto ? q.x_alto.toFixed(0) : '-'"/></td>
-                                <td class="text-center"><t t-esc="q.x_ancho ? q.x_ancho.toFixed(0) : '-'"/></td>
-                                <td class="text-center"><t t-esc="q.x_grosor || '-'"/></td>
+                                <td class="text-center">
+                                    <t t-esc="q.x_alto ? Number(q.x_alto).toFixed(0) : '-'"/>
+                                </td>
+                                <td class="text-center">
+                                    <t t-esc="q.x_ancho ? Number(q.x_ancho).toFixed(0) : '-'"/>
+                                </td>
+                                <td class="text-center">
+                                    <t t-esc="q.x_grosor || '-'"/>
+                                </td>
                                 <td class="text-end fw-bold text-success">
-                                    <t t-esc="q.quantity ? q.quantity.toFixed(2) : '0.00'"/>
+                                    <t t-esc="q.quantity ? Number(q.quantity).toFixed(2) : '0.00'"/>
                                 </td>
                                 <td><t t-esc="q.x_tipo || '-'"/></td>
                                 <td><t t-esc="q.x_color || '-'"/></td>
-                                <td class="small">
+                                <td>
                                     <t t-esc="(q.location_id and q.location_id[1]) ? q.location_id[1].split('/').pop() : '-'"/>
                                 </td>
                                 <td><t t-esc="q.x_origen || '-'"/></td>
-                                <td class="small font-monospace"><t t-esc="q.x_pedimento || '-'"/></td>
-                                <td class="small">
-                                    <t t-if="q.x_detalles_placa">
-                                        <span class="text-warning" t-att-title="q.x_detalles_placa">
-                                            <i class="fa fa-exclamation-triangle"/>
-                                        </span>
-                                    </t>
+                                <td class="font-monospace"><t t-esc="q.x_pedimento || '-'"/></td>
+                                <td>
+                                    <span t-if="q.x_detalles_placa" class="text-warning" t-att-title="q.x_detalles_placa">
+                                        <i class="fa fa-exclamation-triangle"/>
+                                    </span>
+                                    <span t-else="">-</span>
                                 </td>
                             </tr>
                         </t>
@@ -111,9 +132,12 @@
             </div>
 
             <!-- FOOTER -->
-            <div class="bg-dark text-white p-2 d-flex justify-content-between small">
-                <span><i class="fa fa-info-circle me-1"/> Clic en fila para seleccionar/deseleccionar</span>
-                <span><strong><t t-esc="selectedCount"/></strong> placas = <strong><t t-esc="selectedTotalArea"/></strong> m²</span>
+            <div class="stone-footer">
+                <span><i class="fa fa-mouse-pointer me-1"/> Clic en fila para seleccionar/deseleccionar</span>
+                <span>
+                    <strong><t t-esc="selectedCount"/></strong> placas = 
+                    <strong><t t-esc="selectedTotalArea"/></strong> m²
+                </span>
             </div>
         </div>
     </t>
