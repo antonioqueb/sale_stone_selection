@@ -85,7 +85,8 @@
                                         <t t-esc="q.lot_id ? q.lot_id[1] : 'S/L'"/>
                                     </td>
                                     <td class="align-middle text-muted small">
-                                        <t t-esc="q.location_id ? q.location_id[1].split('/').pop() : ''"/>
+                                        <!-- CORRECCIÓN AQUÍ: Validación extra para q.location_id[1] -->
+                                        <t t-esc="(q.location_id and q.location_id[1]) ? q.location_id[1].split('/').pop() : ''"/>
                                     </td>
                                     <td class="align-middle text-end font-monospace">
                                         <t t-if="q.x_alto and q.x_ancho">
