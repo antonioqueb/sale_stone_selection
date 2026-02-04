@@ -1,49 +1,55 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
     <t t-name="sale_stone_selection.StoneMoveGridField" owl="1">
-        <div class="o_stone_move_panel border-0 bg-white d-flex flex-column" style="height: 100%;">
+        <div class="o_stone_move_panel d-flex flex-column" style="height: 100%; background: #faf8f5;">
             
             <!-- ═══════════════════════════════════════════════════════════════════ -->
-            <!-- 1. BARRA DE FILTROS -->
+            <!-- 1. BARRA DE FILTROS - Tonos madera -->
             <!-- ═══════════════════════════════════════════════════════════════════ -->
             <div class="d-flex flex-wrap gap-2 p-3 align-items-end" 
-                 style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                 style="background: linear-gradient(135deg, #8B7355 0%, #6B4423 100%); border-bottom: 3px solid #4a3728;">
                 
                 <div class="d-flex flex-column">
-                    <span class="text-white fw-bold" style="font-size:10px; text-transform:uppercase; letter-spacing:1px;">Lote</span>
-                    <input type="text" class="form-control form-control-sm shadow-sm" style="width:130px;" 
+                    <span class="text-white fw-bold" style="font-size:10px; text-transform:uppercase; letter-spacing:1px; opacity: 0.9;">Lote</span>
+                    <input type="text" class="form-control form-control-sm" style="width:130px; border: none; background: rgba(255,255,255,0.95);" 
                            placeholder="Buscar..."
                            t-model="state.filters.lot_name" 
                            t-on-input="(e) => this.onFilterChange('lot_name', e.target.value)"/>
                 </div>
                 <div class="d-flex flex-column">
-                    <span class="text-white fw-bold" style="font-size:10px; text-transform:uppercase; letter-spacing:1px;">Bloque</span>
-                    <input type="text" class="form-control form-control-sm shadow-sm" style="width:90px;" 
+                    <span class="text-white fw-bold" style="font-size:10px; text-transform:uppercase; letter-spacing:1px; opacity: 0.9;">Bloque</span>
+                    <input type="text" class="form-control form-control-sm" style="width:90px; border: none; background: rgba(255,255,255,0.95);" 
                            placeholder="B-01"
                            t-model="state.filters.bloque" 
                            t-on-input="(e) => this.onFilterChange('bloque', e.target.value)"/>
                 </div>
                 <div class="d-flex flex-column">
-                    <span class="text-white fw-bold" style="font-size:10px; text-transform:uppercase; letter-spacing:1px;">Atado</span>
-                    <input type="text" class="form-control form-control-sm shadow-sm" style="width:70px;" 
+                    <span class="text-white fw-bold" style="font-size:10px; text-transform:uppercase; letter-spacing:1px; opacity: 0.9;">Atado</span>
+                    <input type="text" class="form-control form-control-sm" style="width:70px; border: none; background: rgba(255,255,255,0.95);" 
                            placeholder="A-1"
                            t-model="state.filters.atado" 
                            t-on-input="(e) => this.onFilterChange('atado', e.target.value)"/>
                 </div>
                 
                 <!-- Resumen visual -->
-                <div class="ms-auto d-flex align-items-center gap-4">
-                    <div class="text-white text-center px-3">
-                        <div style="font-size: 28px; font-weight: 700; line-height: 1;">
+                <div class="ms-auto d-flex align-items-center gap-3">
+                    <div class="text-center px-3 py-2 rounded" style="background: rgba(255,255,255,0.15);">
+                        <div class="text-white" style="font-size: 24px; font-weight: 700; line-height: 1;">
                             <t t-esc="state.quants.length"/>
                         </div>
-                        <div style="font-size: 10px; opacity: 0.85; text-transform: uppercase;">Disponibles</div>
+                        <div class="text-white" style="font-size: 9px; opacity: 0.85; text-transform: uppercase;">Disponibles</div>
                     </div>
-                    <div class="text-white text-center px-3" style="border-left: 1px solid rgba(255,255,255,0.3);">
-                        <div style="font-size: 28px; font-weight: 700; line-height: 1; color: #90EE90;">
-                            <t t-esc="props.record.data.move_line_ids.records.length"/>
+                    <div class="text-center px-3 py-2 rounded" style="background: rgba(255,255,255,0.25);">
+                        <div style="font-size: 24px; font-weight: 700; line-height: 1; color: #90EE90;">
+                            <t t-esc="selectedCount"/>
                         </div>
-                        <div style="font-size: 10px; opacity: 0.85; text-transform: uppercase;">Seleccionadas</div>
+                        <div class="text-white" style="font-size: 9px; opacity: 0.85; text-transform: uppercase;">Seleccionadas</div>
+                    </div>
+                    <div class="text-center px-3 py-2 rounded" style="background: rgba(144,238,144,0.3);">
+                        <div style="font-size: 24px; font-weight: 700; line-height: 1; color: #fff;">
+                            <t t-esc="selectedTotalArea"/>
+                        </div>
+                        <div class="text-white" style="font-size: 9px; opacity: 0.85; text-transform: uppercase;">M² Total</div>
                     </div>
                     <button class="btn btn-light btn-sm shadow-sm ms-2" t-on-click="loadInventory" title="Actualizar">
                         <i class="fa fa-refresh" t-att-class="state.isLoading ? 'fa-spin' : ''"/>
@@ -54,54 +60,56 @@
             <!-- ═══════════════════════════════════════════════════════════════════ -->
             <!-- 2. TABLA DE PLACAS -->
             <!-- ═══════════════════════════════════════════════════════════════════ -->
-            <div class="stone-grid-content flex-grow-1" style="overflow-y: auto; min-height: 0;">
+            <div class="stone-grid-content flex-grow-1" style="overflow-y: auto; min-height: 0; background: #fdfcfa;">
                 
                 <!-- Loading -->
                 <div t-if="state.isLoading" class="d-flex flex-column align-items-center justify-content-center py-5">
-                    <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status"/>
-                    <div class="mt-3 text-muted fw-bold">Cargando inventario...</div>
+                    <div class="spinner-border" style="width: 3rem; height: 3rem; color: #8B7355;" role="status"/>
+                    <div class="mt-3 fw-bold" style="color: #6B4423;">Cargando inventario...</div>
                 </div>
 
                 <!-- Empty State -->
                 <div t-elif="state.quants.length === 0" class="d-flex flex-column align-items-center justify-content-center py-5">
-                    <i class="fa fa-inbox text-muted" style="font-size: 64px; opacity: 0.3;"/>
-                    <div class="mt-3 text-muted fw-bold">No hay placas disponibles</div>
+                    <i class="fa fa-inbox" style="font-size: 64px; color: #ccc;"/>
+                    <div class="mt-3 fw-bold" style="color: #8B7355;">No hay placas disponibles</div>
                     <div class="text-muted small">Modifica los filtros de búsqueda</div>
                 </div>
 
                 <!-- Tabla -->
-                <table t-else="" class="table table-hover table-bordered mb-0 stone-table">
-                    <thead class="sticky-top" style="top: 0; z-index: 10;">
-                        <tr class="bg-dark text-white" style="font-size: 11px;">
-                            <th width="40" class="text-center align-middle py-2">
+                <table t-else="" class="table table-hover mb-0 stone-table">
+                    <thead>
+                        <tr>
+                            <th width="40" class="text-center align-middle">
                                 <i class="fa fa-check-square-o"/>
                             </th>
-                            <th class="align-middle py-2">LOTE</th>
-                            <th class="align-middle py-2">BLOQUE</th>
-                            <th class="align-middle py-2">ATADO</th>
-                            <th class="text-center align-middle py-2">DIMENSIÓN</th>
-                            <th class="text-center align-middle py-2">GROSOR</th>
-                            <th class="text-end align-middle py-2">M²</th>
-                            <th class="align-middle py-2">TIPO</th>
-                            <th class="align-middle py-2">COLOR</th>
-                            <th class="align-middle py-2">UBICACIÓN</th>
-                            <th class="align-middle py-2">ORIGEN</th>
-                            <th class="align-middle py-2">PEDIMENTO</th>
-                            <th class="align-middle py-2">NOTAS</th>
+                            <th class="align-middle">LOTE</th>
+                            <th class="align-middle">BLOQUE</th>
+                            <th class="align-middle">ATADO</th>
+                            <th class="text-center align-middle">DIMENSIÓN</th>
+                            <th class="text-center align-middle">GROSOR</th>
+                            <th class="text-end align-middle">M²</th>
+                            <th class="align-middle">TIPO</th>
+                            <th class="align-middle">COLOR</th>
+                            <th class="align-middle">UBICACIÓN</th>
+                            <th class="align-middle">ORIGEN</th>
+                            <th class="align-middle">PEDIMENTO</th>
+                            <th class="align-middle">NOTAS</th>
                         </tr>
                     </thead>
                     <tbody>
                         <t t-foreach="groupedQuants" t-as="group" t-key="group.name">
                             <!-- Cabecera de Grupo -->
-                            <tr class="stone-group-row">
-                                <td colspan="13" class="py-2 px-3">
+                            <tr class="stone-group-row" t-att-class="group.isSelectedGroup ? 'stone-group-selected' : ''">
+                                <td colspan="13">
                                     <div class="d-flex justify-content-between align-items-center">
-                                        <span class="fw-bold" style="font-size: 13px; color: #333;">
-                                            <i class="fa fa-cubes me-2 text-primary"/>
-                                            Bloque: <t t-esc="group.name"/>
-                                            <span class="text-muted fw-normal ms-2">(<t t-esc="group.items.length"/> placas)</span>
+                                        <span class="fw-bold" style="font-size: 13px;">
+                                            <i t-att-class="group.isSelectedGroup ? 'fa fa-star me-2' : 'fa fa-cubes me-2'" 
+                                               t-att-style="group.isSelectedGroup ? 'color: #d4a726;' : 'color: #8B7355;'"/>
+                                            <t t-esc="group.name"/>
+                                            <span class="fw-normal ms-2" style="color: #999;">(<t t-esc="group.items.length"/> placas)</span>
                                         </span>
-                                        <span class="badge bg-success px-3 py-2" style="font-size: 12px;">
+                                        <span class="badge px-3 py-2" 
+                                              t-att-style="group.isSelectedGroup ? 'background: #2e7d32; font-size: 12px;' : 'background: #8B7355; font-size: 12px;'">
                                             Total: <t t-esc="group.totalArea.toFixed(2)"/> m²
                                         </span>
                                     </div>
@@ -113,8 +121,7 @@
                                 <t t-set="isSelected" t-value="isLotSelected(q.lot_id ? q.lot_id[0] : 0)"/>
                                 <tr t-on-click="() => this.toggleLot(q)" 
                                     class="stone-item-row"
-                                    t-att-class="isSelected ? 'table-primary stone-row-selected' : ''"
-                                    style="cursor: pointer; font-size: 12px;">
+                                    t-att-class="isSelected ? 'stone-row-selected' : ''">
                                     
                                     <!-- Checkbox -->
                                     <td class="text-center align-middle">
@@ -124,26 +131,26 @@
                                     </td>
                                     
                                     <!-- Lote -->
-                                    <td class="align-middle fw-bold font-monospace" style="color: #2c3e50;">
+                                    <td class="align-middle fw-bold font-monospace" style="color: #4a3728;">
                                         <t t-esc="q.lot_id ? q.lot_id[1] : 'S/L'"/>
                                     </td>
                                     
                                     <!-- Bloque -->
                                     <td class="align-middle">
-                                        <span class="badge bg-secondary bg-opacity-75">
+                                        <span class="badge" style="background: #a08060; color: white;">
                                             <t t-esc="q.x_bloque || '-'"/>
                                         </span>
                                     </td>
                                     
                                     <!-- Atado -->
-                                    <td class="align-middle text-muted">
+                                    <td class="align-middle" style="color: #6B4423;">
                                         <t t-esc="q.x_atado || '-'"/>
                                     </td>
                                     
                                     <!-- Dimensión -->
                                     <td class="text-center align-middle font-monospace">
                                         <t t-if="q.x_alto and q.x_ancho">
-                                            <span class="badge bg-light text-dark border">
+                                            <span class="badge" style="background: #f5f0e8; color: #4a3728; border: 1px solid #d4c4a8;">
                                                 <t t-esc="q.x_alto.toFixed(0)"/> × <t t-esc="q.x_ancho.toFixed(0)"/>
                                             </span>
                                         </t>
@@ -151,7 +158,7 @@
                                     </td>
                                     
                                     <!-- Grosor -->
-                                    <td class="text-center align-middle">
+                                    <td class="text-center align-middle" style="color: #6B4423;">
                                         <t t-if="q.x_grosor">
                                             <t t-esc="q.x_grosor"/> cm
                                         </t>
@@ -159,8 +166,8 @@
                                     </td>
                                     
                                     <!-- M² -->
-                                    <td class="text-end align-middle fw-bold" style="font-size: 13px;">
-                                        <span class="badge bg-success px-2 py-1">
+                                    <td class="text-end align-middle fw-bold">
+                                        <span class="badge px-2 py-1" style="background: #2e7d32; font-size: 12px;">
                                             <t t-esc="q.quantity.toFixed(2)"/>
                                         </span>
                                     </td>
@@ -168,7 +175,7 @@
                                     <!-- Tipo -->
                                     <td class="align-middle">
                                         <t t-if="q.x_tipo">
-                                            <span class="badge bg-info bg-opacity-25 text-dark">
+                                            <span class="badge" style="background: #e8dcc8; color: #5d4e37;">
                                                 <t t-esc="q.x_tipo"/>
                                             </span>
                                         </t>
@@ -176,18 +183,18 @@
                                     </td>
                                     
                                     <!-- Color -->
-                                    <td class="align-middle text-muted">
+                                    <td class="align-middle" style="color: #6B4423;">
                                         <t t-esc="q.x_color || '-'"/>
                                     </td>
                                     
                                     <!-- Ubicación -->
-                                    <td class="align-middle small text-muted">
-                                        <i class="fa fa-map-marker text-danger me-1"/>
+                                    <td class="align-middle small" style="color: #888;">
+                                        <i class="fa fa-map-marker me-1" style="color: #c17f59;"/>
                                         <t t-esc="(q.location_id and q.location_id[1]) ? q.location_id[1].split('/').pop() : '-'"/>
                                     </td>
                                     
                                     <!-- Origen -->
-                                    <td class="align-middle small text-muted">
+                                    <td class="align-middle small" style="color: #888;">
                                         <t t-if="q.x_origen">
                                             <i class="fa fa-globe me-1"/>
                                             <t t-esc="q.x_origen"/>
@@ -196,14 +203,14 @@
                                     </td>
                                     
                                     <!-- Pedimento -->
-                                    <td class="align-middle small text-muted font-monospace">
+                                    <td class="align-middle small font-monospace" style="color: #888;">
                                         <t t-esc="q.x_pedimento || '-'"/>
                                     </td>
                                     
                                     <!-- Notas/Detalles -->
                                     <td class="align-middle small">
                                         <t t-if="q.x_detalles_placa">
-                                            <span class="badge bg-warning text-dark" title="Detalles especiales">
+                                            <span class="badge" style="background: #fff3cd; color: #856404;">
                                                 <i class="fa fa-exclamation-triangle me-1"/>
                                                 <t t-esc="q.x_detalles_placa.substring(0, 20)"/><t t-if="q.x_detalles_placa.length > 20">...</t>
                                             </span>
@@ -220,14 +227,17 @@
             <!-- ═══════════════════════════════════════════════════════════════════ -->
             <!-- 3. FOOTER -->
             <!-- ═══════════════════════════════════════════════════════════════════ -->
-            <div class="bg-dark text-white p-3 d-flex justify-content-between align-items-center">
-                <div class="d-flex align-items-center gap-2">
+            <div class="p-3 d-flex justify-content-between align-items-center" 
+                 style="background: linear-gradient(180deg, #5d4e37 0%, #4a3728 100%); border-top: 3px solid #8B7355;">
+                <div class="d-flex align-items-center gap-2 text-white">
                     <i class="fa fa-info-circle"/>
                     <span>Clic en una fila para seleccionar/deseleccionar</span>
                 </div>
-                <div class="badge bg-light text-dark px-3 py-2" style="font-size: 13px;">
-                    <i class="fa fa-check-square me-1 text-success"/>
-                    <t t-esc="props.record.data.move_line_ids.records.length"/> placas asignadas
+                <div class="d-flex align-items-center gap-3">
+                    <span class="badge px-3 py-2" style="background: rgba(255,255,255,0.9); color: #4a3728; font-size: 13px;">
+                        <i class="fa fa-check-square me-1" style="color: #2e7d32;"/>
+                        <t t-esc="selectedCount"/> placas = <t t-esc="selectedTotalArea"/> m²
+                    </span>
                 </div>
             </div>
         </div>
