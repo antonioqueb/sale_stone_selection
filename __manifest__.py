@@ -24,8 +24,7 @@
             'sale_stone_selection/static/src/components/stone_grid/stone_grid.xml',
             'sale_stone_selection/static/src/components/stone_grid/stone_grid.js',
             'sale_stone_selection/static/src/components/stone_line_list/stone_line_list.js',
-            'sale_stone_selection/static/src/components/stone_move_grid/stone_move_grid.xml',
-            'sale_stone_selection/static/src/components/stone_move_grid/stone_move_grid.js', 
+        
         ],
     },
     'installable': True,
