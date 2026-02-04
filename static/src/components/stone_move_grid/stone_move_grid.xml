@@ -41,7 +41,7 @@
                 </div>
             </div>
 
-            <!-- BODY -->
+            <!-- BODY (SCROLLABLE) -->
             <div class="stone-body">
                 
                 <div t-if="state.isLoading" class="stone-empty">
@@ -85,8 +85,10 @@
                                 t-att-class="isSelected ? 'row-selected' : ''">
                                 
                                 <td class="col-check">
+                                    <!-- Pointer events none para que el click pase al TR -->
                                     <input type="checkbox" 
                                            class="form-check-input"
+                                           style="pointer-events: none;"
                                            t-att-checked="isSelected"/>
                                 </td>
                                 <td class="fw-bold font-monospace">

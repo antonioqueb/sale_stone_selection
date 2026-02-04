@@ -97,7 +97,6 @@ export class StoneMoveGridField extends Component {
     }
 
     async loadInventory(props = null) {
-        // Si no se pasa props, usar this.props
         const currentProps = props || this.props;
         
         if (!currentProps || !currentProps.record || !currentProps.record.data) {
@@ -231,9 +230,10 @@ export class StoneMoveGridField extends Component {
                         line => this._extractId(line.data.lot_id) === lotId
                     );
                     
-                    if (lineRecord && lineRecord.resId) {
+                    if (lineRecord) {
+                        // FIX: Usamos lineRecord.id (ID virtual o real) con comando DELETE (2)
                         await this.props.record.update({
-                            move_line_ids: [[2, lineRecord.resId, 0]]
+                            move_line_ids: [[2, lineRecord.id, 0]]
                         });
                     }
                 }
@@ -254,7 +254,7 @@ export class StoneMoveGridField extends Component {
                 });
             }
             
-            // Recargar
+            // Recargar para refrescar vista
             await this.loadInventory();
         } catch (e) {
             console.error("Error en toggleLot:", e);

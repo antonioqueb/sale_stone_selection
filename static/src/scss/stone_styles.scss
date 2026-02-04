@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// MODAL FULLSCREEN
+// MODAL FULLSCREEN - Forzando estructura Flex
 // ═══════════════════════════════════════════════════════════════════════════
 .o_dialog:has(.o_stone_move_panel),
 .modal-dialog:has(.o_stone_move_panel) {
@@ -7,20 +7,24 @@
     width: 98vw !important;
     height: 92vh !important;
     margin: 2vh auto !important;
+    display: flex !important;
+    flex-direction: column !important;
 }
 
 .o_dialog:has(.o_stone_move_panel) .modal-content,
 .modal-dialog:has(.o_stone_move_panel) .modal-content {
     height: 100% !important;
+    max-height: 100% !important;
     display: flex !important;
     flex-direction: column !important;
+    overflow: hidden !important; /* Evita scroll en el modal completo */
 }
 
 .o_dialog:has(.o_stone_move_panel) .modal-body,
 .modal-dialog:has(.o_stone_move_panel) .modal-body {
     flex: 1 1 auto !important;
     padding: 0 !important;
-    overflow: hidden !important;
+    overflow: hidden !important; /* El scroll lo maneja el panel interno */
     display: flex !important;
     flex-direction: column !important;
     min-height: 0 !important;
@@ -36,12 +40,14 @@
     height: 100%;
     min-height: 0;
     background: #fff;
+    overflow: hidden;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// HEADER
+// HEADER (Fijo)
 // ═══════════════════════════════════════════════════════════════════════════
 .stone-header {
+    flex: 0 0 auto; /* No encoger ni crecer */
     display: flex;
     flex-wrap: wrap;
     gap: 12px;
@@ -49,17 +55,29 @@
     background: #f8f9fa;
     border-bottom: 1px solid #dee2e6;
     align-items: center;
-    flex-shrink: 0;
+    z-index: 20;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// BODY - SCROLL
+// BODY - SCROLL (Aquí ocurre el desplazamiento)
 // ═══════════════════════════════════════════════════════════════════════════
 .stone-body {
-    flex: 1 1 auto;
-    overflow: auto !important;
+    flex: 1 1 auto; /* Ocupa el espacio restante */
+    overflow-y: auto !important; /* Scroll vertical activado */
+    overflow-x: auto;
     min-height: 0;
     background: #fff;
+    position: relative;
+    
+    /* Scrollbar estilizado (opcional) */
+    &::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+    &::-webkit-scrollbar-thumb {
+        background: #ced4da;
+        border-radius: 4px;
+    }
 }
 
 .stone-empty {
@@ -73,11 +91,12 @@
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TABLA
+// TABLA (Sticky Header)
 // ═══════════════════════════════════════════════════════════════════════════
 .stone-table {
     width: 100%;
-    border-collapse: collapse;
+    border-collapse: separate; /* Necesario para sticky */
+    border-spacing: 0;
     font-size: 12px;
     
     thead {
@@ -90,6 +109,9 @@
         }
         
         th {
+            position: sticky;
+            top: 0;
+            background: #f8f9fa; /* Fondo opaco vital para sticky */
             padding: 10px 8px;
             font-weight: 600;
             font-size: 11px;
@@ -97,7 +119,7 @@
             color: #495057;
             border-bottom: 2px solid #dee2e6;
             white-space: nowrap;
-            background: #f8f9fa;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
         }
         
         th.col-check {
@@ -112,7 +134,7 @@
             transition: background-color 0.1s;
             
             &:hover {
-                background-color: #f8f9fa;
+                background-color: #f1f3f5;
             }
             
             &.row-selected {
@@ -132,6 +154,7 @@
             padding: 8px;
             border-bottom: 1px solid #eee;
             vertical-align: middle;
+            background-color: inherit;
         }
         
         td.col-check {
@@ -152,9 +175,10 @@
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// FOOTER
+// FOOTER (Fijo)
 // ═══════════════════════════════════════════════════════════════════════════
 .stone-footer {
+    flex: 0 0 auto; /* No encoger ni crecer */
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -162,19 +186,16 @@
     background: #f8f9fa;
     border-top: 1px solid #dee2e6;
     font-size: 13px;
-    flex-shrink: 0;
+    z-index: 20;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// LEGACY (para stone_line_list)
-// ═══════════════════════════════════════════════════════════════════════════
+// LEGACY
 .o_stone_toggle_btn {
     color: #495057 !important;
     &:hover { 
         color: #212529 !important; 
     }
 }
-
 .o_stone_details_row_tr td {
     background-color: #f8f9fa;
     padding: 0 !important;
