@@ -17,9 +17,12 @@ class SaleOrder(models.Model):
         _logger.info("[STONE] ACTION_CONFIRM INICIO - Orden: %s", self.name)
 
         # =====================================================================
-        # NUEVO: Si la orden ya está confirmada, redirigir
+        # NUEVO: Bloquear doble confirmación
+        # Caso 1: Esta misma orden ya está confirmada → redirigir a sí misma
+        # Caso 2: Esta cotización ya generó una SO aparte → redirigir a esa SO
         # =====================================================================
         for order in self:
+            # Caso 1: Ya está confirmada
             if order.state in ('sale', 'done'):
                 _logger.info("[STONE] Orden %s ya confirmada (state=%s). Redirigiendo.", order.name, order.state)
                 return {
@@ -29,6 +32,24 @@ class SaleOrder(models.Model):
                     'view_mode': 'form',
                     'target': 'current',
                     'name': _('Orden de Venta: %s') % order.name,
+                }
+            
+            # Caso 2: Ya existe una SO confirmada que se originó de esta cotización
+            existing_so = self.env['sale.order'].search([
+                ('origin', '=', order.name),
+                ('id', '!=', order.id),
+                ('state', 'in', ('sale', 'done')),
+            ], limit=1)
+            
+            if existing_so:
+                _logger.info("[STONE] Cotización %s ya generó la SO %s. Redirigiendo.", order.name, existing_so.name)
+                return {
+                    'type': 'ir.actions.act_window',
+                    'res_model': 'sale.order',
+                    'res_id': existing_so.id,
+                    'view_mode': 'form',
+                    'target': 'current',
+                    'name': _('Orden de Venta: %s') % existing_so.name,
                 }
         
         # 1. GUARDAR los lotes ANTES de confirmar
