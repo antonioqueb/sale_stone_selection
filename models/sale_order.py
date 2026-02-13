@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 from odoo import models, fields, api, _
-from odoo.exceptions import UserError
 import logging
 
 _logger = logging.getLogger(__name__)
@@ -13,14 +12,12 @@ class SaleOrder(models.Model):
         """
         Confirmación con asignación estricta de lotes seleccionados.
         CRÍTICO: Asigna el lote COMPLETO, no cantidades parciales.
-        NUEVO: Bloquea doble confirmación y limpia lot_ids de la cotización.
         """
         _logger.info("=" * 80)
         _logger.info("[STONE] ACTION_CONFIRM INICIO - Orden: %s", self.name)
 
         # =====================================================================
-        # 0. BLOQUEAR DOBLE CONFIRMACIÓN
-        # Si la orden ya está confirmada (sale/done), redirigir a ella.
+        # NUEVO: Si la orden ya está confirmada, redirigir
         # =====================================================================
         for order in self:
             if order.state in ('sale', 'done'):
@@ -33,24 +30,8 @@ class SaleOrder(models.Model):
                     'target': 'current',
                     'name': _('Orden de Venta: %s') % order.name,
                 }
-
-        # =====================================================================
-        # 1. VALIDAR QUE LAS PLACAS NO ESTÉN COMPROMETIDAS POR OTRA ORDEN
-        # =====================================================================
-        for order in self:
-            for line in order.order_line.filtered(lambda l: l.lot_ids):
-                conflicting = self._check_lots_availability(line.lot_ids, line.product_id, order)
-                if conflicting:
-                    lot_names = ', '.join(conflicting.mapped('name'))
-                    raise UserError(_(
-                        "Las siguientes placas ya están comprometidas en otra orden de venta confirmada:\n\n"
-                        "%s\n\n"
-                        "Debes deseleccionarlas antes de confirmar."
-                    ) % lot_names)
-
-        # =====================================================================
-        # 2. GUARDAR los lotes ANTES de confirmar
-        # =====================================================================
+        
+        # 1. GUARDAR los lotes ANTES de confirmar
         lines_lots_map = {}
         all_protected_lot_ids = []
         
@@ -67,12 +48,12 @@ class SaleOrder(models.Model):
         if not lines_lots_map:
             return super().action_confirm()
         
-        # 3. Definir Contexto de Protección
+        # 2. Definir Contexto de Protección
         ctx = dict(self.env.context,
                    skip_picking_clean=True,
                    protected_lot_ids=all_protected_lot_ids,
                    is_stone_confirming=True,
-                   skip_stone_sync_so=True)
+                   skip_stone_sync_so=True)  # Evitar sync durante confirmación
         
         _logger.info("[STONE] Llamando a super() con skip_picking_clean=True...")
         
@@ -80,7 +61,7 @@ class SaleOrder(models.Model):
         
         _logger.info("[STONE] Retorno de super(). Iniciando asignación forzada.")
         
-        # 4. Asignación Forzada
+        # 3. Asignación Forzada
         for order in self:
             pickings = order.picking_ids.filtered(lambda p: p.state not in ['cancel', 'done'])
             
@@ -91,6 +72,7 @@ class SaleOrder(models.Model):
             # A. Limpieza Quirúrgica (Solo lo que NO es nuestro)
             for picking in pickings:
                 for move in picking.move_ids.filtered(lambda m: m.state not in ['done', 'cancel']):
+                    # Borrar líneas automáticas (FIFO) que Odoo haya puesto y que NO sean nuestros lotes
                     lines_to_remove = move.move_line_ids.filtered(
                         lambda ml: ml.lot_id and ml.lot_id.id not in all_protected_lot_ids
                     )
@@ -107,62 +89,39 @@ class SaleOrder(models.Model):
                 lots = self.env['stock.lot'].browse(line_data['lot_ids'])
                 if lots:
                     self.with_context(ctx)._assign_stone_lots_to_picking(pickings, line, lots)
-
-        # =====================================================================
-        # 5. LIMPIAR lot_ids DE LA COTIZACIÓN (ya están en el picking)
-        # Las placas ahora pertenecen a la orden confirmada vía move_line_ids.
-        # No deben seguir en lot_ids de la sale.order.line para evitar que
-        # la cotización "retenga" la referencia visual y confunda.
-        # =====================================================================
-        _logger.info("[STONE] Limpiando lot_ids de las líneas de cotización (placas ya asignadas al picking)...")
+        
+        # 4. Restaurar visualización en Sale Order (por si se perdió)
         for line_id, line_data in lines_lots_map.items():
             line = self.env['sale.order.line'].browse(line_id)
-            if line.exists():
-                line.with_context(ctx).write({'lot_ids': [(5, 0, 0)]})
-                _logger.info("[STONE] Limpiado lot_ids de línea %s", line_id)
+            if line.exists() and set(line.lot_ids.ids) != set(line_data['lot_ids']):
+                line.with_context(ctx).write({'lot_ids': [(6, 0, line_data['lot_ids'])]})
+
+        # =====================================================================
+        # 5. NUEVO: Limpiar lot_ids de la COTIZACIÓN ORIGEN
+        # 
+        # Caso A: Odoo duplicó la cotización → la SO tiene origin = nombre de la cotización
+        # Caso B: Odoo transformó la cotización (mismo registro) → no hay cotización aparte
+        #
+        # Buscamos por origin y si encontramos una cotización distinta, la limpiamos.
+        # =====================================================================
+        for order in self:
+            if order.origin:
+                source_orders = self.env['sale.order'].search([
+                    ('name', '=', order.origin),
+                    ('id', '!=', order.id),
+                    ('state', 'in', ('draft', 'sent', 'cancel')),
+                ], limit=1)
+                
+                if source_orders:
+                    _logger.info("[STONE] Limpiando lot_ids de cotización origen %s", source_orders.name)
+                    for source_line in source_orders.order_line.filtered(lambda l: l.lot_ids):
+                        source_line.with_context(ctx).write({'lot_ids': [(5, 0, 0)]})
+                        _logger.info("[STONE] ✓ Limpiado lot_ids de línea %s en cotización %s", 
+                                    source_line.id, source_orders.name)
         
         _logger.info("[STONE] ACTION_CONFIRM FIN")
         _logger.info("=" * 80)
         return res
-
-    def _check_lots_availability(self, lots, product, current_order):
-        """
-        Verifica que los lotes no estén comprometidos en otra orden de venta confirmada.
-        Retorna los lotes que tienen conflicto.
-        """
-        if not lots:
-            return self.env['stock.lot']
-
-        # Buscar move.lines activas (no canceladas, no hechas) que tengan estos lotes
-        # y que pertenezcan a OTRA orden de venta (no la nuestra)
-        conflicting_move_lines = self.env['stock.move.line'].search([
-            ('lot_id', 'in', lots.ids),
-            ('product_id', '=', product.id),
-            ('state', 'not in', ['done', 'cancel']),
-            ('move_id.sale_line_id', '!=', False),
-            ('move_id.sale_line_id.order_id', '!=', current_order.id),
-        ])
-        
-        if conflicting_move_lines:
-            return conflicting_move_lines.mapped('lot_id')
-        
-        # También verificar lot_ids en otras sale.order.line de órdenes confirmadas
-        # (para el caso donde aún no se generaron pickings)
-        conflicting_sol = self.env['sale.order.line'].search([
-            ('lot_ids', 'in', lots.ids),
-            ('order_id', '!=', current_order.id),
-            ('order_id.state', 'in', ['sale', 'done']),
-            ('product_id', '=', product.id),
-        ])
-        
-        if conflicting_sol:
-            conflicting_lot_ids = set()
-            for sol in conflicting_sol:
-                conflicting_lot_ids.update(set(sol.lot_ids.ids) & set(lots.ids))
-            if conflicting_lot_ids:
-                return self.env['stock.lot'].browse(list(conflicting_lot_ids))
-        
-        return self.env['stock.lot']
 
     def _assign_stone_lots_to_picking(self, pickings, sale_line, lots):
         """
@@ -191,6 +150,7 @@ class SaleOrder(models.Model):
                 for lot in lots:
                     if lot.id in existing_lot_ids:
                         _logger.info("[STONE] Lote %s ya existe en move %s, verificando cantidad...", lot.name, move.id)
+                        # Verificar si la cantidad es correcta
                         existing_line = move.move_line_ids.filtered(lambda ml: ml.lot_id.id == lot.id)
                         if existing_line:
                             quant = self.env['stock.quant'].search([
@@ -213,6 +173,7 @@ class SaleOrder(models.Model):
                     ], limit=1)
                     
                     if not quant:
+                        # Fallback: buscar en cualquier ubicación interna
                         quant = self.env['stock.quant'].search([
                             ('lot_id', '=', lot.id),
                             ('product_id', '=', product.id),
@@ -224,6 +185,7 @@ class SaleOrder(models.Model):
                         _logger.warning("[STONE] Lote %s no encontrado físicamente", lot.name)
                         continue
                     
+                    # CRÍTICO: USAR CANTIDAD TOTAL DEL QUANT (El lote completo)
                     qty_to_assign = quant.quantity
                     
                     _logger.info("[STONE] Asignando lote %s con cantidad COMPLETA: %s m²", lot.name, qty_to_assign)
