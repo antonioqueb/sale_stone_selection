@@ -16,10 +16,10 @@ export class StoneMoveGridField extends Component {
         });
         this.searchTimeout = null;
 
-        onWillStart(async () => { 
-            await this.loadInventory(); 
+        onWillStart(async () => {
+            await this.loadInventory();
         });
-        
+
         onWillUpdateProps(async (nextProps) => {
             const oldId = this._extractId(this.props.record.data.product_id);
             const newId = this._extractId(nextProps.record.data.product_id);
@@ -50,13 +50,10 @@ export class StoneMoveGridField extends Component {
     _getAssignedLotIds(props = this.props) {
         const lines = props.record.data.move_line_ids;
         const ids = [];
-        
         if (lines && lines.records) {
             for (const line of lines.records) {
                 const lotId = this._extractId(line.data.lot_id);
-                if (lotId) {
-                    ids.push(lotId);
-                }
+                if (lotId) ids.push(lotId);
             }
         }
         return ids;
@@ -65,12 +62,10 @@ export class StoneMoveGridField extends Component {
     _getAssignedLotsData(props = this.props) {
         const lines = props.record.data.move_line_ids;
         const lotsData = [];
-        
         if (lines && lines.records) {
             for (const line of lines.records) {
                 const lotIdName = this._extractIdName(line.data.lot_id);
                 const locIdName = this._extractIdName(line.data.location_id);
-                
                 if (lotIdName && lotIdName[0]) {
                     lotsData.push({
                         id: `assigned_${lotIdName[0]}`,
@@ -98,16 +93,16 @@ export class StoneMoveGridField extends Component {
 
     async loadInventory(props = null) {
         const currentProps = props || this.props;
-        
+
         if (!currentProps || !currentProps.record || !currentProps.record.data) {
             console.warn("No hay props/record disponible");
             this.state.isLoading = false;
             return;
         }
-        
+
         const recordData = currentProps.record.data;
         const productId = this._extractId(recordData.product_id);
-        
+
         this.state.isLoading = true;
         this.state.error = null;
 
@@ -127,12 +122,10 @@ export class StoneMoveGridField extends Component {
                 filters: this.state.filters,
                 current_lot_ids: assignedLotIds
             });
-            
+
             const quantsMap = new Map();
             for (const q of (quants || [])) {
-                if (q.lot_id) {
-                    quantsMap.set(q.lot_id[0], q);
-                }
+                if (q.lot_id) quantsMap.set(q.lot_id[0], q);
             }
 
             const enrichedQuants = (quants || []).map(q => ({
@@ -145,8 +138,8 @@ export class StoneMoveGridField extends Component {
                 if (!quantsMap.has(lotId)) {
                     try {
                         const lotData = await this.orm.read('stock.lot', [lotId], [
-                            'name', 'x_bloque', 'x_atado', 'x_alto', 'x_ancho', 
-                            'x_grosor', 'x_tipo', 'x_color', 'x_origen', 
+                            'name', 'x_bloque', 'x_atado', 'x_alto', 'x_ancho',
+                            'x_grosor', 'x_tipo', 'x_color', 'x_origen',
                             'x_pedimento', 'x_detalles_placa'
                         ]);
                         if (lotData && lotData[0]) {
@@ -172,10 +165,10 @@ export class StoneMoveGridField extends Component {
                     }
                 }
             }
-            
+
             this.state.quants = enrichedQuants;
             this.state.assignedLots = assignedLotIds;
-            
+
         } catch (e) {
             console.error("Error en loadInventory:", e);
             this.state.error = e.message || "Error cargando datos";
@@ -203,9 +196,7 @@ export class StoneMoveGridField extends Component {
     get selectedTotalArea() {
         let total = 0;
         for (const q of this.state.quants) {
-            if (q._isAssigned) {
-                total += q.quantity || 0;
-            }
+            if (q._isAssigned) total += q.quantity || 0;
         }
         return total.toFixed(2);
     }
@@ -214,13 +205,8 @@ export class StoneMoveGridField extends Component {
         return this.state.assignedLots.includes(lotId);
     }
 
-    /**
-     * CORREGIDO: Obtener cantidad TOTAL del lote desde el servidor
-     * para asegurar que se asigne el lote completo
-     */
     async _getFullLotQuantity(lotId, productId, locationId) {
         try {
-            // Buscar el quant real del servidor para obtener cantidad exacta
             const quants = await this.orm.searchRead(
                 'stock.quant',
                 [
@@ -232,15 +218,15 @@ export class StoneMoveGridField extends Component {
                 ['quantity', 'location_id'],
                 { limit: 1 }
             );
-            
+
             if (quants && quants.length > 0) {
                 return {
                     quantity: quants[0].quantity,
                     location_id: quants[0].location_id[0]
                 };
             }
-            
-            // Fallback: buscar en cualquier ubicación interna
+
+            // Fallback: cualquier ubicación interna
             const quantsFallback = await this.orm.searchRead(
                 'stock.quant',
                 [
@@ -252,14 +238,14 @@ export class StoneMoveGridField extends Component {
                 ['quantity', 'location_id'],
                 { limit: 1 }
             );
-            
+
             if (quantsFallback && quantsFallback.length > 0) {
                 return {
                     quantity: quantsFallback[0].quantity,
                     location_id: quantsFallback[0].location_id[0]
                 };
             }
-            
+
             return null;
         } catch (e) {
             console.error("Error obteniendo cantidad del lote:", e);
@@ -269,44 +255,80 @@ export class StoneMoveGridField extends Component {
 
     async toggleLot(quant) {
         if (!quant.lot_id) return;
-        
+
         const lotId = quant.lot_id[0];
         const isCurrentlySelected = this.isLotSelected(lotId);
         const recordData = this.props.record.data;
         const lines = recordData.move_line_ids;
         const productId = this._extractId(recordData.product_id);
-        
+
         try {
             if (isCurrentlySelected) {
-                // ═══════════════════════════════════════════════════════════════
-                // DESELECCIONAR - Eliminar línea del movimiento
-                // ═══════════════════════════════════════════════════════════════
+                // ── DESELECCIONAR ─────────────────────────────────────────────
                 if (lines && lines.records) {
                     const lineRecord = lines.records.find(
                         line => this._extractId(line.data.lot_id) === lotId
                     );
-                    
                     if (lineRecord) {
-                        console.log(`[STONE] Eliminando lote ${lotId} del picking`);
                         await this.props.record.update({
                             move_line_ids: [[2, lineRecord.id, 0]]
                         });
                     }
                 }
             } else {
-                // ═══════════════════════════════════════════════════════════════
-                // SELECCIONAR - CRÍTICO: Obtener cantidad COMPLETA del lote
-                // ═══════════════════════════════════════════════════════════════
+                // ── SELECCIONAR ───────────────────────────────────────────────
                 const locationId = this._extractId(recordData.location_id);
                 const locationDestId = this._extractId(recordData.location_dest_id);
-                
-                // IMPORTANTE: Obtener la cantidad real del servidor, no confiar en el cache local
+
                 let fullQty = quant.quantity;
                 let sourceLocationId = quant.location_id ? quant.location_id[0] : locationId;
-                
+
                 if (productId && locationId) {
                     const realData = await this._getFullLotQuantity(lotId, productId, locationId);
                     if (realData) {
                         fullQty = realData.quantity;
                         sourceLocationId = realData.location_id;
                         console.log(`[STONE] Cantidad REAL del lote ${lotId}: ${fullQty} m²`);
+                    }
+                }
+
+                const newLine = {
+                    lot_id: lotId,
+                    quantity: fullQty,
+                    product_id: productId,
+                    location_id: sourceLocationId || locationId,
+                    location_dest_id: locationDestId,
+                };
+
+                await this.props.record.update({
+                    move_line_ids: [[0, 0, newLine]]
+                });
+            }
+
+            // Refrescar inventario para reflejar el nuevo estado
+            await this.loadInventory();
+
+        } catch (e) {
+            console.error("[STONE] Error en toggleLot:", e);
+            this.state.error = e.message || "Error al actualizar";
+        }
+    }
+
+    onFilterChange(key, value) {
+        this.state.filters[key] = value;
+        if (this.searchTimeout) clearTimeout(this.searchTimeout);
+        this.searchTimeout = setTimeout(() => this.loadInventory(), 400);
+    }
+
+    async onRefresh() {
+        await this.loadInventory();
+    }
+}
+
+StoneMoveGridField.template = "sale_stone_selection.StoneMoveGridField";
+StoneMoveGridField.props = { ...standardFieldProps };
+
+registry.category("fields").add("stone_move_grid", {
+    component: StoneMoveGridField,
+    displayName: "Stone Move Grid",
+});

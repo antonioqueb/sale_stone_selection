@@ -21,10 +21,15 @@
     'assets': {
         'web.assets_backend': [
             'sale_stone_selection/static/src/scss/stone_styles.scss',
+            # stone_grid
             'sale_stone_selection/static/src/components/stone_grid/stone_grid.xml',
             'sale_stone_selection/static/src/components/stone_grid/stone_grid.js',
+            # stone_line_list
+            'sale_stone_selection/static/src/components/stone_line_list/stone_line_list.xml',
             'sale_stone_selection/static/src/components/stone_line_list/stone_line_list.js',
-        
+            # stone_move_grid
+            'sale_stone_selection/static/src/components/stone_move_grid/stone_move_grid.xml',
+            'sale_stone_selection/static/src/components/stone_move_grid/stone_move_grid.js',
         ],
     },
     'installable': True,

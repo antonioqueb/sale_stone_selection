@@ -19,6 +19,7 @@ export class StoneExpandButton extends Component {
         this._detailsRow = null;
         this._popupRoot = null;
         this._popupKeyHandler = null;
+        this._popupObserver = null;  // ← Referencia al IntersectionObserver del popup
 
         this.state = useState({
             isExpanded: false,
@@ -299,7 +300,6 @@ export class StoneExpandButton extends Component {
         };
 
         let searchTimeout = null;
-        let observer = null;
 
         root.innerHTML = `
             <div class="stone-popup-overlay" id="stone-overlay">
@@ -491,11 +491,14 @@ export class StoneExpandButton extends Component {
                 });
             });
 
-            // Infinite scroll observer
-            if (observer) observer.disconnect();
+            // ── Infinite scroll: usar this._popupObserver (en scope del componente) ──
+            if (this._popupObserver) {
+                this._popupObserver.disconnect();
+                this._popupObserver = null;
+            }
             const sentinelEl = body.querySelector("#sp-sentinel");
             if (sentinelEl && state.hasMore) {
-                observer = new IntersectionObserver(
+                this._popupObserver = new IntersectionObserver(
                     (entries) => {
                         if (entries[0].isIntersecting && state.hasMore && !state.isLoadingMore) {
                             loadPage(state.page + 1, false);
@@ -503,7 +506,7 @@ export class StoneExpandButton extends Component {
                     },
                     { root: body, rootMargin: "100px", threshold: 0.1 }
                 );
-                observer.observe(sentinelEl);
+                this._popupObserver.observe(sentinelEl);
             }
         };
 
@@ -624,7 +627,10 @@ export class StoneExpandButton extends Component {
     }
 
     destroyPopup() {
-        if (observer) { observer.disconnect(); observer = null; }
+        if (this._popupObserver) {
+            this._popupObserver.disconnect();
+            this._popupObserver = null;
+        }
         if (this._popupKeyHandler) {
             document.removeEventListener("keydown", this._popupKeyHandler);
             this._popupKeyHandler = null;
