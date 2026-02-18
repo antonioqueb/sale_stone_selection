@@ -2,491 +2,650 @@
 import { registry } from "@web/core/registry";
 import { listView } from "@web/views/list/list_view";
 import { standardFieldProps } from "@web/views/fields/standard_field_props";
-import { Component, xml, onWillUnmount, onWillStart, onWillUpdateProps } from "@odoo/owl";
+import { Component, xml, onWillUnmount, onWillStart, onWillUpdateProps, useState, useRef } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 
-export class StoneExpandButton extends Component {
+// ═══════════════════════════════════════════════════════════════════════════════
+// POPUP DE SELECCIÓN DE PLACAS (Fullscreen, Lazy Loading)
+// ═══════════════════════════════════════════════════════════════════════════════
+export class StoneSelectorPopup extends Component {
     static template = xml`
-        <div class="o_stone_toggle_btn cursor-pointer d-flex align-items-center justify-content-center" 
-             t-on-click.stop="handleClick"
-             title="Seleccionar Placas"
-             style="width: 100%; height: 100%; min-height: 24px;">
-            <i class="fa fa-th text-primary" t-if="!isExpanded" style="font-size: 14px;"/>
-            <i class="fa fa-chevron-up text-danger" t-else="" style="font-size: 14px;"/>
+        <div class="stone-popup-overlay" t-on-click.self="onOverlayClick">
+            <div class="stone-popup-container">
+                
+                <!-- HEADER DEL POPUP -->
+                <div class="stone-popup-header">
+                    <div class="stone-popup-title">
+                        <i class="fa fa-th me-2"/>
+                        Seleccionar Placas
+                        <span class="stone-popup-subtitle" t-if="props.productName">
+                            — <t t-esc="props.productName"/>
+                        </span>
+                    </div>
+                    <div class="stone-popup-header-actions">
+                        <span class="stone-badge-selected">
+                            <i class="fa fa-check-circle me-1"/>
+                            <t t-esc="state.pendingIds.size"/> seleccionadas
+                        </span>
+                        <button class="stone-btn stone-btn-primary" t-on-click="confirmSelection">
+                            <i class="fa fa-check me-1"/> Confirmar selección
+                        </button>
+                        <button class="stone-btn stone-btn-ghost" t-on-click="onClose">
+                            <i class="fa fa-times"/>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- FILTROS -->
+                <div class="stone-popup-filters">
+                    <div class="stone-filter-group">
+                        <label>Lote</label>
+                        <input type="text" class="stone-filter-input" placeholder="Buscar lote..."
+                               t-on-input="(e) => this.onFilterChange('lot_name', e.target.value)"
+                               t-att-value="state.filters.lot_name"/>
+                    </div>
+                    <div class="stone-filter-group">
+                        <label>Bloque</label>
+                        <input type="text" class="stone-filter-input" placeholder="Bloque..."
+                               t-on-input="(e) => this.onFilterChange('bloque', e.target.value)"
+                               t-att-value="state.filters.bloque"/>
+                    </div>
+                    <div class="stone-filter-group">
+                        <label>Atado</label>
+                        <input type="text" class="stone-filter-input" placeholder="Atado..."
+                               t-on-input="(e) => this.onFilterChange('atado', e.target.value)"
+                               t-att-value="state.filters.atado"/>
+                    </div>
+                    <div class="stone-filter-group">
+                        <label>Alto mín.</label>
+                        <input type="number" class="stone-filter-input stone-filter-sm" placeholder="0"
+                               t-on-input="(e) => this.onFilterChange('alto_min', e.target.value)"
+                               t-att-value="state.filters.alto_min"/>
+                    </div>
+                    <div class="stone-filter-group">
+                        <label>Ancho mín.</label>
+                        <input type="number" class="stone-filter-input stone-filter-sm" placeholder="0"
+                               t-on-input="(e) => this.onFilterChange('ancho_min', e.target.value)"
+                               t-att-value="state.filters.ancho_min"/>
+                    </div>
+                    <div class="stone-filter-spacer"/>
+                    <div class="stone-filter-stats">
+                        <span t-if="state.isLoading" class="stone-filter-stat-loading">
+                            <i class="fa fa-circle-o-notch fa-spin me-1"/> Buscando...
+                        </span>
+                        <span t-else="" class="stone-filter-stat-count">
+                            <t t-esc="state.totalCount"/> placas disponibles
+                        </span>
+                    </div>
+                </div>
+
+                <!-- TABLA SCROLLEABLE -->
+                <div class="stone-popup-body" t-ref="scrollContainer">
+                    
+                    <!-- Estado vacío -->
+                    <div t-if="!state.isLoading and state.quants.length === 0" class="stone-empty-state">
+                        <i class="fa fa-inbox fa-3x"/>
+                        <div class="stone-empty-text">No se encontraron placas con estos filtros</div>
+                    </div>
+
+                    <!-- Tabla de datos -->
+                    <table t-elif="state.quants.length > 0" class="stone-popup-table">
+                        <thead>
+                            <tr>
+                                <th class="col-chk">✓</th>
+                                <th>Lote</th>
+                                <th>Bloque</th>
+                                <th>Atado</th>
+                                <th class="col-num">Alto</th>
+                                <th class="col-num">Ancho</th>
+                                <th class="col-num">Gros.</th>
+                                <th class="col-num">M²</th>
+                                <th>Tipo</th>
+                                <th>Color</th>
+                                <th>Ubicación</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <t t-foreach="state.quants" t-as="q" t-key="q.id">
+                                <t t-set="isSelected" t-value="state.pendingIds.has(q.lot_id ? q.lot_id[0] : 0)"/>
+                                <tr t-on-click="() => this.toggleLot(q)"
+                                    t-att-class="isSelected ? 'row-sel' : ''">
+                                    <td class="col-chk">
+                                        <div t-att-class="'stone-chkbox' + (isSelected ? ' checked' : '')">
+                                            <i t-if="isSelected" class="fa fa-check"/>
+                                        </div>
+                                    </td>
+                                    <td class="cell-lot"><t t-esc="q.lot_id ? q.lot_id[1] : '-'"/></td>
+                                    <td><t t-esc="q.x_bloque or '-'"/></td>
+                                    <td><t t-esc="q.x_atado or '-'"/></td>
+                                    <td class="col-num"><t t-esc="q.x_alto ? q.x_alto.toFixed(0) : '-'"/></td>
+                                    <td class="col-num"><t t-esc="q.x_ancho ? q.x_ancho.toFixed(0) : '-'"/></td>
+                                    <td class="col-num"><t t-esc="q.x_grosor or '-'"/></td>
+                                    <td class="col-num fw-semibold"><t t-esc="q.quantity ? q.quantity.toFixed(2) : '-'"/></td>
+                                    <td><t t-esc="q.x_tipo or '-'"/></td>
+                                    <td><t t-esc="q.x_color or '-'"/></td>
+                                    <td class="cell-loc">
+                                        <t t-esc="q.location_id ? q.location_id[1].split('/').pop() : '-'"/>
+                                    </td>
+                                    <td>
+                                        <span t-if="q.reserved_quantity > 0 and !isSelected" class="stone-tag stone-tag-warn">Reservado</span>
+                                        <span t-elif="isSelected" class="stone-tag stone-tag-ok">Selec.</span>
+                                        <span t-else="" class="stone-tag stone-tag-free">Libre</span>
+                                    </td>
+                                </tr>
+                            </t>
+                        </tbody>
+                    </table>
+
+                    <!-- Sentinel para infinite scroll -->
+                    <div t-ref="scrollSentinel" class="stone-scroll-sentinel">
+                        <div t-if="state.isLoadingMore" class="stone-loading-more">
+                            <i class="fa fa-circle-o-notch fa-spin me-2"/> Cargando más placas...
+                        </div>
+                        <div t-elif="state.hasMore" class="stone-scroll-hint">
+                            <i class="fa fa-chevron-down me-1"/> Desplázate para cargar más
+                        </div>
+                    </div>
+                </div>
+
+                <!-- FOOTER -->
+                <div class="stone-popup-footer">
+                    <span class="stone-footer-info">
+                        Mostrando <strong><t t-esc="state.quants.length"/></strong> 
+                        de <strong><t t-esc="state.totalCount"/></strong> placas
+                    </span>
+                    <div class="stone-footer-actions">
+                        <button class="stone-btn stone-btn-ghost" t-on-click="onClose">
+                            Cancelar
+                        </button>
+                        <button class="stone-btn stone-btn-primary" t-on-click="confirmSelection">
+                            <i class="fa fa-check me-1"/>
+                            Agregar <t t-if="state.pendingIds.size > 0">(<t t-esc="state.pendingIds.size"/>)</t>
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
     `;
+
+    static props = {
+        productId: Number,
+        productName: { type: String, optional: true },
+        currentLotIds: { type: Array, optional: true },
+        onConfirm: Function,
+        onClose: Function,
+    };
+
+    setup() {
+        this.orm = useService("orm");
+        this.scrollContainerRef = useRef("scrollContainer");
+        this.scrollSentinelRef = useRef("scrollSentinel");
+        this.searchTimeout = null;
+        this.observer = null;
+
+        const initialIds = new Set(this.props.currentLotIds || []);
+
+        this.state = useState({
+            quants: [],
+            isLoading: false,
+            isLoadingMore: false,
+            hasMore: false,
+            totalCount: 0,
+            pendingIds: initialIds,
+            filters: { lot_name: '', bloque: '', atado: '', alto_min: '', ancho_min: '' },
+            page: 0,
+        });
+
+        this.PAGE_SIZE = 35;
+
+        onWillStart(async () => {
+            await this.loadPage(0, true);
+        });
+
+        onWillUnmount(() => {
+            if (this.observer) this.observer.disconnect();
+        });
+    }
+
+    async loadPage(page, reset = false) {
+        if (page === 0) {
+            this.state.isLoading = true;
+        } else {
+            this.state.isLoadingMore = true;
+        }
+
+        try {
+            const result = await this.orm.call(
+                'stock.quant',
+                'search_stone_inventory_for_so_paginated',
+                [],
+                {
+                    product_id: this.props.productId,
+                    filters: this.state.filters,
+                    current_lot_ids: Array.from(this.state.pendingIds),
+                    page: page,
+                    page_size: this.PAGE_SIZE,
+                }
+            );
+
+            const quants = result.items || [];
+            const total = result.total || 0;
+
+            if (reset || page === 0) {
+                this.state.quants = quants;
+            } else {
+                this.state.quants = [...this.state.quants, ...quants];
+            }
+
+            this.state.totalCount = total;
+            this.state.page = page;
+            this.state.hasMore = this.state.quants.length < total;
+
+        } catch (e) {
+            console.error("[STONE POPUP] Error cargando inventario:", e);
+            // Fallback al método original si el paginado no existe
+            try {
+                const quants = await this.orm.call(
+                    'stock.quant',
+                    'search_stone_inventory_for_so',
+                    [],
+                    {
+                        product_id: this.props.productId,
+                        filters: this.state.filters,
+                        current_lot_ids: Array.from(this.state.pendingIds),
+                    }
+                );
+                const paginated = (quants || []).slice(0, this.PAGE_SIZE * (page + 1));
+                this.state.quants = paginated;
+                this.state.totalCount = (quants || []).length;
+                this.state.hasMore = paginated.length < (quants || []).length;
+            } catch (e2) {
+                console.error("[STONE POPUP] Fallback también falló:", e2);
+            }
+        } finally {
+            this.state.isLoading = false;
+            this.state.isLoadingMore = false;
+
+            // Configurar IntersectionObserver después de renderizar
+            setTimeout(() => this.setupIntersectionObserver(), 100);
+        }
+    }
+
+    setupIntersectionObserver() {
+        if (this.observer) this.observer.disconnect();
+
+        const sentinel = this.scrollSentinelRef.el;
+        const container = this.scrollContainerRef.el;
+
+        if (!sentinel || !container) return;
+
+        this.observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting && this.state.hasMore && !this.state.isLoadingMore) {
+                    this.loadPage(this.state.page + 1, false);
+                }
+            },
+            { root: container, rootMargin: '100px', threshold: 0.1 }
+        );
+
+        this.observer.observe(sentinel);
+    }
+
+    onFilterChange(key, value) {
+        this.state.filters[key] = value;
+        if (this.searchTimeout) clearTimeout(this.searchTimeout);
+        this.searchTimeout = setTimeout(() => this.loadPage(0, true), 350);
+    }
+
+    toggleLot(quant) {
+        if (!quant.lot_id) return;
+        const lotId = quant.lot_id[0];
+        const newSet = new Set(this.state.pendingIds);
+        if (newSet.has(lotId)) {
+            newSet.delete(lotId);
+        } else {
+            newSet.add(lotId);
+        }
+        this.state.pendingIds = newSet;
+    }
+
+    confirmSelection() {
+        this.props.onConfirm(Array.from(this.state.pendingIds));
+    }
+
+    onClose() {
+        this.props.onClose();
+    }
+
+    onOverlayClick() {
+        this.props.onClose();
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// COMPONENTE PRINCIPAL: BOTÓN + TABLA DE SELECCIONADAS
+// ═══════════════════════════════════════════════════════════════════════════════
+export class StoneExpandButton extends Component {
+    static template = xml`
+        <div class="stone-field-wrapper">
+            <!-- Botón cuando NO está expandido -->
+            <button t-if="!state.isExpanded"
+                    class="stone-toggle-btn"
+                    t-on-click.stop="openExpanded"
+                    title="Ver placas seleccionadas">
+                <i class="fa fa-th-large"/>
+                <span t-if="state.selectedCount > 0" class="stone-count-badge">
+                    <t t-esc="state.selectedCount"/>
+                </span>
+            </button>
+
+            <!-- Botón cuando está expandido (colapsar) -->
+            <button t-if="state.isExpanded"
+                    class="stone-toggle-btn active"
+                    t-on-click.stop="closeExpanded"
+                    title="Colapsar">
+                <i class="fa fa-chevron-up"/>
+            </button>
+        </div>
+
+        <!-- POPUP DE SELECCIÓN -->
+        <StoneSelectorPopup t-if="state.showPopup"
+            productId="getProductId()"
+            productName="getProductName()"
+            currentLotIds="getCurrentLotIds()"
+            onConfirm.bind="onPopupConfirm"
+            onClose.bind="onPopupClose"
+        />
+    `;
+
+    static components = { StoneSelectorPopup };
     static props = { ...standardFieldProps };
 
     setup() {
         this.orm = useService("orm");
-        this.detailsRow = null;
-        this.containerNode = null;
-        this.gridNode = null;
-        this.isExpanded = false;
-        
-        this.filters = { lot_name: '', bloque: '', atado: '', alto_min: '', ancho_min: '' };
-        this.searchTimeout = null;
 
-        // =====================================================================
-        // DIAGNÓSTICO: Logs en el ciclo de vida del componente
-        // =====================================================================
+        this.state = useState({
+            isExpanded: false,
+            showPopup: false,
+            selectedCount: 0,
+            detailsRow: null,
+        });
+
         onWillStart(() => {
-            console.group("🔷 [STONE onWillStart] Componente inicializando");
-            this._logRecordState("onWillStart");
-            console.groupEnd();
+            this._updateCount();
         });
 
         onWillUpdateProps((nextProps) => {
-            console.group("🔷 [STONE onWillUpdateProps] Props actualizándose");
-            console.log("Props actuales:", this.props);
-            console.log("Props nuevos:", nextProps);
-            this._logRecordState("onWillUpdateProps (current)", this.props);
-            this._logRecordState("onWillUpdateProps (next)", nextProps);
-            console.groupEnd();
+            this._updateCount(nextProps);
         });
-        
+
         onWillUnmount(() => {
-            console.log("🔷 [STONE onWillUnmount] Componente desmontándose");
-            this.removeGrid();
+            this.removeDetailsRow();
         });
     }
 
-    /**
-     * DIAGNÓSTICO: Loguear estado completo del record
-     */
-    _logRecordState(context, props = this.props) {
-        console.group(`📊 [STONE ${context}] Estado del Record`);
-        
-        if (!props || !props.record) {
-            console.warn("❌ props.record NO EXISTE");
-            console.groupEnd();
-            return;
-        }
-
-        const record = props.record;
-        const data = record.data;
-
-        console.log("Record completo:", record);
-        console.log("Record.data:", data);
-        console.log("Record.resId:", record.resId);
-        console.log("Record.isNew:", record.isNew);
-        
-        // Inspeccionar lot_ids específicamente
-        console.group("🏷️ lot_ids inspection");
-        console.log("data.lot_ids:", data.lot_ids);
-        console.log("data.lot_ids tipo:", typeof data.lot_ids);
-        
-        if (data.lot_ids) {
-            console.log("data.lot_ids constructor:", data.lot_ids.constructor?.name);
-            console.log("data.lot_ids keys:", Object.keys(data.lot_ids));
-            
-            // Intentar diferentes formas de acceder a los IDs
-            if (Array.isArray(data.lot_ids)) {
-                console.log("✅ Es Array directo:", data.lot_ids);
-            }
-            
-            if (data.lot_ids.records) {
-                console.log("✅ Tiene .records:", data.lot_ids.records);
-                console.log("Records mapped:", data.lot_ids.records.map(r => ({
-                    resId: r.resId,
-                    data: r.data,
-                    id: r.data?.id
-                })));
-            }
-            
-            if (data.lot_ids.currentIds) {
-                console.log("✅ Tiene .currentIds:", data.lot_ids.currentIds);
-            }
-            
-            if (data.lot_ids.resIds) {
-                console.log("✅ Tiene .resIds:", data.lot_ids.resIds);
-            }
-
-            // Propiedad count si existe
-            if ('count' in data.lot_ids) {
-                console.log("✅ Tiene .count:", data.lot_ids.count);
-            }
-
-            // Iterar si es iterable
-            try {
-                if (typeof data.lot_ids[Symbol.iterator] === 'function') {
-                    console.log("✅ Es iterable, expandiendo:", [...data.lot_ids]);
-                }
-            } catch (e) {
-                console.log("❌ No es iterable");
-            }
-        } else {
-            console.log("❌ lot_ids es null/undefined/falsy");
-        }
-        console.groupEnd();
-
-        // Otros campos relevantes
-        console.log("product_id:", data.product_id);
-        console.log("product_uom_qty:", data.product_uom_qty);
-        
-        console.groupEnd();
+    _updateCount(props = this.props) {
+        const rawLots = props?.record?.data?.lot_ids;
+        const ids = this.extractLotIds(rawLots);
+        this.state.selectedCount = ids.length;
     }
 
-    async handleClick(ev) {
-        console.group("🔷 [STONE handleClick]");
-        this._logRecordState("handleClick");
-        
-        const tr = ev.currentTarget.closest('tr');
-        if (!tr) {
-            console.warn("❌ No se encontró <tr>");
-            console.groupEnd();
-            return;
-        }
-
-        if (this.isExpanded) {
-            this.removeGrid();
-            this.isExpanded = false;
-        } else {
-            document.querySelectorAll('.o_stone_details_row_tr').forEach(e => e.remove());
-            await this.injectContainer(tr);
-            this.isExpanded = true;
-        }
-        this.render();
-        console.groupEnd();
+    getProductId() {
+        const pd = this.props.record.data.product_id;
+        if (!pd) return 0;
+        if (Array.isArray(pd)) return pd[0];
+        if (typeof pd === 'number') return pd;
+        if (pd.id) return pd.id;
+        return 0;
     }
 
-    async injectContainer(currentRow) {
-        console.log("🔷 [STONE injectContainer] Creando contenedor");
-        
-        const newTr = document.createElement('tr');
-        newTr.className = 'o_stone_details_row_tr';
-        
-        const colCount = currentRow.querySelectorAll('td').length || 10;
-        const newTd = document.createElement('td');
-        newTd.colSpan = colCount;
-        newTd.style.padding = '0';
-        newTd.style.borderTop = '2px solid #714B67';
-        
-        this.containerNode = document.createElement('div');
-        this.containerNode.className = 'bg-white';
-        
-        const filterBar = this.createFilterBar();
-        this.containerNode.appendChild(filterBar);
-
-        this.gridNode = document.createElement('div');
-        this.gridNode.className = 'stone-grid-content p-0';
-        this.gridNode.style.maxHeight = '400px';
-        this.gridNode.style.overflowY = 'auto';
-        this.gridNode.innerHTML = '<div class="text-center p-4"><i class="fa fa-circle-o-notch fa-spin"></i> Cargando inventario...</div>';
-        
-        this.containerNode.appendChild(this.gridNode);
-        newTd.appendChild(this.containerNode);
-        newTr.appendChild(newTd);
-        
-        currentRow.after(newTr);
-        this.detailsRow = newTr;
-
-        await this.loadData();
+    getProductName() {
+        const pd = this.props.record.data.product_id;
+        if (!pd) return '';
+        if (Array.isArray(pd)) return pd[1] || '';
+        if (pd.display_name) return pd.display_name;
+        if (pd.name) return pd.name;
+        return '';
     }
 
-    createFilterBar() {
-        const bar = document.createElement('div');
-        bar.className = 'd-flex flex-wrap gap-2 p-2 bg-light border-bottom align-items-end';
-
-        const inputs = [
-            { key: 'lot_name', label: 'Lote', width: '100px', type: 'text' },
-            { key: 'bloque', label: 'Bloque', width: '80px', type: 'text' },
-            { key: 'atado', label: 'Atado', width: '60px', type: 'text' },
-            { key: 'alto_min', label: 'Alto >', width: '60px', type: 'number' },
-            { key: 'ancho_min', label: 'Ancho >', width: '60px', type: 'number' },
-        ];
-
-        inputs.forEach(field => {
-            const wrapper = document.createElement('div');
-            wrapper.className = 'd-flex flex-column'; 
-            
-            const label = document.createElement('span');
-            label.style.fontSize = '9px';
-            label.className = 'fw-bold text-muted';
-            label.innerText = field.label;
-            
-            const input = document.createElement('input');
-            input.type = field.type;
-            input.className = 'form-control form-control-sm';
-            input.style.width = field.width;
-            input.style.fontSize = '12px';
-            input.value = this.filters[field.key] || '';
-            
-            input.addEventListener('input', (e) => {
-                this.filters[field.key] = e.target.value;
-                if(this.searchTimeout) clearTimeout(this.searchTimeout);
-                this.searchTimeout = setTimeout(() => this.loadData(), 400);
-            });
-
-            wrapper.appendChild(label);
-            wrapper.appendChild(input);
-            bar.appendChild(wrapper);
-        });
-
-        const closeBtn = document.createElement('button');
-        closeBtn.className = 'btn btn-sm btn-light border ms-auto';
-        closeBtn.innerHTML = '<i class="fa fa-times"></i> Cerrar';
-        closeBtn.onclick = () => {
-            this.removeGrid();
-            this.isExpanded = false;
-            this.render();
-        };
-        bar.appendChild(closeBtn);
-
-        return bar;
+    getCurrentLotIds() {
+        return this.extractLotIds(this.props.record.data.lot_ids);
     }
 
-    /**
-     * DIAGNÓSTICO: Extractor con logs exhaustivos
-     */
     extractLotIds(rawLots) {
-        console.group("🔷 [STONE extractLotIds] Extrayendo IDs");
-        console.log("Input rawLots:", rawLots);
-        console.log("Input tipo:", typeof rawLots);
-        
-        if (!rawLots) {
-            console.log("❌ rawLots es falsy, retornando []");
-            console.groupEnd();
-            return [];
+        if (!rawLots) return [];
+        if (Array.isArray(rawLots)) return rawLots.filter(x => typeof x === 'number');
+        if (rawLots.currentIds) return rawLots.currentIds;
+        if (rawLots.resIds) return rawLots.resIds;
+        if (rawLots.records) {
+            return rawLots.records.map(r => r.resId || r.data?.id).filter(Boolean);
         }
-
-        console.log("rawLots constructor:", rawLots.constructor?.name);
-        console.log("rawLots keys:", Object.keys(rawLots));
-        
-        // 1. Caso Array simple [1, 2, 3]
-        if (Array.isArray(rawLots)) {
-            console.log("✅ Es Array directo:", rawLots);
-            console.groupEnd();
-            return rawLots;
-        }
-        
-        // 2. Caso Odoo X2Many RecordList (Odoo 16+)
-        if (rawLots.records && Array.isArray(rawLots.records)) {
-            console.log("✅ Tiene .records, extrayendo resIds");
-            const ids = rawLots.records.map(r => {
-                console.log("  Record:", r, "resId:", r.resId, "data.id:", r.data?.id);
-                return r.resId || r.data?.id;
-            }).filter(id => id);
-            console.log("IDs extraídos:", ids);
-            console.groupEnd();
-            return ids;
-        }
-
-        // 3. Caso .currentIds
-        if (rawLots.currentIds && Array.isArray(rawLots.currentIds)) {
-            console.log("✅ Tiene .currentIds:", rawLots.currentIds);
-            console.groupEnd();
-            return rawLots.currentIds;
-        }
-
-        // 4. Caso .resIds
-        if (rawLots.resIds && Array.isArray(rawLots.resIds)) {
-            console.log("✅ Tiene .resIds:", rawLots.resIds);
-            console.groupEnd();
-            return rawLots.resIds;
-        }
-
-        // 5. Caso iterable
-        try {
-            if (typeof rawLots[Symbol.iterator] === 'function') {
-                const ids = [...rawLots];
-                console.log("✅ Es iterable, expandido:", ids);
-                console.groupEnd();
-                return ids;
-            }
-        } catch (e) {
-            console.log("❌ No es iterable:", e);
-        }
-
-        console.log("❌ No se pudo extraer IDs, retornando []");
-        console.groupEnd();
         return [];
     }
 
-    async loadData() {
-        if (!this.gridNode) return;
-        
-        console.group("🔷 [STONE loadData] Cargando datos");
-        
-        const recordData = this.props.record.data;
-        this._logRecordState("loadData");
-        
-        let productId = false;
-        if (recordData.product_id) {
-            if (Array.isArray(recordData.product_id)) {
-                productId = recordData.product_id[0];
-            } else if (typeof recordData.product_id === 'number') {
-                productId = recordData.product_id;
-            } else if (recordData.product_id.id) {
-                productId = recordData.product_id.id;
-            } else if (typeof recordData.product_id === 'object' && recordData.product_id[0]) {
-                productId = recordData.product_id[0];
-            }
-        }
-        console.log("productId resuelto:", productId);
+    async openExpanded() {
+        const tr = this._getMyTr();
+        if (!tr) return;
 
-        if (!productId) {
-            this.gridNode.innerHTML = '<div class="alert alert-warning m-2">Selecciona un producto primero.</div>';
-            console.groupEnd();
+        if (this.state.isExpanded) {
+            this.removeDetailsRow();
+            this.state.isExpanded = false;
             return;
         }
 
-        const currentLotIds = this.extractLotIds(recordData.lot_ids);
-        console.log("IDs finales para enviar al server:", currentLotIds);
+        // Cerrar otros expandidos
+        document.querySelectorAll('.stone-selected-row').forEach(e => e.remove());
 
-        try {
-            console.log("🔷 Llamando a search_stone_inventory_for_so...");
-            const quants = await this.orm.call(
-                'stock.quant', 
-                'search_stone_inventory_for_so', 
-                [], 
-                { 
-                    product_id: productId,
-                    filters: this.filters,
-                    current_lot_ids: currentLotIds
-                }
-            );
-            console.log("🔷 Respuesta del server:", quants);
-
-            this.renderTable(quants, currentLotIds);
-        } catch (error) {
-            console.error("❌ Error en loadData:", error);
-            this.gridNode.innerHTML = `<div class="alert alert-danger m-2">Error: ${error.message}</div>`;
-        }
-        
-        console.groupEnd();
+        this.state.isExpanded = true;
+        await this.injectSelectedTable(tr);
     }
 
-    renderTable(quants, selectedIds) {
-        console.group("🔷 [STONE renderTable]");
-        console.log("quants:", quants?.length);
-        console.log("selectedIds:", selectedIds);
-        
-        if (!quants || quants.length === 0) {
-            this.gridNode.innerHTML = '<div class="p-3 text-center text-muted">No se encontraron placas disponibles con estos filtros.</div>';
-            console.groupEnd();
-            return;
-        }
+    closeExpanded() {
+        this.removeDetailsRow();
+        this.state.isExpanded = false;
+    }
 
-        const groups = {};
-        quants.forEach(q => {
-            const b = q.x_bloque || 'Sin Bloque';
-            if (!groups[b]) groups[b] = [];
-            groups[b].push(q);
-        });
+    _getMyTr() {
+        const el = this.__owl__.bdom?.el || this.el;
+        if (el) return el.closest('tr');
+        return null;
+    }
 
-        let html = `
-            <table class="table table-sm table-hover table-bordered mb-0" style="font-size: 11px;">
-                <thead class="bg-light sticky-top" style="top: 0;">
-                    <tr>
-                        <th width="30" class="text-center">#</th>
-                        <th>Lote</th>
-                        <th>Ubicación</th>
-                        <th class="text-end">Dimensión</th>
-                        <th class="text-end">M²</th>
-                        <th class="text-center">Estado</th>
-                    </tr>
-                </thead>
-                <tbody>
+    async injectSelectedTable(currentRow) {
+        const lots = this.getCurrentLotIds();
+
+        const newTr = document.createElement('tr');
+        newTr.className = 'stone-selected-row';
+
+        const colCount = currentRow.querySelectorAll('td').length || 10;
+        const td = document.createElement('td');
+        td.colSpan = colCount;
+        td.className = 'stone-selected-cell';
+
+        const container = document.createElement('div');
+        container.className = 'stone-selected-container';
+
+        // Header de la sección
+        const header = document.createElement('div');
+        header.className = 'stone-selected-header';
+        header.innerHTML = `
+            <span class="stone-selected-title">
+                <i class="fa fa-check-circle me-2"></i>
+                Placas seleccionadas 
+                <span class="stone-selected-count" id="stone-count-${currentRow.rowIndex || 0}">${lots.length}</span>
+            </span>
+            <button class="stone-add-btn" id="stone-add-btn-${currentRow.rowIndex || 0}">
+                <i class="fa fa-plus me-1"></i> Agregar placa
+            </button>
         `;
+        container.appendChild(header);
 
-        for (const [bloque, items] of Object.entries(groups)) {
-            const totalArea = items.reduce((sum, i) => sum + i.quantity, 0).toFixed(2);
-            
-            html += `
-                <tr class="table-secondary">
-                    <td colspan="6" class="px-2 fw-bold">
-                        <i class="fa fa-cubes me-1"></i> Bloque: ${bloque} 
-                        <span class="float-end badge bg-secondary">Total: ${totalArea} m²</span>
-                    </td>
-                </tr>
-            `;
-            
-            items.forEach(q => {
-                const lotId = q.lot_id ? q.lot_id[0] : 0;
-                const lotName = q.lot_id ? q.lot_id[1] : '';
-                const locName = q.location_id ? q.location_id[1].split('/').pop() : '';
-                
-                const isChecked = selectedIds.includes(lotId);
-                const isReserved = q.reserved_quantity > 0;
+        // Tabla de seleccionadas
+        const tableWrapper = document.createElement('div');
+        tableWrapper.className = 'stone-selected-body';
+        tableWrapper.id = `stone-selected-body-${currentRow.rowIndex || 0}`;
+        container.appendChild(tableWrapper);
 
-                let rowClass = isChecked ? 'table-primary' : '';
-                let statusBadge = '';
-                
-                if (isChecked && isReserved) {
-                    statusBadge = '<span class="badge bg-success" style="font-size:9px">Asignado</span>';
-                } else if (isReserved) {
-                    statusBadge = '<span class="badge bg-warning text-dark" style="font-size:9px">Reservado</span>';
-                } else {
-                    statusBadge = '<span class="badge bg-light text-muted border" style="font-size:9px">Libre</span>';
-                }
+        td.appendChild(container);
+        newTr.appendChild(td);
+        currentRow.after(newTr);
+        this._detailsRow = newTr;
 
-                html += `
-                    <tr class="${rowClass}" style="cursor:pointer;" onclick="this.querySelector('.stone-chk').click()">
-                        <td class="text-center align-middle">
-                            <input type="checkbox" class="stone-chk form-check-input mt-0" 
-                                   value="${lotId}" ${isChecked ? 'checked' : ''} 
-                                   onclick="event.stopPropagation()">
-                        </td>
-                        <td class="align-middle fw-bold font-monospace">${lotName}</td>
-                        <td class="align-middle text-muted">${locName}</td>
-                        <td class="align-middle text-end font-monospace">
-                            ${(q.x_alto || 0).toFixed(2)} x ${(q.x_ancho || 0).toFixed(2)}
-                        </td>
-                        <td class="align-middle text-end fw-bold">${q.quantity.toFixed(2)}</td>
-                        <td class="align-middle text-center">${statusBadge}</td>
-                    </tr>
-                `;
+        // Renderizar tabla con datos actuales
+        await this.renderSelectedTable(tableWrapper, lots);
+
+        // Bindear botón Agregar
+        const addBtn = header.querySelector('.stone-add-btn');
+        if (addBtn) {
+            addBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.state.showPopup = true;
             });
         }
-        html += `</tbody></table>`;
-        
-        this.gridNode.innerHTML = html;
-
-        this.gridNode.querySelectorAll('.stone-chk').forEach(input => {
-            input.addEventListener('change', (e) => this.onSelectionChange(e));
-        });
-        
-        console.groupEnd();
     }
 
-    onSelectionChange(ev) {
-        console.group("🔷 [STONE onSelectionChange]");
-        
-        const id = parseInt(ev.target.value);
-        const isChecked = ev.target.checked;
-        const row = ev.target.closest('tr');
-        
-        console.log("Lot ID:", id);
-        console.log("isChecked:", isChecked);
-        
-        if (isChecked) row.classList.add('table-primary');
-        else row.classList.remove('table-primary');
-
-        // Estado actual
-        let currentIds = this.extractLotIds(this.props.record.data.lot_ids);
-        console.log("currentIds ANTES:", currentIds);
-
-        if (isChecked) {
-            if (!currentIds.includes(id)) currentIds.push(id);
-        } else {
-            currentIds = currentIds.filter(x => x !== id);
+    async renderSelectedTable(container, lotIds) {
+        if (!lotIds || lotIds.length === 0) {
+            container.innerHTML = `
+                <div class="stone-no-selection">
+                    <i class="fa fa-info-circle me-2 text-muted"></i>
+                    <span class="text-muted">Sin placas seleccionadas. Usa <strong>Agregar placa</strong> para comenzar.</span>
+                </div>
+            `;
+            return;
         }
-        console.log("currentIds DESPUÉS:", currentIds);
 
-        // Actualizar el record
-        const updateCommand = [[6, 0, currentIds]];
-        console.log("Enviando update con:", updateCommand);
-        
-        this.props.record.update({ lot_ids: updateCommand });
-        
-        console.groupEnd();
+        container.innerHTML = `<div class="stone-table-loading"><i class="fa fa-circle-o-notch fa-spin"></i> Cargando datos...</div>`;
+
+        let lotsData = [];
+        try {
+            lotsData = await this.orm.searchRead(
+                'stock.lot',
+                [['id', 'in', lotIds]],
+                ['name', 'x_bloque', 'x_atado', 'x_alto', 'x_ancho', 'x_grosor', 'x_tipo', 'x_color', 'x_numero_placa'],
+                { limit: lotIds.length }
+            );
+
+            // Obtener cantidades desde quants
+            const quants = await this.orm.searchRead(
+                'stock.quant',
+                [['lot_id', 'in', lotIds], ['location_id.usage', '=', 'internal'], ['quantity', '>', 0]],
+                ['lot_id', 'quantity'],
+                {}
+            );
+            const qtyMap = {};
+            for (const q of quants) {
+                const lid = q.lot_id[0];
+                qtyMap[lid] = (qtyMap[lid] || 0) + q.quantity;
+            }
+
+            let totalQty = 0;
+            let html = `
+                <table class="stone-sel-table">
+                    <thead>
+                        <tr>
+                            <th>Lote</th>
+                            <th>Bloque</th>
+                            <th>Atado</th>
+                            <th class="col-num">Alto</th>
+                            <th class="col-num">Ancho</th>
+                            <th class="col-num">Grosor</th>
+                            <th class="col-num">M²</th>
+                            <th>Tipo</th>
+                            <th>Color</th>
+                            <th class="col-act">Quitar</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            for (const lot of lotsData) {
+                const qty = qtyMap[lot.id] || 0;
+                totalQty += qty;
+                html += `
+                    <tr data-lot-id="${lot.id}">
+                        <td class="cell-lot">${lot.name}</td>
+                        <td>${lot.x_bloque || '-'}</td>
+                        <td>${lot.x_atado || '-'}</td>
+                        <td class="col-num">${lot.x_alto ? lot.x_alto.toFixed(0) : '-'}</td>
+                        <td class="col-num">${lot.x_ancho ? lot.x_ancho.toFixed(0) : '-'}</td>
+                        <td class="col-num">${lot.x_grosor || '-'}</td>
+                        <td class="col-num fw-semibold">${qty.toFixed(2)}</td>
+                        <td>${lot.x_tipo || '-'}</td>
+                        <td>${lot.x_color || '-'}</td>
+                        <td class="col-act">
+                            <button class="stone-remove-btn" data-lot-id="${lot.id}" title="Quitar placa">
+                                <i class="fa fa-times"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }
+
+            html += `
+                    </tbody>
+                    <tfoot>
+                        <tr class="stone-total-row">
+                            <td colspan="6" class="text-end fw-bold text-muted">Total:</td>
+                            <td class="col-num fw-bold">${totalQty.toFixed(2)}</td>
+                            <td colspan="3"></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            `;
+
+            container.innerHTML = html;
+
+            // Bindear botones de quitar
+            container.querySelectorAll('.stone-remove-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const lotId = parseInt(btn.dataset.lotId);
+                    this.removeLot(lotId);
+                });
+            });
+
+        } catch (err) {
+            console.error("[STONE] Error renderizando seleccionadas:", err);
+            container.innerHTML = `<div class="text-danger p-2">Error cargando datos: ${err.message}</div>`;
+        }
     }
 
-    removeGrid() {
-        if (this.detailsRow) {
-            this.detailsRow.remove();
-            this.detailsRow = null;
+    async removeLot(lotId) {
+        const currentIds = this.getCurrentLotIds();
+        const newIds = currentIds.filter(id => id !== lotId);
+        await this.props.record.update({ lot_ids: [[6, 0, newIds]] });
+        this._updateCount();
+        await this.refreshSelectedTable();
+    }
+
+    async refreshSelectedTable() {
+        if (!this._detailsRow) return;
+        const body = this._detailsRow.querySelector('.stone-selected-body');
+        if (!body) return;
+        const lots = this.getCurrentLotIds();
+        // Actualizar el badge de conteo
+        const countEl = this._detailsRow.querySelector('.stone-selected-count');
+        if (countEl) countEl.textContent = lots.length;
+        await this.renderSelectedTable(body, lots);
+    }
+
+    async onPopupConfirm(newLotIds) {
+        this.state.showPopup = false;
+        await this.props.record.update({ lot_ids: [[6, 0, newLotIds]] });
+        this._updateCount();
+        await this.refreshSelectedTable();
+    }
+
+    onPopupClose() {
+        this.state.showPopup = false;
+    }
+
+    removeDetailsRow() {
+        if (this._detailsRow) {
+            this._detailsRow.remove();
+            this._detailsRow = null;
         }
     }
 }

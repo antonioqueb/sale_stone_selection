@@ -1,5 +1,706 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// MODAL FULLSCREEN - Forzando estructura Flex
+// STONE SELECTION — Estilos principales
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Variables de diseño
+$stone-primary: #2c5282;       // Azul profundo para piedra
+$stone-primary-light: #3182ce;
+$stone-accent: #68d391;        // Verde para seleccionados
+$stone-danger: #fc8181;
+$stone-warn: #f6ad55;
+$stone-bg: #f7fafc;
+$stone-border: #e2e8f0;
+$stone-text: #2d3748;
+$stone-muted: #718096;
+$stone-radius: 8px;
+$stone-radius-sm: 5px;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BOTÓN TOGGLE EN LA LISTA
+// ═══════════════════════════════════════════════════════════════════════════
+.stone-field-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+.stone-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: 1.5px solid $stone-border;
+    border-radius: $stone-radius-sm;
+    background: white;
+    color: $stone-primary;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    position: relative;
+    padding: 0;
+
+    &:hover {
+        border-color: $stone-primary-light;
+        background: #ebf8ff;
+        color: $stone-primary-light;
+        transform: scale(1.08);
+    }
+
+    &.active {
+        background: $stone-primary;
+        border-color: $stone-primary;
+        color: white;
+    }
+
+    i { font-size: 13px; }
+}
+
+.stone-count-badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    background: $stone-accent;
+    color: #1a202c;
+    font-size: 9px;
+    font-weight: 700;
+    min-width: 16px;
+    height: 16px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 3px;
+    line-height: 1;
+    border: 1.5px solid white;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FILA DE SELECCIONADAS (inline en la lista)
+// ═══════════════════════════════════════════════════════════════════════════
+.stone-selected-row td.stone-selected-cell {
+    padding: 0 !important;
+    background: #f0f7ff;
+    border-top: 2px solid $stone-primary;
+    border-bottom: 2px solid $stone-border;
+}
+
+.stone-selected-container {
+    background: white;
+    border-radius: 0;
+    overflow: hidden;
+}
+
+.stone-selected-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 14px;
+    background: $stone-bg;
+    border-bottom: 1px solid $stone-border;
+}
+
+.stone-selected-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: $stone-primary;
+    display: flex;
+    align-items: center;
+
+    i { color: $stone-accent; }
+}
+
+.stone-selected-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: $stone-primary;
+    color: white;
+    font-size: 10px;
+    font-weight: 700;
+    min-width: 18px;
+    height: 18px;
+    border-radius: 9px;
+    padding: 0 4px;
+    margin-left: 6px;
+}
+
+.stone-add-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 12px;
+    background: $stone-primary;
+    color: white;
+    border: none;
+    border-radius: $stone-radius-sm;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+
+    &:hover {
+        background: $stone-primary-light;
+    }
+
+    i { font-size: 10px; }
+}
+
+.stone-selected-body {
+    max-height: 280px;
+    overflow-y: auto;
+    overflow-x: auto;
+
+    &::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+    &::-webkit-scrollbar-thumb {
+        background: #cbd5e0;
+        border-radius: 3px;
+    }
+}
+
+.stone-no-selection {
+    padding: 16px 14px;
+    font-size: 12px;
+    color: $stone-muted;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.stone-table-loading {
+    padding: 20px;
+    text-align: center;
+    color: $stone-muted;
+    font-size: 12px;
+}
+
+// Tabla de seleccionadas (compacta)
+.stone-sel-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11.5px;
+
+    thead tr {
+        background: #f8fafc;
+    }
+
+    th {
+        padding: 6px 8px;
+        text-align: left;
+        font-weight: 600;
+        font-size: 10.5px;
+        text-transform: uppercase;
+        color: $stone-muted;
+        border-bottom: 1px solid $stone-border;
+        white-space: nowrap;
+
+        &.col-num { text-align: right; }
+        &.col-act { text-align: center; width: 36px; }
+    }
+
+    tbody tr {
+        transition: background 0.1s;
+
+        &:hover {
+            background: #f7fafc;
+        }
+
+        &:not(:last-child) td {
+            border-bottom: 1px solid #f0f4f8;
+        }
+    }
+
+    td {
+        padding: 6px 8px;
+        color: $stone-text;
+        vertical-align: middle;
+
+        &.col-num { text-align: right; font-variant-numeric: tabular-nums; }
+        &.col-act { text-align: center; }
+    }
+
+    .cell-lot {
+        font-family: 'Courier New', monospace;
+        font-size: 11px;
+        font-weight: 600;
+        color: $stone-primary;
+    }
+
+    tfoot .stone-total-row {
+        background: $stone-bg;
+
+        td {
+            padding: 7px 8px;
+            border-top: 2px solid $stone-border;
+            font-size: 12px;
+        }
+    }
+}
+
+.stone-remove-btn {
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #fed7d7;
+    border-radius: 4px;
+    background: #fff5f5;
+    color: #e53e3e;
+    cursor: pointer;
+    transition: all 0.12s;
+    padding: 0;
+
+    &:hover {
+        background: #fc8181;
+        border-color: #fc8181;
+        color: white;
+    }
+
+    i { font-size: 10px; }
+}
+
+.fw-semibold { font-weight: 600; }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// POPUP FULLSCREEN
+// ═══════════════════════════════════════════════════════════════════════════
+.stone-popup-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(2px);
+    z-index: 10500;
+    display: flex;
+    align-items: stretch;
+    justify-content: stretch;
+    padding: 16px;
+    box-sizing: border-box;
+}
+
+.stone-popup-container {
+    background: white;
+    border-radius: 12px;
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+    animation: stonePopupIn 0.2s ease;
+}
+
+@keyframes stonePopupIn {
+    from {
+        opacity: 0;
+        transform: scale(0.97) translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+// Header del popup
+.stone-popup-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    background: $stone-primary;
+    color: white;
+    flex: 0 0 auto;
+}
+
+.stone-popup-title {
+    font-size: 15px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+
+    i { font-size: 16px; }
+}
+
+.stone-popup-subtitle {
+    font-size: 13px;
+    font-weight: 400;
+    opacity: 0.85;
+    margin-left: 4px;
+}
+
+.stone-popup-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.stone-badge-selected {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+// Botones del popup
+.stone-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 7px 14px;
+    border-radius: $stone-radius-sm;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    border: none;
+
+    i { font-size: 11px; }
+
+    &.stone-btn-primary {
+        background: $stone-accent;
+        color: #1a202c;
+
+        &:hover { background: darken(#68d391, 8%); }
+    }
+
+    &.stone-btn-ghost {
+        background: rgba(255, 255, 255, 0.15);
+        color: white;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+
+        &:hover { background: rgba(255, 255, 255, 0.25); }
+    }
+}
+
+// Filtros del popup
+.stone-popup-filters {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    padding: 10px 16px;
+    background: $stone-bg;
+    border-bottom: 1px solid $stone-border;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+}
+
+.stone-filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+
+    label {
+        font-size: 9.5px;
+        font-weight: 700;
+        text-transform: uppercase;
+        color: $stone-muted;
+        letter-spacing: 0.03em;
+    }
+}
+
+.stone-filter-input {
+    padding: 5px 8px;
+    border: 1.5px solid $stone-border;
+    border-radius: $stone-radius-sm;
+    font-size: 12px;
+    width: 130px;
+    color: $stone-text;
+    transition: border-color 0.15s;
+    background: white;
+
+    &.stone-filter-sm { width: 70px; }
+
+    &:focus {
+        outline: none;
+        border-color: $stone-primary-light;
+        box-shadow: 0 0 0 2px rgba($stone-primary-light, 0.2);
+    }
+
+    &::placeholder { color: #a0aec0; }
+}
+
+.stone-filter-spacer {
+    flex: 1;
+}
+
+.stone-filter-stats {
+    display: flex;
+    align-items: center;
+    padding-bottom: 2px;
+}
+
+.stone-filter-stat-loading,
+.stone-filter-stat-count {
+    font-size: 11.5px;
+    color: $stone-muted;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.stone-filter-stat-count {
+    color: $stone-primary;
+    font-weight: 600;
+}
+
+// Body del popup (scrolleable)
+.stone-popup-body {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    overflow-x: auto;
+    min-height: 0;
+    background: white;
+    position: relative;
+
+    &::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+    &::-webkit-scrollbar-thumb {
+        background: #cbd5e0;
+        border-radius: 4px;
+    }
+    &::-webkit-scrollbar-track {
+        background: #f7fafc;
+    }
+}
+
+.stone-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 60%;
+    min-height: 250px;
+    color: #a0aec0;
+    gap: 12px;
+
+    i { font-size: 40px; }
+}
+
+.stone-empty-text {
+    font-size: 14px;
+    color: $stone-muted;
+}
+
+// Tabla del popup
+.stone-popup-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 12px;
+
+    thead {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+
+        tr { background: $stone-bg; }
+
+        th {
+            padding: 9px 10px;
+            text-align: left;
+            font-size: 10.5px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: $stone-muted;
+            letter-spacing: 0.04em;
+            border-bottom: 2px solid $stone-border;
+            white-space: nowrap;
+            background: $stone-bg;
+
+            &.col-chk {
+                width: 44px;
+                text-align: center;
+            }
+
+            &.col-num {
+                text-align: right;
+                width: 60px;
+            }
+        }
+    }
+
+    tbody {
+        tr {
+            cursor: pointer;
+            transition: background 0.08s;
+
+            &:hover { background: #f0f7ff; }
+
+            &.row-sel {
+                background: #ebfaf1;
+
+                &:hover { background: #d4f4e0; }
+
+                td:first-child {
+                    border-left: 3px solid $stone-accent;
+                }
+            }
+
+            td {
+                padding: 8px 10px;
+                border-bottom: 1px solid #f0f4f8;
+                vertical-align: middle;
+                color: $stone-text;
+
+                &.col-chk {
+                    text-align: center;
+                    width: 44px;
+                }
+
+                &.col-num {
+                    text-align: right;
+                    font-variant-numeric: tabular-nums;
+                }
+
+                &.cell-lot {
+                    font-family: 'Courier New', monospace;
+                    font-size: 11.5px;
+                    font-weight: 700;
+                    color: $stone-primary;
+                }
+
+                &.cell-loc {
+                    color: $stone-muted;
+                    font-size: 11px;
+                }
+            }
+        }
+    }
+}
+
+// Checkbox personalizado en popup
+.stone-chkbox {
+    width: 18px;
+    height: 18px;
+    border: 2px solid #cbd5e0;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+    transition: all 0.12s;
+    background: white;
+
+    i {
+        font-size: 10px;
+        color: white;
+    }
+
+    &.checked {
+        background: $stone-accent;
+        border-color: darken(#68d391, 10%);
+    }
+}
+
+// Tags de estado
+.stone-tag {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 600;
+    white-space: nowrap;
+
+    &.stone-tag-ok {
+        background: #c6f6d5;
+        color: #276749;
+    }
+
+    &.stone-tag-warn {
+        background: #fefcbf;
+        color: #744210;
+    }
+
+    &.stone-tag-free {
+        background: #edf2f7;
+        color: #718096;
+        border: 1px solid #e2e8f0;
+    }
+}
+
+// Sentinel de infinite scroll
+.stone-scroll-sentinel {
+    padding: 16px;
+    text-align: center;
+}
+
+.stone-loading-more {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: $stone-muted;
+    font-size: 12px;
+    padding: 8px;
+}
+
+.stone-scroll-hint {
+    color: #a0aec0;
+    font-size: 11px;
+    animation: hintBounce 2s infinite;
+}
+
+@keyframes hintBounce {
+    0%, 100% { opacity: 0.5; transform: translateY(0); }
+    50% { opacity: 1; transform: translateY(3px); }
+}
+
+// Footer del popup
+.stone-popup-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 20px;
+    background: $stone-bg;
+    border-top: 1px solid $stone-border;
+    flex: 0 0 auto;
+}
+
+.stone-footer-info {
+    font-size: 12px;
+    color: $stone-muted;
+}
+
+.stone-footer-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+
+    .stone-btn {
+        // Adaptar colores para el footer (fondo claro)
+        &.stone-btn-ghost {
+            background: white;
+            color: $stone-muted;
+            border: 1.5px solid $stone-border;
+
+            &:hover {
+                background: $stone-bg;
+                color: $stone-text;
+            }
+        }
+
+        &.stone-btn-primary {
+            background: $stone-primary;
+            color: white;
+
+            &:hover { background: $stone-primary-light; }
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MODAL FULLSCREEN: Stone Move Grid (para Picking)
 // ═══════════════════════════════════════════════════════════════════════════
 .o_dialog:has(.o_stone_move_panel),
 .modal-dialog:has(.o_stone_move_panel) {
@@ -17,22 +718,19 @@
     max-height: 100% !important;
     display: flex !important;
     flex-direction: column !important;
-    overflow: hidden !important; /* Evita scroll en el modal completo */
+    overflow: hidden !important;
 }
 
 .o_dialog:has(.o_stone_move_panel) .modal-body,
 .modal-dialog:has(.o_stone_move_panel) .modal-body {
     flex: 1 1 auto !important;
     padding: 0 !important;
-    overflow: hidden !important; /* El scroll lo maneja el panel interno */
+    overflow: hidden !important;
     display: flex !important;
     flex-direction: column !important;
     min-height: 0 !important;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// PANEL PRINCIPAL
-// ═══════════════════════════════════════════════════════════════════════════
 .o_stone_move_panel {
     display: flex;
     flex-direction: column;
@@ -43,33 +741,26 @@
     overflow: hidden;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// HEADER (Fijo)
-// ═══════════════════════════════════════════════════════════════════════════
 .stone-header {
-    flex: 0 0 auto; /* No encoger ni crecer */
+    flex: 0 0 auto;
     display: flex;
     flex-wrap: wrap;
     gap: 12px;
     padding: 10px 16px;
-    background: #f8f9fa;
-    border-bottom: 1px solid #dee2e6;
+    background: $stone-bg;
+    border-bottom: 1px solid $stone-border;
     align-items: center;
     z-index: 20;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// BODY - SCROLL (Aquí ocurre el desplazamiento)
-// ═══════════════════════════════════════════════════════════════════════════
 .stone-body {
-    flex: 1 1 auto; /* Ocupa el espacio restante */
-    overflow-y: auto !important; /* Scroll vertical activado */
+    flex: 1 1 auto;
+    overflow-y: auto !important;
     overflow-x: auto;
     min-height: 0;
     background: #fff;
     position: relative;
-    
-    /* Scrollbar estilizado (opcional) */
+
     &::-webkit-scrollbar {
         width: 8px;
         height: 8px;
@@ -90,83 +781,72 @@
     color: #6c757d;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// TABLA (Sticky Header)
-// ═══════════════════════════════════════════════════════════════════════════
 .stone-table {
     width: 100%;
-    border-collapse: separate; /* Necesario para sticky */
+    border-collapse: separate;
     border-spacing: 0;
     font-size: 12px;
-    
+
     thead {
         position: sticky;
         top: 0;
         z-index: 10;
-        
-        tr {
-            background: #f8f9fa;
-        }
-        
+
+        tr { background: $stone-bg; }
+
         th {
             position: sticky;
             top: 0;
-            background: #f8f9fa; /* Fondo opaco vital para sticky */
+            background: $stone-bg;
             padding: 10px 8px;
             font-weight: 600;
             font-size: 11px;
             text-transform: uppercase;
             color: #495057;
-            border-bottom: 2px solid #dee2e6;
+            border-bottom: 2px solid $stone-border;
             white-space: nowrap;
             box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-        }
-        
-        th.col-check {
-            width: 40px;
-            text-align: center;
+
+            &.col-check {
+                width: 40px;
+                text-align: center;
+            }
         }
     }
-    
+
     tbody {
         tr {
             cursor: pointer;
             transition: background-color 0.1s;
-            
-            &:hover {
-                background-color: #f1f3f5;
-            }
-            
+
+            &:hover { background-color: #f1f3f5; }
+
             &.row-selected {
-                background-color: #e8f5e9;
-                
-                &:hover {
-                    background-color: #c8e6c9;
-                }
-                
-                td:first-child {
-                    border-left: 3px solid #28a745;
-                }
+                background-color: #ebfaf1;
+
+                &:hover { background-color: #d4f4e0; }
+
+                td:first-child { border-left: 3px solid #28a745; }
             }
         }
-        
+
         td {
             padding: 8px;
             border-bottom: 1px solid #eee;
             vertical-align: middle;
             background-color: inherit;
         }
-        
+
         td.col-check {
             width: 40px;
             text-align: center;
         }
     }
-    
+
     .form-check-input {
         margin: 0;
         cursor: pointer;
-        
+
         &:checked {
             background-color: #28a745;
             border-color: #28a745;
@@ -174,29 +854,24 @@
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// FOOTER (Fijo)
-// ═══════════════════════════════════════════════════════════════════════════
 .stone-footer {
-    flex: 0 0 auto; /* No encoger ni crecer */
+    flex: 0 0 auto;
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 10px 16px;
-    background: #f8f9fa;
-    border-top: 1px solid #dee2e6;
+    background: $stone-bg;
+    border-top: 1px solid $stone-border;
     font-size: 13px;
     z-index: 20;
 }
 
-// LEGACY
+// Legacy
 .o_stone_toggle_btn {
     color: #495057 !important;
-    &:hover { 
-        color: #212529 !important; 
-    }
+    &:hover { color: #212529 !important; }
 }
 .o_stone_details_row_tr td {
-    background-color: #f8f9fa;
+    background-color: $stone-bg;
     padding: 0 !important;
 }
