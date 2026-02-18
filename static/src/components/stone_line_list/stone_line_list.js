@@ -187,7 +187,7 @@ export class StoneExpandButton extends Component {
                             <th>Atado</th>
                             <th class="col-num">Alto</th>
                             <th class="col-num">Ancho</th>
-                            <th class="col-num">Grosor</th>
+                            <th class="col-num">Espesor</th>
                             <th class="col-num">M²</th>
                             <th>Tipo</th>
                             <th>Color</th>
