@@ -8,6 +8,35 @@ _logger = logging.getLogger(__name__)
 class StockMove(models.Model):
     _inherit = 'stock.move'
 
+    def _action_assign(self, force_qty=False):
+        """
+        Bloquear la reserva automática (FIFO) para movimientos vinculados a líneas
+        de venta que NO tienen lotes seleccionados manualmente.
+        Si la línea SÍ tiene lot_ids, dejamos pasar (el módulo ya maneja la asignación).
+        """
+        # Separar: moves que SÍ deben reservarse vs moves que NO
+        moves_to_skip = self.env['stock.move']
+        moves_to_assign = self.env['stock.move']
+
+        for move in self:
+            sol = move.sale_line_id
+            if sol and not sol.lot_ids:
+                # Línea de venta SIN lotes seleccionados → NO reservar automáticamente
+                moves_to_skip |= move
+                _logger.info(
+                    "[STONE] Bloqueando reserva automática para move %s (SO Line %s sin lotes)",
+                    move.id, sol.id
+                )
+            else:
+                moves_to_assign |= move
+
+        # Solo asignar los que corresponden
+        res = None
+        if moves_to_assign:
+            res = super(StockMove, moves_to_assign)._action_assign(force_qty=force_qty)
+        
+        return res if res is not None else True
+
     def _recompute_state(self):
         res = super(StockMove, self)._recompute_state()
         if self.env.context.get('is_stone_confirming') or self.env.context.get('skip_stone_sync'):
