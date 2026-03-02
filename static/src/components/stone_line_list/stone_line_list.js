@@ -7,8 +7,6 @@ import { useService } from "@web/core/utils/hooks";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // COMPONENTE PRINCIPAL: BOTÓN STONE
-// El popup se renderiza como DOM puro inyectado en document.body para evitar
-// problemas de contexto OWL al montar fuera del árbol principal.
 // ═══════════════════════════════════════════════════════════════════════════════
 export class StoneExpandButton extends Component {
     static template = "sale_stone_selection.StoneExpandButton";
@@ -19,7 +17,7 @@ export class StoneExpandButton extends Component {
         this._detailsRow = null;
         this._popupRoot = null;
         this._popupKeyHandler = null;
-        this._popupObserver = null;  // ← Referencia al IntersectionObserver del popup
+        this._popupObserver = null;
 
         this.state = useState({
             isExpanded: false,
@@ -82,7 +80,6 @@ export class StoneExpandButton extends Component {
             return;
         }
 
-        // Cerrar cualquier otro expandido
         document.querySelectorAll(".stone-selected-row").forEach((e) => e.remove());
 
         const tr = ev.currentTarget.closest("tr");
@@ -346,6 +343,14 @@ export class StoneExpandButton extends Component {
                             <label>Ancho mín.</label>
                             <input type="number" class="stone-filter-input stone-filter-sm" id="sf-ancho" placeholder="0"/>
                         </div>
+                        <div class="stone-filter-actions">
+                            <button class="stone-btn stone-btn-select-all" id="sp-select-all" title="Seleccionar todas las placas visibles">
+                                <i class="fa fa-check-square-o me-1"></i> Seleccionar todo
+                            </button>
+                            <button class="stone-btn stone-btn-clear-all" id="sp-clear-all" title="Borrar toda la selección">
+                                <i class="fa fa-square-o me-1"></i> Borrar selección
+                            </button>
+                        </div>
                         <div class="stone-filter-spacer"></div>
                         <div class="stone-filter-stats">
                             <span id="sp-stat" class="stone-filter-stat-loading">
@@ -389,6 +394,57 @@ export class StoneExpandButton extends Component {
             footerInfo.innerHTML = `Mostrando <strong>${state.quants.length}</strong> de <strong>${state.totalCount}</strong>`;
         };
 
+        // ─── Seleccionar todo (solo las visibles/cargadas) ───────────────────
+        const doSelectAll = () => {
+            for (const q of state.quants) {
+                const lotId = q.lot_id ? q.lot_id[0] : 0;
+                if (lotId) state.pendingIds.add(lotId);
+            }
+            updateBadge();
+            // Actualizar visual de todas las filas
+            body.querySelectorAll("tr[data-lot-id]").forEach((tr) => {
+                const lotId = parseInt(tr.dataset.lotId);
+                if (!lotId) return;
+                tr.className = "row-sel";
+                const chk = tr.querySelector(".stone-chkbox");
+                if (chk) {
+                    chk.className = "stone-chkbox checked";
+                    chk.innerHTML = '<i class="fa fa-check"></i>';
+                }
+                const tag = tr.querySelector(".stone-tag");
+                if (tag) {
+                    tag.className = "stone-tag stone-tag-ok";
+                    tag.textContent = "Selec.";
+                }
+            });
+        };
+
+        // ─── Borrar selección ────────────────────────────────────────────────
+        const doClearAll = () => {
+            state.pendingIds.clear();
+            updateBadge();
+            // Actualizar visual de todas las filas
+            body.querySelectorAll("tr[data-lot-id]").forEach((tr) => {
+                tr.className = "";
+                const chk = tr.querySelector(".stone-chkbox");
+                if (chk) {
+                    chk.className = "stone-chkbox";
+                    chk.innerHTML = "";
+                }
+                const tag = tr.querySelector(".stone-tag");
+                if (tag) {
+                    const reserved = tr.dataset.reserved === "1";
+                    if (reserved) {
+                        tag.className = "stone-tag stone-tag-warn";
+                        tag.textContent = "Reservado";
+                    } else {
+                        tag.className = "stone-tag stone-tag-free";
+                        tag.textContent = "Libre";
+                    }
+                }
+            });
+        };
+
         const renderTable = () => {
             if (state.quants.length === 0 && !state.isLoading) {
                 body.innerHTML = `
@@ -400,7 +456,6 @@ export class StoneExpandButton extends Component {
                 return;
             }
 
-            // Construir HTML de la tabla
             let rows = "";
             for (const q of state.quants) {
                 const lotId = q.lot_id ? q.lot_id[0] : 0;
@@ -414,7 +469,7 @@ export class StoneExpandButton extends Component {
                 else if (reserved) statusBadge = `<span class="stone-tag stone-tag-warn">Reservado</span>`;
 
                 rows += `
-                    <tr class="${sel ? "row-sel" : ""}" data-lot-id="${lotId}">
+                    <tr class="${sel ? "row-sel" : ""}" data-lot-id="${lotId}" data-reserved="${reserved ? "1" : "0"}">
                         <td class="col-chk">
                             <div class="stone-chkbox ${sel ? "checked" : ""}">
                                 ${sel ? '<i class="fa fa-check"></i>' : ""}
@@ -464,7 +519,7 @@ export class StoneExpandButton extends Component {
 
             updateStats();
 
-            // Click en filas (toggle selección sin re-render completo)
+            // Click en filas
             body.querySelectorAll("tr[data-lot-id]").forEach((tr) => {
                 tr.style.cursor = "pointer";
                 tr.addEventListener("click", () => {
@@ -484,14 +539,20 @@ export class StoneExpandButton extends Component {
                     }
                     const tag = tr.querySelector(".stone-tag");
                     if (tag) {
-                        tag.className = sel ? "stone-tag stone-tag-ok" : "stone-tag stone-tag-free";
-                        tag.textContent = sel ? "Selec." : "Libre";
+                        if (sel) {
+                            tag.className = "stone-tag stone-tag-ok";
+                            tag.textContent = "Selec.";
+                        } else {
+                            const reserved = tr.dataset.reserved === "1";
+                            tag.className = reserved ? "stone-tag stone-tag-warn" : "stone-tag stone-tag-free";
+                            tag.textContent = reserved ? "Reservado" : "Libre";
+                        }
                     }
                     updateBadge();
                 });
             });
 
-            // ── Infinite scroll: usar this._popupObserver (en scope del componente) ──
+            // Infinite scroll
             if (this._popupObserver) {
                 this._popupObserver.disconnect();
                 this._popupObserver = null;
@@ -542,7 +603,6 @@ export class StoneExpandButton extends Component {
                         }
                     );
                 } catch (_e) {
-                    // Fallback al método original
                     const all = (await this.orm.call(
                         "stock.quant",
                         "search_stone_inventory_for_so",
@@ -600,6 +660,8 @@ export class StoneExpandButton extends Component {
         root.querySelector("#sp-cancel").addEventListener("click", doClose);
         root.querySelector("#sp-confirm-top").addEventListener("click", doConfirm);
         root.querySelector("#sp-confirm-bottom").addEventListener("click", doConfirm);
+        root.querySelector("#sp-select-all").addEventListener("click", doSelectAll);
+        root.querySelector("#sp-clear-all").addEventListener("click", doClearAll);
         overlay.addEventListener("click", (e) => { if (e.target === overlay) doClose(); });
 
         const onKeyDown = (e) => { if (e.key === "Escape") { doClose(); } };
