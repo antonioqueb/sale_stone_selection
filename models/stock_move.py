@@ -8,35 +8,6 @@ _logger = logging.getLogger(__name__)
 class StockMove(models.Model):
     _inherit = 'stock.move'
 
-    def _action_assign(self, force_qty=False):
-        """
-        Bloquear la reserva automática (FIFO) para movimientos vinculados a líneas
-        de venta que NO tienen lotes seleccionados manualmente.
-        Si la línea SÍ tiene lot_ids, dejamos pasar (el módulo ya maneja la asignación).
-        """
-        # Separar: moves que SÍ deben reservarse vs moves que NO
-        moves_to_skip = self.env['stock.move']
-        moves_to_assign = self.env['stock.move']
-
-        for move in self:
-            sol = move.sale_line_id
-            if sol and not sol.lot_ids:
-                # Línea de venta SIN lotes seleccionados → NO reservar automáticamente
-                moves_to_skip |= move
-                _logger.info(
-                    "[STONE] Bloqueando reserva automática para move %s (SO Line %s sin lotes)",
-                    move.id, sol.id
-                )
-            else:
-                moves_to_assign |= move
-
-        # Solo asignar los que corresponden
-        res = None
-        if moves_to_assign:
-            res = super(StockMove, moves_to_assign)._action_assign(force_qty=force_qty)
-        
-        return res if res is not None else True
-
     def _recompute_state(self):
         res = super(StockMove, self)._recompute_state()
         if self.env.context.get('is_stone_confirming') or self.env.context.get('skip_stone_sync'):
@@ -47,14 +18,7 @@ class StockMove(models.Model):
         """
         Recalcula los lotes en la línea de venta basándose en las líneas del movimiento actual.
         Trigger: Picking -> SO
-        
-        CRÍTICO: Esta sincronización asegura que cuando se cambian lotes en el Picking,
-        la Orden de Venta refleje esos cambios.
-        
-        FIX BACKORDER: Al sincronizar, no solo miramos el move actual sino TODOS
-        los moves de la SO line (incluyendo backorders) para no perder lotes pendientes.
         """
-        # Evitamos sincronizar si estamos en medio de la confirmación inicial
         if self.env.context.get('is_stone_confirming'):
             _logger.info("[STONE SYNC] Saltando sync durante confirmación inicial")
             return
@@ -63,20 +27,12 @@ class StockMove(models.Model):
             if not move.sale_line_id:
                 continue
             
-            # Solo sincronizar si el movimiento no está finalizado
             if move.state in ['done', 'cancel']:
                 _logger.info("[STONE SYNC] Movimiento %s ya finalizado, no sincronizando", move.id)
                 continue
             
             sol = move.sale_line_id
-            
-            # ══════════════════════════════════════════════════════════════
-            # FIX: Recopilar lotes de TODOS los moves de la SO line,
-            # no solo del move actual. Esto incluye:
-            # - Lotes en moves activos (confirmed/assigned/partially_available)
-            # - Lotes en moves done (ya entregados)
-            # - Lotes en backorders pendientes
-            # ══════════════════════════════════════════════════════════════
+
             all_lot_ids = set()
             
             for sibling_move in sol.move_ids:
@@ -87,21 +43,13 @@ class StockMove(models.Model):
                     if ml.lot_id:
                         all_lot_ids.add(ml.lot_id.id)
             
-            # También incluir lotes de moves pendientes (sin move_lines aún,
-            # como backorders recién creados que aún no se reservaron)
-            # Estos los recuperamos de las fuentes originales de la SO line
-            # solo si el move está pendiente y no tiene lines
             pending_moves = sol.move_ids.filtered(
                 lambda m: m.state in ('confirmed', 'waiting', 'partially_available')
                 and not m.move_line_ids
             )
             if pending_moves:
-                # Si hay moves pendientes sin lines, preservar los lotes
-                # que están en la SO line y no están en ningún move done/assigned
                 existing_so_lots = set(sol.lot_ids.ids) if sol.lot_ids else set()
-                # Los que ya están en move_lines de otros moves
                 accounted_lots = all_lot_ids.copy()
-                # Los que faltan = están en SO pero no en ningún move_line
                 unaccounted = existing_so_lots - accounted_lots
                 if unaccounted:
                     _logger.info(
@@ -111,7 +59,6 @@ class StockMove(models.Model):
                     )
                     all_lot_ids.update(unaccounted)
             
-            # Verificar si hay cambios reales
             existing_lots = set(sol.lot_ids.ids) if sol.lot_ids else set()
             
             if all_lot_ids == existing_lots:
@@ -123,7 +70,6 @@ class StockMove(models.Model):
             _logger.info("[STONE SYNC] Lotes anteriores: %s", sorted(existing_lots))
             _logger.info("[STONE SYNC] Lotes nuevos: %s", sorted(all_lot_ids))
             
-            # Actualizamos la SO evitando disparar la sincronización inversa
             try:
                 sol.with_context(skip_stone_sync_picking=True).write({
                     'lot_ids': [(6, 0, list(all_lot_ids))]
@@ -134,12 +80,8 @@ class StockMove(models.Model):
                 _logger.error("[STONE SYNC] Error actualizando SO Line: %s", str(e))
 
     def write(self, vals):
-        """
-        Interceptar cambios en move_line_ids para sincronizar hacia SO
-        """
         res = super(StockMove, self).write(vals)
         
-        # Si cambiaron las líneas de movimiento y no estamos en sync, disparar sync
         if 'move_line_ids' in vals and not self.env.context.get('skip_stone_sync_so'):
             for move in self:
                 if move.sale_line_id and move.state not in ['done', 'cancel']:
