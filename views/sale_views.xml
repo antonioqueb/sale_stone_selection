@@ -21,9 +21,11 @@
                        class="p-0 text-center"/>
             </xpath>
 
-            <!-- Campos de datos necesarios -->
+            <!-- Campos de datos necesarios - usar invisible en vez de column_invisible
+                 para que OWL cargue el field en el record store -->
             <xpath expr="//field[@name='order_line']/list/field[@name='product_id']" position="after">
-                <field name="lot_ids" widget="many2many_tags" column_invisible="1"/>
+                <field name="lot_ids" widget="many2many_tags" invisible="1"/>
+                <field name="x_lot_breakdown_json" invisible="1"/>
             </xpath>
 
         </field>
