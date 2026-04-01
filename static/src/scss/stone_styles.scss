@@ -2,10 +2,9 @@
 // STONE SELECTION — Estilos principales
 // ═══════════════════════════════════════════════════════════════════════════
 
-// Variables de diseño
-$stone-primary: #2c5282;       // Azul profundo para piedra
+$stone-primary: #2c5282;
 $stone-primary-light: #3182ce;
-$stone-accent: #68d391;        // Verde para seleccionados
+$stone-accent: #68d391;
 $stone-danger: #fc8181;
 $stone-warn: #f6ad55;
 $stone-bg: #f7fafc;
@@ -110,7 +109,7 @@ $stone-radius-sm: 5px;
     i { color: $stone-accent; }
 }
 
-.stone-selected-count {
+.stone-sel-badge {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -199,6 +198,7 @@ $stone-radius-sm: 5px;
 
         &.col-num { text-align: right; }
         &.col-act { text-align: center; width: 36px; }
+        &.col-qty-input { text-align: right; width: 110px; }
     }
 
     tbody tr {
@@ -220,6 +220,7 @@ $stone-radius-sm: 5px;
 
         &.col-num { text-align: right; font-variant-numeric: tabular-nums; }
         &.col-act { text-align: center; }
+        &.col-qty-input { text-align: right; }
     }
 
     .cell-lot {
@@ -227,6 +228,7 @@ $stone-radius-sm: 5px;
         font-size: 11px;
         font-weight: 600;
         color: $stone-primary;
+        white-space: nowrap;
     }
 
     tfoot .stone-total-row {
@@ -264,6 +266,74 @@ $stone-radius-sm: 5px;
 }
 
 .fw-semibold { font-weight: 600; }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INPUT DE CANTIDAD PARCIAL (formato/pieza)
+// ═══════════════════════════════════════════════════════════════════════════
+.stone-qty-input,
+.stone-popup-qty-input {
+    width: 80px;
+    padding: 3px 6px;
+    border: 1.5px solid $stone-border;
+    border-radius: $stone-radius-sm;
+    font-size: 12px;
+    font-weight: 600;
+    text-align: right;
+    color: $stone-text;
+    background: white;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    font-variant-numeric: tabular-nums;
+
+    &:focus {
+        outline: none;
+        border-color: $stone-primary-light;
+        box-shadow: 0 0 0 2px rgba($stone-primary-light, 0.2);
+    }
+
+    &:hover {
+        border-color: #a0aec0;
+    }
+
+    &::-webkit-outer-spin-button,
+    &::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+    -moz-appearance: textfield;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TAGS DE TIPO (Placa / Formato / Pieza)
+// ═══════════════════════════════════════════════════════════════════════════
+.stone-tag-tipo-placa {
+    background: #e2e8f0;
+    color: #4a5568;
+    padding: 2px 7px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.stone-tag-tipo-formato {
+    background: #fefcbf;
+    color: #744210;
+    padding: 2px 7px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.stone-tag-tipo-pieza {
+    background: #bee3f8;
+    color: #2a4365;
+    padding: 2px 7px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 600;
+    white-space: nowrap;
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // POPUP FULLSCREEN
@@ -305,7 +375,6 @@ $stone-radius-sm: 5px;
     }
 }
 
-// Header del popup
 .stone-popup-header {
     display: flex;
     align-items: center;
@@ -350,7 +419,6 @@ $stone-radius-sm: 5px;
     gap: 4px;
 }
 
-// Botones del popup
 .stone-btn {
     display: inline-flex;
     align-items: center;
@@ -368,7 +436,12 @@ $stone-radius-sm: 5px;
     &.stone-btn-primary {
         background: $stone-accent;
         color: #1a202c;
+        &:hover { background: darken(#68d391, 8%); }
+    }
 
+    &.stone-btn-accent {
+        background: $stone-accent;
+        color: #1a202c;
         &:hover { background: darken(#68d391, 8%); }
     }
 
@@ -376,8 +449,20 @@ $stone-radius-sm: 5px;
         background: rgba(255, 255, 255, 0.15);
         color: white;
         border: 1px solid rgba(255, 255, 255, 0.3);
-
         &:hover { background: rgba(255, 255, 255, 0.25); }
+    }
+
+    &.stone-btn-outline {
+        background: white;
+        color: $stone-muted;
+        border: 1.5px solid $stone-border;
+        &:hover { background: $stone-bg; color: $stone-text; }
+    }
+
+    &.stone-btn-primary-dark {
+        background: $stone-primary;
+        color: white;
+        &:hover { background: $stone-primary-light; }
     }
 }
 
@@ -428,9 +513,7 @@ $stone-radius-sm: 5px;
     &::placeholder { color: #a0aec0; }
 }
 
-.stone-filter-spacer {
-    flex: 1;
-}
+.stone-filter-spacer { flex: 1; }
 
 .stone-filter-stats {
     display: flex;
@@ -492,12 +575,15 @@ $stone-radius-sm: 5px;
     color: $stone-muted;
 }
 
-// Tabla del popup
+// ═══════════════════════════════════════════════════════════════════════════
+// Tabla del popup — FIX: border-left en seleccionados no empuja contenido
+// ═══════════════════════════════════════════════════════════════════════════
 .stone-popup-table {
     width: 100%;
     border-collapse: separate;
     border-spacing: 0;
     font-size: 12px;
+    table-layout: fixed;
 
     thead {
         position: sticky;
@@ -517,17 +603,35 @@ $stone-radius-sm: 5px;
             border-bottom: 2px solid $stone-border;
             white-space: nowrap;
             background: $stone-bg;
+            overflow: hidden;
+            text-overflow: ellipsis;
 
             &.col-chk {
-                width: 44px;
+                width: 40px;
                 text-align: center;
             }
 
             &.col-num {
                 text-align: right;
-                width: 60px;
+                width: 70px;
             }
         }
+    }
+
+    // Anchos de columna fijos para evitar colapso
+    // Orden: ✓ | Lote | Bloque | Atado | Alto | Ancho | Gros. | Disponible | Tipo | A tomar | Color | Ubicación | Estado
+    colgroup {
+        col.col-chk      { width: 40px; }
+        col.col-lot       { width: 160px; }
+        col.col-bloque    { width: 90px; }
+        col.col-atado     { width: 70px; }
+        col.col-num       { width: 55px; }
+        col.col-disponible{ width: 80px; }
+        col.col-tipo      { width: 75px; }
+        col.col-tomar     { width: 100px; }
+        col.col-color     { width: 80px; }
+        col.col-loc       { width: 90px; }
+        col.col-estado    { width: 75px; }
     }
 
     tbody {
@@ -537,13 +641,15 @@ $stone-radius-sm: 5px;
 
             &:hover { background: #f0f7ff; }
 
+            // FIX: Usar box-shadow inset en lugar de border-left
+            // para que no empuje el contenido ni oculte el nombre del lote
             &.row-sel {
                 background: #ebfaf1;
 
                 &:hover { background: #d4f4e0; }
 
                 td:first-child {
-                    border-left: 3px solid $stone-accent;
+                    box-shadow: inset 3px 0 0 0 $stone-accent;
                 }
             }
 
@@ -552,10 +658,14 @@ $stone-radius-sm: 5px;
                 border-bottom: 1px solid #f0f4f8;
                 vertical-align: middle;
                 color: $stone-text;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
 
                 &.col-chk {
                     text-align: center;
-                    width: 44px;
+                    width: 40px;
+                    overflow: visible;
                 }
 
                 &.col-num {
@@ -563,11 +673,21 @@ $stone-radius-sm: 5px;
                     font-variant-numeric: tabular-nums;
                 }
 
+                &.col-popup-qty {
+                    text-align: right;
+                    min-width: 100px;
+                    overflow: visible; // para que el input no se corte
+                }
+
                 &.cell-lot {
                     font-family: 'Courier New', monospace;
                     font-size: 11.5px;
                     font-weight: 700;
                     color: $stone-primary;
+                    white-space: nowrap;
+                    overflow: visible;
+                    text-overflow: unset;
+                    min-width: 140px;
                 }
 
                 &.cell-loc {
@@ -676,27 +796,6 @@ $stone-radius-sm: 5px;
     display: flex;
     gap: 8px;
     align-items: center;
-
-    .stone-btn {
-        // Adaptar colores para el footer (fondo claro)
-        &.stone-btn-ghost {
-            background: white;
-            color: $stone-muted;
-            border: 1.5px solid $stone-border;
-
-            &:hover {
-                background: $stone-bg;
-                color: $stone-text;
-            }
-        }
-
-        &.stone-btn-primary {
-            background: $stone-primary;
-            color: white;
-
-            &:hover { background: $stone-primary-light; }
-        }
-    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -823,10 +922,12 @@ $stone-radius-sm: 5px;
 
             &.row-selected {
                 background-color: #ebfaf1;
-
                 &:hover { background-color: #d4f4e0; }
 
-                td:first-child { border-left: 3px solid #28a745; }
+                // FIX: box-shadow en vez de border-left
+                td:first-child {
+                    box-shadow: inset 3px 0 0 0 #28a745;
+                }
             }
         }
 
@@ -846,7 +947,6 @@ $stone-radius-sm: 5px;
     .form-check-input {
         margin: 0;
         cursor: pointer;
-
         &:checked {
             background-color: #28a745;
             border-color: #28a745;
@@ -876,11 +976,7 @@ $stone-radius-sm: 5px;
     padding: 0 !important;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// ESTILOS ADICIONALES: Agregar al final de stone_styles.scss
-// ═══════════════════════════════════════════════════════════════════════════
-
-// Botones Seleccionar todo / Borrar selección en la barra de filtros del popup
+// Botones Seleccionar todo / Borrar selección
 .stone-filter-actions {
     display: flex;
     align-items: flex-end;
@@ -909,22 +1005,12 @@ $stone-radius-sm: 5px;
     background: #ebf8ff;
     color: #2c5282;
     border-color: #bee3f8;
-
-    &:hover {
-        background: #2c5282;
-        color: white;
-        border-color: #2c5282;
-    }
+    &:hover { background: #2c5282; color: white; border-color: #2c5282; }
 }
 
 .stone-btn-clear-all {
     background: #fff5f5;
     color: #c53030;
     border-color: #fed7d7;
-
-    &:hover {
-        background: #c53030;
-        color: white;
-        border-color: #c53030;
-    }
+    &:hover { background: #c53030; color: white; border-color: #c53030; }
 }

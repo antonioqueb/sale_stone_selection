@@ -11,9 +11,7 @@ class StockQuant(models.Model):
     def _get_committed_lot_ids(self, product_id):
         """
         Retorna IDs de lotes que están comprometidos en órdenes de venta confirmadas.
-        Estos lotes NO deben aparecer como seleccionables en cotizaciones.
         """
-        # 1. Lotes en move_line_ids de pickings activos vinculados a ventas confirmadas
         committed_move_lines = self.env['stock.move.line'].search([
             ('product_id', '=', product_id),
             ('lot_id', '!=', False),
@@ -22,9 +20,7 @@ class StockQuant(models.Model):
             ('move_id.sale_line_id.order_id.state', 'in', ['sale', 'done']),
         ])
         committed_ids = set(committed_move_lines.mapped('lot_id').ids)
-        
-        # 2. También lotes en sale.order.line de órdenes confirmadas
-        #    (caso borde: orden confirmada pero picking aún no generado)
+
         committed_sol = self.env['sale.order.line'].search([
             ('product_id', '=', product_id),
             ('lot_ids', '!=', False),
@@ -32,14 +28,10 @@ class StockQuant(models.Model):
         ])
         for sol in committed_sol:
             committed_ids.update(sol.lot_ids.ids)
-        
+
         return list(committed_ids)
 
     def _build_stone_domain(self, product_id, filters, safe_current_ids, excluded_lot_ids):
-        """
-        Helper interno para construir el dominio de búsqueda de placas.
-        Reutilizado por search_stone_inventory_for_so y search_stone_inventory_for_so_paginated.
-        """
         base_domain = [
             ('product_id', '=', int(product_id)),
             ('location_id.usage', '=', 'internal'),
@@ -76,13 +68,12 @@ class StockQuant(models.Model):
                 domain.append(('lot_id.x_ancho', '>=', float(filters['ancho_min'])))
             except Exception:
                 pass
+        if filters.get('tipo'):
+            domain.append(('lot_id.x_tipo', '=', filters['tipo']))
 
         return domain
 
     def _build_lots_data(self, lot_ids):
-        """
-        Helper interno: lee todos los campos de los lotes de una sola vez.
-        """
         lots_data = {}
         if not lot_ids:
             return lots_data
@@ -125,9 +116,6 @@ class StockQuant(models.Model):
         return lots_data
 
     def _quants_to_result(self, quants, lots_data):
-        """
-        Helper interno: convierte recordset de quants a lista de dicts serializables.
-        """
         result = []
         for q in quants:
             lot_id = q.lot_id.id if q.lot_id else False
@@ -162,11 +150,6 @@ class StockQuant(models.Model):
 
     @api.model
     def search_stone_inventory_for_so(self, product_id, filters=None, current_lot_ids=None):
-        """
-        Búsqueda de inventario para selección de piedra.
-        Devuelve datos completos del lote incluyendo todos los campos personalizados.
-        """
-        _logger.info("=" * 80)
         _logger.info("[STONE QUANT SEARCH] INICIO - product_id: %s, filters: %s", product_id, filters)
 
         if not filters:
@@ -179,7 +162,6 @@ class StockQuant(models.Model):
 
         committed_lot_ids = self._get_committed_lot_ids(int(product_id))
         excluded_lot_ids = [lid for lid in committed_lot_ids if lid not in safe_current_ids]
-        _logger.info("[STONE QUANT SEARCH] Lotes comprometidos excluidos: %s", len(excluded_lot_ids))
 
         domain = self._build_stone_domain(product_id, filters, safe_current_ids, excluded_lot_ids)
         quants = self.search(domain, limit=300, order='lot_id')
@@ -188,19 +170,11 @@ class StockQuant(models.Model):
         lots_data = self._build_lots_data(lot_ids)
         result = self._quants_to_result(quants, lots_data)
 
-        _logger.info("[STONE QUANT SEARCH] Encontrados: %s quants (excluidos %s comprometidos)",
-                     len(result), len(excluded_lot_ids))
-        _logger.info("[STONE QUANT SEARCH] FIN")
-        _logger.info("=" * 80)
-
+        _logger.info("[STONE QUANT SEARCH] Encontrados: %s quants", len(result))
         return result
 
     @api.model
     def search_stone_inventory_for_so_paginated(self, product_id, filters=None, current_lot_ids=None, page=0, page_size=35):
-        """
-        Versión paginada de search_stone_inventory_for_so.
-        Retorna { items: [...], total: N } para soporte de infinite scroll en el popup.
-        """
         if not filters:
             filters = {}
 
@@ -214,10 +188,8 @@ class StockQuant(models.Model):
 
         domain = self._build_stone_domain(product_id, filters, safe_current_ids, excluded_lot_ids)
 
-        # Contar total sin límite
         total = self.search_count(domain)
 
-        # Página solicitada
         offset = int(page) * int(page_size)
         quants = self.search(domain, limit=int(page_size), offset=offset, order='lot_id')
 
@@ -226,8 +198,8 @@ class StockQuant(models.Model):
         items = self._quants_to_result(quants, lots_data)
 
         _logger.info(
-            "[STONE QUANT PAGINATED] product=%s page=%s/%s offset=%s size=%s total=%s got=%s",
-            product_id, page, (total // int(page_size)), offset, page_size, total, len(items)
+            "[STONE QUANT PAGINATED] product=%s page=%s total=%s got=%s",
+            product_id, page, total, len(items)
         )
 
         return {'items': items, 'total': total}

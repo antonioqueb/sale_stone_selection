@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from odoo import models, fields, api, _
+import json
 import logging
 
 _logger = logging.getLogger(__name__)
@@ -28,7 +29,6 @@ class SaleOrder(models.Model):
         # BLOQUEAR DOBLE CONFIRMACIÓN
         # =====================================================================
         for order in self:
-            # Caso 1: Ya está confirmada
             if order.state in ('sale', 'done'):
                 _logger.info("[STONE] Orden %s ya confirmada (state=%s). Redirigiendo.", order.name, order.state)
                 return {
@@ -40,7 +40,6 @@ class SaleOrder(models.Model):
                     'name': _('Orden de Venta: %s') % order.name,
                 }
 
-            # Caso 2: Ya existe una SO confirmada originada de esta cotización
             existing_so = self.env['sale.order'].search([
                 ('origin', '=', order.name),
                 ('id', '!=', order.id),
@@ -58,7 +57,6 @@ class SaleOrder(models.Model):
                     'name': _('Orden de Venta: %s') % existing_so.name,
                 }
 
-            # Caso 3: Es un backup, no debe confirmarse
             if order.x_is_quote_backup:
                 _logger.info("[STONE] Orden %s es backup de cotización. No se puede confirmar.", order.name)
                 return {
@@ -79,12 +77,26 @@ class SaleOrder(models.Model):
         for order in self:
             for line in order.order_line.filtered(lambda l: l.lot_ids):
                 lot_ids = line.lot_ids.ids.copy()
+
+                # Leer breakdown de cantidades parciales
+                breakdown = {}
+                if line.x_lot_breakdown_json:
+                    try:
+                        if isinstance(line.x_lot_breakdown_json, str):
+                            breakdown = json.loads(line.x_lot_breakdown_json)
+                        elif isinstance(line.x_lot_breakdown_json, dict):
+                            breakdown = line.x_lot_breakdown_json
+                    except (json.JSONDecodeError, TypeError):
+                        breakdown = {}
+
                 lines_lots_map[line.id] = {
                     'lot_ids': lot_ids,
                     'product_id': line.product_id.id,
+                    'breakdown': breakdown,
                 }
                 all_protected_lot_ids.extend(lot_ids)
-                _logger.info("[STONE] Protegiendo para línea %s: %s lotes", line.id, len(lot_ids))
+                _logger.info("[STONE] Protegiendo para línea %s: %s lotes, breakdown: %s",
+                             line.id, len(lot_ids), breakdown)
 
         has_stone_lots = bool(lines_lots_map)
 
@@ -95,10 +107,8 @@ class SaleOrder(models.Model):
             if order.state in ['draft', 'sent'] and not order.x_is_quote_backup:
                 current_cot_name = order.name
 
-                # A) Obtener secuencia nueva para la OV
                 new_ov_name = self.env['ir.sequence'].next_by_code('sale.order.confirmed')
                 if not new_ov_name:
-                    # Fallback: usar nombre actual con prefijo V
                     new_ov_name = current_cot_name.replace('COT/', 'V/')
                     _logger.warning(
                         "[STONE] Secuencia 'sale.order.confirmed' no encontrada. "
@@ -110,7 +120,6 @@ class SaleOrder(models.Model):
                     current_cot_name, new_ov_name
                 )
 
-                # B) Crear copia como "Cotización Histórica"
                 copy_defaults = {
                     'name': current_cot_name,
                     'state': 'draft',
@@ -119,16 +128,18 @@ class SaleOrder(models.Model):
                     'date_order': fields.Datetime.now(),
                 }
 
-                # Si hay lotes, NO copiarlos al backup (se quedan en la orden activa)
                 if has_stone_lots:
-                    copy_defaults['order_line'] = False  # No copiar líneas automáticamente
+                    copy_defaults['order_line'] = False
 
                 backup_quote = order.copy(default=copy_defaults)
 
-                # Si no copiamos líneas (caso con lotes), copiar sin lot_ids
                 if has_stone_lots and not backup_quote.order_line:
                     for line in order.order_line:
-                        line_defaults = {'order_id': backup_quote.id, 'lot_ids': [(5, 0, 0)]}
+                        line_defaults = {
+                            'order_id': backup_quote.id,
+                            'lot_ids': [(5, 0, 0)],
+                            'x_lot_breakdown_json': False,
+                        }
                         line.copy(default=line_defaults)
 
                 _logger.info(
@@ -136,7 +147,6 @@ class SaleOrder(models.Model):
                     backup_quote.name, backup_quote.id
                 )
 
-                # C) Transformar la orden ACTUAL en la Orden de Venta
                 order.name = new_ov_name
                 order.origin = current_cot_name
 
@@ -152,7 +162,6 @@ class SaleOrder(models.Model):
             _logger.info("=" * 80)
             return res
 
-        # Con lotes: contexto de protección
         ctx = dict(
             self.env.context,
             skip_picking_clean=True,
@@ -175,7 +184,6 @@ class SaleOrder(models.Model):
                 _logger.warning("[STONE] No se generaron pickings para la orden %s", order.name)
                 continue
 
-            # A. Limpieza Quirúrgica (Solo lo que NO es nuestro)
             for picking in pickings:
                 for move in picking.move_ids.filtered(lambda m: m.state not in ['done', 'cancel']):
                     lines_to_remove = move.move_line_ids.filtered(
@@ -188,7 +196,6 @@ class SaleOrder(models.Model):
                         )
                         lines_to_remove.with_context(ctx).unlink()
 
-            # B. Inyectar nuestros lotes respetando cantidades parciales
             for line in order.order_line:
                 line_data = lines_lots_map.get(line.id)
                 if not line_data:
@@ -196,9 +203,11 @@ class SaleOrder(models.Model):
 
                 lots = self.env['stock.lot'].browse(line_data['lot_ids'])
                 if lots:
-                    self.with_context(ctx)._assign_stone_lots_to_picking(pickings, line, lots)
+                    self.with_context(ctx)._assign_stone_lots_to_picking(
+                        pickings, line, lots, line_data.get('breakdown', {})
+                    )
 
-        # 5. Restaurar visualización en Sale Order (por si se perdió)
+        # 5. Restaurar visualización en Sale Order
         for line_id, line_data in lines_lots_map.items():
             line = self.env['sale.order.line'].browse(line_id)
             if line.exists() and set(line.lot_ids.ids) != set(line_data['lot_ids']):
@@ -218,7 +227,10 @@ class SaleOrder(models.Model):
                 if source_orders:
                     _logger.info("[STONE] Limpiando lot_ids de cotización origen %s", source_orders.name)
                     for source_line in source_orders.order_line.filtered(lambda l: l.lot_ids):
-                        source_line.with_context(ctx).write({'lot_ids': [(5, 0, 0)]})
+                        source_line.with_context(ctx).write({
+                            'lot_ids': [(5, 0, 0)],
+                            'x_lot_breakdown_json': False,
+                        })
                         _logger.info(
                             "[STONE] ✓ Limpiado lot_ids de línea %s en cotización %s",
                             source_line.id, source_orders.name,
@@ -228,57 +240,62 @@ class SaleOrder(models.Model):
         _logger.info("=" * 80)
         return res
 
-    def _get_lot_qty_for_line(self, sale_line, lot):
+    def _get_lot_qty_for_line(self, sale_line, lot, breakdown=None):
         """
         Determina la cantidad correcta a asignar para un lote en un picking.
 
         LÓGICA:
         - PLACA: Siempre lote completo (quant.quantity)
-        - FORMATO/PIEZA: Usa x_lot_breakdown_json si existe, sino product_uom_qty / num_lotes
+        - FORMATO: Usa breakdown (m² parciales) si existe
+        - PIEZA: Usa breakdown (piezas parciales) si existe
 
-        Retorna: (qty, source) donde source es 'breakdown', 'sale_qty', o 'full_quant'
+        Retorna: (qty, source) donde source es 'breakdown', 'sale_qty_split', o 'full_quant'
         """
-        # Detectar tipo del lote
         tipo = 'placa'
         if hasattr(lot, 'x_tipo') and lot.x_tipo:
             tipo = str(lot.x_tipo).lower()
 
-        is_partial_type = ('formato' in tipo or 'pieza' in tipo)
+        is_partial_type = (tipo in ('formato', 'pieza'))
 
         if not is_partial_type:
-            return None, 'full_quant'  # None = usar quant.quantity completo
+            return None, 'full_quant'
 
-        # === FORMATO / PIEZA: buscar cantidad parcial ===
+        # === FORMATO / PIEZA: buscar cantidad parcial en breakdown ===
+        if not breakdown:
+            breakdown = {}
+            if sale_line.x_lot_breakdown_json:
+                try:
+                    if isinstance(sale_line.x_lot_breakdown_json, str):
+                        breakdown = json.loads(sale_line.x_lot_breakdown_json)
+                    elif isinstance(sale_line.x_lot_breakdown_json, dict):
+                        breakdown = sale_line.x_lot_breakdown_json
+                except (json.JSONDecodeError, TypeError):
+                    breakdown = {}
 
-        # Fuente 1: x_lot_breakdown_json (más preciso, viene del carrito)
-        if sale_line.x_lot_breakdown_json:
-            breakdown = sale_line.x_lot_breakdown_json
-            # El breakdown puede tener keys como quant_id (str) o lot_id (str)
-            # Intentar ambos formatos
-            for key_candidate in [str(lot.id)]:
-                if key_candidate in breakdown:
-                    qty = float(breakdown[key_candidate])
+        # Buscar por lot_id como string
+        lot_id_str = str(lot.id)
+        if lot_id_str in breakdown:
+            qty = float(breakdown[lot_id_str])
+            _logger.info(
+                "[STONE] Lote %s tipo=%s: usando breakdown → qty=%s",
+                lot.name, tipo, qty,
+            )
+            return qty, 'breakdown'
+
+        # También intentar buscar por quant_id en x_selected_lots
+        if hasattr(sale_line, 'x_selected_lots') and sale_line.x_selected_lots:
+            for quant in sale_line.x_selected_lots:
+                if quant.lot_id.id == lot.id and str(quant.id) in breakdown:
+                    qty = float(breakdown[str(quant.id)])
                     _logger.info(
-                        "[STONE] Lote %s tipo=%s: usando breakdown lot_id=%s → qty=%s",
-                        lot.name, tipo, key_candidate, qty,
+                        "[STONE] Lote %s tipo=%s: usando breakdown quant_id=%s → qty=%s",
+                        lot.name, tipo, quant.id, qty,
                     )
                     return qty, 'breakdown'
 
-            # También buscar por quant_id en x_selected_lots
-            if hasattr(sale_line, 'x_selected_lots') and sale_line.x_selected_lots:
-                for quant in sale_line.x_selected_lots:
-                    if quant.lot_id.id == lot.id and str(quant.id) in breakdown:
-                        qty = float(breakdown[str(quant.id)])
-                        _logger.info(
-                            "[STONE] Lote %s tipo=%s: usando breakdown quant_id=%s → qty=%s",
-                            lot.name, tipo, quant.id, qty,
-                        )
-                        return qty, 'breakdown'
-
-        # Fuente 2: Dividir product_uom_qty entre el número de lotes
+        # Fallback: dividir product_uom_qty entre el número de lotes
         num_lots = len(sale_line.lot_ids) if sale_line.lot_ids else 1
         if num_lots > 0 and sale_line.product_uom_qty > 0:
-            # Esto es un fallback imperfecto pero mejor que usar todo el quant
             _logger.info(
                 "[STONE] Lote %s tipo=%s: sin breakdown, usando sale_line qty=%s / %s lotes",
                 lot.name, tipo, sale_line.product_uom_qty, num_lots,
@@ -287,16 +304,17 @@ class SaleOrder(models.Model):
 
         return None, 'full_quant'
 
-    def _assign_stone_lots_to_picking(self, pickings, sale_line, lots):
+    def _assign_stone_lots_to_picking(self, pickings, sale_line, lots, breakdown=None):
         """
         Asigna los lotes seleccionados al picking.
-
-        CAMBIO PRINCIPAL: Para formato/pieza, respeta las cantidades parciales
-        del x_lot_breakdown_json en lugar de usar siempre quant.quantity.
+        Para formato/pieza, respeta las cantidades parciales del breakdown.
         """
         product = sale_line.product_id
         if not lots:
             return
+
+        if not breakdown:
+            breakdown = {}
 
         ctx = dict(
             self.env.context,
@@ -315,10 +333,8 @@ class SaleOrder(models.Model):
                 existing_lot_ids = move.move_line_ids.mapped('lot_id').ids
 
                 for lot in lots:
-                    # Determinar cantidad correcta según tipo
-                    partial_qty, qty_source = self._get_lot_qty_for_line(sale_line, lot)
+                    partial_qty, qty_source = self._get_lot_qty_for_line(sale_line, lot, breakdown)
 
-                    # Buscar quant físico
                     quant = self.env['stock.quant'].search([
                         ('lot_id', '=', lot.id),
                         ('product_id', '=', product.id),
@@ -338,13 +354,11 @@ class SaleOrder(models.Model):
                         _logger.warning("[STONE] Lote %s no encontrado físicamente", lot.name)
                         continue
 
-                    # Resolver cantidad final
                     if qty_source == 'full_quant':
                         qty_to_assign = quant.quantity
                     elif qty_source == 'breakdown' and partial_qty is not None:
                         qty_to_assign = partial_qty
                     elif qty_source == 'sale_qty_split':
-                        # Dividir equitativamente (fallback)
                         num_lots = len(lots)
                         qty_to_assign = sale_line.product_uom_qty / num_lots if num_lots > 0 else quant.quantity
                     else:

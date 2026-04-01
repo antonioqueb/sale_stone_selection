@@ -2,8 +2,6 @@
 <templates xml:space="preserve">
     <t t-name="sale_stone_selection.StoneMoveGridField" owl="1">
         <div class="o_stone_move_panel">
-            
-            <!-- HEADER -->
             <div class="stone-header">
                 <div class="input-group input-group-sm" style="width: auto;">
                     <span class="input-group-text">Lote</span>
@@ -24,7 +22,6 @@
                            t-model="state.filters.atado" 
                            t-on-input="(e) => this.onFilterChange('atado', e.target.value)"/>
                 </div>
-                
                 <div class="ms-auto d-flex align-items-center gap-3">
                     <span class="text-muted">
                         <t t-esc="state.quants.length"/> disponibles
@@ -40,25 +37,19 @@
                     </button>
                 </div>
             </div>
-
-            <!-- BODY (SCROLLABLE) -->
             <div class="stone-body">
-                
                 <div t-if="state.isLoading" class="stone-empty">
                     <i class="fa fa-spinner fa-spin fa-2x text-muted"/>
                     <div class="mt-2 text-muted">Cargando...</div>
                 </div>
-
                 <div t-elif="state.error" class="stone-empty">
                     <i class="fa fa-exclamation-triangle fa-2x text-danger"/>
                     <div class="mt-2 text-danger"><t t-esc="state.error"/></div>
                 </div>
-
                 <div t-elif="state.quants.length === 0" class="stone-empty">
                     <i class="fa fa-inbox fa-2x text-muted"/>
                     <div class="mt-2 text-muted">No hay placas disponibles</div>
                 </div>
-
                 <table t-else="" class="stone-table">
                     <thead>
                         <tr>
@@ -83,9 +74,7 @@
                             <t t-set="isSelected" t-value="isLotSelected(q.lot_id ? q.lot_id[0] : 0)"/>
                             <tr t-on-click="() => this.toggleLot(q)" 
                                 t-att-class="isSelected ? 'row-selected' : ''">
-                                
                                 <td class="col-check">
-                                    <!-- Pointer events none para que el click pase al TR -->
                                     <input type="checkbox" 
                                            class="form-check-input"
                                            style="pointer-events: none;"
@@ -128,8 +117,6 @@
                     </tbody>
                 </table>
             </div>
-
-            <!-- FOOTER -->
             <div class="stone-footer">
                 <span class="text-muted">
                     <i class="fa fa-info-circle me-1"/>

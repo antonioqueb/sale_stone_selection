@@ -73,16 +73,9 @@ export class StoneMoveGridField extends Component {
                         quantity: line.data.quantity || 0,
                         reserved_quantity: line.data.quantity || 0,
                         location_id: locIdName || false,
-                        x_bloque: '',
-                        x_atado: '',
-                        x_alto: 0,
-                        x_ancho: 0,
-                        x_grosor: 0,
-                        x_tipo: '',
-                        x_color: '',
-                        x_origen: '',
-                        x_pedimento: '',
-                        x_detalles_placa: '',
+                        x_bloque: '', x_atado: '', x_alto: 0, x_ancho: 0,
+                        x_grosor: 0, x_tipo: '', x_color: '', x_origen: '',
+                        x_pedimento: '', x_detalles_placa: '',
                         _isAssigned: true
                     });
                 }
@@ -95,7 +88,6 @@ export class StoneMoveGridField extends Component {
         const currentProps = props || this.props;
 
         if (!currentProps || !currentProps.record || !currentProps.record.data) {
-            console.warn("No hay props/record disponible");
             this.state.isLoading = false;
             return;
         }
@@ -147,14 +139,10 @@ export class StoneMoveGridField extends Component {
                             enrichedQuants.unshift({
                                 ...assigned,
                                 lot_id: [lotId, lot.name],
-                                x_bloque: lot.x_bloque || '',
-                                x_atado: lot.x_atado || '',
-                                x_alto: lot.x_alto || 0,
-                                x_ancho: lot.x_ancho || 0,
-                                x_grosor: lot.x_grosor || 0,
-                                x_tipo: lot.x_tipo || '',
-                                x_color: lot.x_color || '',
-                                x_origen: lot.x_origen || '',
+                                x_bloque: lot.x_bloque || '', x_atado: lot.x_atado || '',
+                                x_alto: lot.x_alto || 0, x_ancho: lot.x_ancho || 0,
+                                x_grosor: lot.x_grosor || 0, x_tipo: lot.x_tipo || '',
+                                x_color: lot.x_color || '', x_origen: lot.x_origen || '',
                                 x_pedimento: lot.x_pedimento || '',
                                 x_detalles_placa: lot.x_detalles_placa || '',
                                 _isAssigned: true
@@ -220,13 +208,9 @@ export class StoneMoveGridField extends Component {
             );
 
             if (quants && quants.length > 0) {
-                return {
-                    quantity: quants[0].quantity,
-                    location_id: quants[0].location_id[0]
-                };
+                return { quantity: quants[0].quantity, location_id: quants[0].location_id[0] };
             }
 
-            // Fallback: cualquier ubicación interna
             const quantsFallback = await this.orm.searchRead(
                 'stock.quant',
                 [
@@ -240,10 +224,7 @@ export class StoneMoveGridField extends Component {
             );
 
             if (quantsFallback && quantsFallback.length > 0) {
-                return {
-                    quantity: quantsFallback[0].quantity,
-                    location_id: quantsFallback[0].location_id[0]
-                };
+                return { quantity: quantsFallback[0].quantity, location_id: quantsFallback[0].location_id[0] };
             }
 
             return null;
@@ -264,7 +245,6 @@ export class StoneMoveGridField extends Component {
 
         try {
             if (isCurrentlySelected) {
-                // ── DESELECCIONAR ─────────────────────────────────────────────
                 if (lines && lines.records) {
                     const lineRecord = lines.records.find(
                         line => this._extractId(line.data.lot_id) === lotId
@@ -276,7 +256,6 @@ export class StoneMoveGridField extends Component {
                     }
                 }
             } else {
-                // ── SELECCIONAR ───────────────────────────────────────────────
                 const locationId = this._extractId(recordData.location_id);
                 const locationDestId = this._extractId(recordData.location_dest_id);
 
@@ -288,7 +267,6 @@ export class StoneMoveGridField extends Component {
                     if (realData) {
                         fullQty = realData.quantity;
                         sourceLocationId = realData.location_id;
-                        console.log(`[STONE] Cantidad REAL del lote ${lotId}: ${fullQty} m²`);
                     }
                 }
 
@@ -305,7 +283,6 @@ export class StoneMoveGridField extends Component {
                 });
             }
 
-            // Refrescar inventario para reflejar el nuevo estado
             await this.loadInventory();
 
         } catch (e) {
