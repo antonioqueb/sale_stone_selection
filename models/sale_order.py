@@ -188,7 +188,7 @@ class SaleOrder(models.Model):
                         )
                         lines_to_remove.with_context(ctx).unlink()
 
-            # B. Inyectar nuestros lotes con CANTIDAD COMPLETA
+            # B. Inyectar nuestros lotes respetando cantidades parciales
             for line in order.order_line:
                 line_data = lines_lots_map.get(line.id)
                 if not line_data:
@@ -228,10 +228,71 @@ class SaleOrder(models.Model):
         _logger.info("=" * 80)
         return res
 
+    def _get_lot_qty_for_line(self, sale_line, lot):
+        """
+        Determina la cantidad correcta a asignar para un lote en un picking.
+
+        LÓGICA:
+        - PLACA: Siempre lote completo (quant.quantity)
+        - FORMATO/PIEZA: Usa x_lot_breakdown_json si existe, sino product_uom_qty / num_lotes
+
+        Retorna: (qty, source) donde source es 'breakdown', 'sale_qty', o 'full_quant'
+        """
+        # Detectar tipo del lote
+        tipo = 'placa'
+        if hasattr(lot, 'x_tipo') and lot.x_tipo:
+            tipo = str(lot.x_tipo).lower()
+
+        is_partial_type = ('formato' in tipo or 'pieza' in tipo)
+
+        if not is_partial_type:
+            return None, 'full_quant'  # None = usar quant.quantity completo
+
+        # === FORMATO / PIEZA: buscar cantidad parcial ===
+
+        # Fuente 1: x_lot_breakdown_json (más preciso, viene del carrito)
+        if sale_line.x_lot_breakdown_json:
+            breakdown = sale_line.x_lot_breakdown_json
+            # El breakdown puede tener keys como quant_id (str) o lot_id (str)
+            # Intentar ambos formatos
+            for key_candidate in [str(lot.id)]:
+                if key_candidate in breakdown:
+                    qty = float(breakdown[key_candidate])
+                    _logger.info(
+                        "[STONE] Lote %s tipo=%s: usando breakdown lot_id=%s → qty=%s",
+                        lot.name, tipo, key_candidate, qty,
+                    )
+                    return qty, 'breakdown'
+
+            # También buscar por quant_id en x_selected_lots
+            if hasattr(sale_line, 'x_selected_lots') and sale_line.x_selected_lots:
+                for quant in sale_line.x_selected_lots:
+                    if quant.lot_id.id == lot.id and str(quant.id) in breakdown:
+                        qty = float(breakdown[str(quant.id)])
+                        _logger.info(
+                            "[STONE] Lote %s tipo=%s: usando breakdown quant_id=%s → qty=%s",
+                            lot.name, tipo, quant.id, qty,
+                        )
+                        return qty, 'breakdown'
+
+        # Fuente 2: Dividir product_uom_qty entre el número de lotes
+        num_lots = len(sale_line.lot_ids) if sale_line.lot_ids else 1
+        if num_lots > 0 and sale_line.product_uom_qty > 0:
+            # Esto es un fallback imperfecto pero mejor que usar todo el quant
+            _logger.info(
+                "[STONE] Lote %s tipo=%s: sin breakdown, usando sale_line qty=%s / %s lotes",
+                lot.name, tipo, sale_line.product_uom_qty, num_lots,
+            )
+            return None, 'sale_qty_split'
+
+        return None, 'full_quant'
+
     def _assign_stone_lots_to_picking(self, pickings, sale_line, lots):
         """
         Asigna los lotes seleccionados al picking.
-        CRÍTICO: Usa la CANTIDAD TOTAL del quant, no cantidades parciales.
+
+        CAMBIO PRINCIPAL: Para formato/pieza, respeta las cantidades parciales
+        del x_lot_breakdown_json en lugar de usar siempre quant.quantity.
         """
         product = sale_line.product_id
         if not lots:
@@ -254,22 +315,10 @@ class SaleOrder(models.Model):
                 existing_lot_ids = move.move_line_ids.mapped('lot_id').ids
 
                 for lot in lots:
-                    if lot.id in existing_lot_ids:
-                        _logger.info("[STONE] Lote %s ya existe en move %s, verificando cantidad...", lot.name, move.id)
-                        existing_line = move.move_line_ids.filtered(lambda ml: ml.lot_id.id == lot.id)
-                        if existing_line:
-                            quant = self.env['stock.quant'].search([
-                                ('lot_id', '=', lot.id),
-                                ('product_id', '=', product.id),
-                                ('location_id', 'child_of', move.location_id.id),
-                                ('quantity', '>', 0),
-                            ], limit=1)
-                            if quant and existing_line.quantity != quant.quantity:
-                                _logger.info("[STONE] Corrigiendo cantidad de %s a %s", existing_line.quantity, quant.quantity)
-                                existing_line.with_context(ctx).write({'quantity': quant.quantity})
-                        continue
+                    # Determinar cantidad correcta según tipo
+                    partial_qty, qty_source = self._get_lot_qty_for_line(sale_line, lot)
 
-                    # Buscar Stock Físico Total
+                    # Buscar quant físico
                     quant = self.env['stock.quant'].search([
                         ('lot_id', '=', lot.id),
                         ('product_id', '=', product.id),
@@ -289,9 +338,41 @@ class SaleOrder(models.Model):
                         _logger.warning("[STONE] Lote %s no encontrado físicamente", lot.name)
                         continue
 
-                    qty_to_assign = quant.quantity
+                    # Resolver cantidad final
+                    if qty_source == 'full_quant':
+                        qty_to_assign = quant.quantity
+                    elif qty_source == 'breakdown' and partial_qty is not None:
+                        qty_to_assign = partial_qty
+                    elif qty_source == 'sale_qty_split':
+                        # Dividir equitativamente (fallback)
+                        num_lots = len(lots)
+                        qty_to_assign = sale_line.product_uom_qty / num_lots if num_lots > 0 else quant.quantity
+                    else:
+                        qty_to_assign = quant.quantity
 
-                    _logger.info("[STONE] Asignando lote %s con cantidad COMPLETA: %s m²", lot.name, qty_to_assign)
+                    # Nunca asignar más de lo que hay físicamente
+                    qty_to_assign = min(qty_to_assign, quant.quantity)
+
+                    if lot.id in existing_lot_ids:
+                        _logger.info("[STONE] Lote %s ya existe en move %s, verificando cantidad...", lot.name, move.id)
+                        existing_line = move.move_line_ids.filtered(lambda ml: ml.lot_id.id == lot.id)
+                        if existing_line:
+                            if existing_line.quantity != qty_to_assign:
+                                _logger.info(
+                                    "[STONE] Corrigiendo cantidad de %s a %s (source=%s, tipo=%s)",
+                                    existing_line.quantity, qty_to_assign, qty_source,
+                                    lot.x_tipo if hasattr(lot, 'x_tipo') else 'placa',
+                                )
+                                existing_line.with_context(ctx).write({'quantity': qty_to_assign})
+                            else:
+                                _logger.info("[STONE] Lote %s cantidad correcta: %s", lot.name, qty_to_assign)
+                        continue
+
+                    _logger.info(
+                        "[STONE] Asignando lote %s qty=%s (source=%s, tipo=%s)",
+                        lot.name, qty_to_assign, qty_source,
+                        lot.x_tipo if hasattr(lot, 'x_tipo') else 'placa',
+                    )
 
                     move_line_vals = {
                         'move_id': move.id,
