@@ -19,13 +19,21 @@ export class StoneExpandButton extends Component {
         this._popupKeyHandler = null;
         this._popupObserver = null;
 
+        // Breakdown local en memoria (se sincroniza con el server al confirmar)
+        this._localBreakdown = {};
+
         this.state = useState({
             isExpanded: false,
             selectedCount: 0,
         });
 
-        onWillStart(() => this._updateCount());
-        onWillUpdateProps((nextProps) => this._updateCount(nextProps));
+        onWillStart(() => {
+            this._loadBreakdownFromRecord();
+            this._updateCount();
+        });
+        onWillUpdateProps((nextProps) => {
+            this._updateCount(nextProps);
+        });
         onWillUnmount(() => {
             this.removeDetailsRow();
             this.destroyPopup();
@@ -70,16 +78,58 @@ export class StoneExpandButton extends Component {
     }
 
     /**
-     * Lee el breakdown actual del record
+     * Lee el breakdown desde el record de Odoo hacia nuestra copia local
+     */
+    _loadBreakdownFromRecord() {
+        const raw = this.props.record.data.x_lot_breakdown_json;
+        if (!raw) {
+            this._localBreakdown = {};
+            return;
+        }
+        if (typeof raw === "string") {
+            try { this._localBreakdown = JSON.parse(raw); } catch { this._localBreakdown = {}; }
+        } else if (typeof raw === "object") {
+            this._localBreakdown = { ...raw };
+        } else {
+            this._localBreakdown = {};
+        }
+    }
+
+    /**
+     * Retorna el breakdown local (en memoria)
      */
     getBreakdown() {
-        const raw = this.props.record.data.x_lot_breakdown_json;
-        if (!raw) return {};
-        if (typeof raw === "string") {
-            try { return JSON.parse(raw); } catch { return {}; }
+        return { ...this._localBreakdown };
+    }
+
+    /**
+     * Obtiene el ID real del record (sale.order.line) para escritura directa
+     */
+    _getRecordId() {
+        const rec = this.props.record;
+        // En Odoo OWL, el resId es el ID real del registro en BD
+        if (rec.resId) return rec.resId;
+        if (rec.data && rec.data.id) return rec.data.id;
+        return null;
+    }
+
+    /**
+     * Guarda el breakdown al servidor via orm.write (bypass record.update)
+     * Solo si el registro ya existe en BD (tiene ID numérico real)
+     */
+    async _saveBreakdownToServer(breakdown) {
+        this._localBreakdown = { ...breakdown };
+        const recordId = this._getRecordId();
+        if (recordId && typeof recordId === "number" && recordId > 0) {
+            try {
+                await this.orm.write("sale.order.line", [recordId], {
+                    x_lot_breakdown_json: breakdown,
+                });
+            } catch (e) {
+                console.warn("[STONE] Error guardando breakdown al server:", e);
+                // No es crítico - se guardará en el confirm
+            }
         }
-        if (typeof raw === "object") return { ...raw };
-        return {};
     }
 
     // ─── Toggle principal ─────────────────────────────────────────────────────
@@ -97,6 +147,9 @@ export class StoneExpandButton extends Component {
 
         const tr = ev.currentTarget.closest("tr");
         if (!tr) return;
+
+        // Recargar breakdown del record por si cambió
+        this._loadBreakdownFromRecord();
 
         this.state.isExpanded = true;
         await this.injectSelectedTable(tr);
@@ -305,12 +358,11 @@ export class StoneExpandButton extends Component {
         const maxQty = parseFloat(input.dataset.max) || 0;
         let val = parseFloat(input.value) || 0;
 
-        // Clamp
         if (val < 0) val = 0;
         if (val > maxQty) val = maxQty;
         input.value = val;
 
-        // Actualizar breakdown
+        // Actualizar breakdown local
         const breakdown = this.getBreakdown();
         if (val > 0) {
             breakdown[String(lotId)] = val;
@@ -318,7 +370,8 @@ export class StoneExpandButton extends Component {
             delete breakdown[String(lotId)];
         }
 
-        await this.props.record.update({ x_lot_breakdown_json: breakdown });
+        // Guardar al servidor sin pasar por record.update
+        await this._saveBreakdownToServer(breakdown);
 
         // Recalcular total visual
         this._recalcInlineTotal();
@@ -330,11 +383,9 @@ export class StoneExpandButton extends Component {
         if (!totalEl) return;
 
         let total = 0;
-        // Sumar inputs de qty
         this._detailsRow.querySelectorAll(".stone-qty-input").forEach((inp) => {
             total += parseFloat(inp.value) || 0;
         });
-        // Sumar placas (spans sin input)
         this._detailsRow.querySelectorAll("td.col-qty-input .fw-semibold").forEach((span) => {
             const m = span.textContent.match(/([\d.]+)/);
             if (m) total += parseFloat(m[1]) || 0;
@@ -345,13 +396,14 @@ export class StoneExpandButton extends Component {
     async removeLot(lotId) {
         const newIds = this.getCurrentLotIds().filter((id) => id !== lotId);
 
-        // Limpiar del breakdown
+        // Limpiar del breakdown local
         const breakdown = this.getBreakdown();
         delete breakdown[String(lotId)];
+        await this._saveBreakdownToServer(breakdown);
 
+        // Solo lot_ids pasa por record.update (campo Many2many conocido por OWL)
         await this.props.record.update({
             lot_ids: [[6, 0, newIds]],
-            x_lot_breakdown_json: breakdown,
         });
         this._updateCount();
         await this.refreshSelectedTable();
@@ -394,7 +446,6 @@ export class StoneExpandButton extends Component {
         const root = this._popupRoot;
         const PAGE_SIZE = 35;
 
-        // Estado local del popup
         const state = {
             quants: [],
             totalCount: 0,
@@ -513,13 +564,11 @@ export class StoneExpandButton extends Component {
             footerInfo.innerHTML = `Mostrando <strong>${state.quants.length}</strong> de <strong>${state.totalCount}</strong>`;
         };
 
-        // ─── Seleccionar todo ────────────────────────────────────────────────
         const doSelectAll = () => {
             for (const q of state.quants) {
                 const lotId = q.lot_id ? q.lot_id[0] : 0;
                 if (!lotId) continue;
                 state.pendingIds.add(lotId);
-                // Para formato/pieza sin breakdown previo, poner cantidad completa
                 const tipo = (q.x_tipo || "placa").toLowerCase();
                 if ((tipo === "formato" || tipo === "pieza") && !state.pendingBreakdown[String(lotId)]) {
                     state.pendingBreakdown[String(lotId)] = q.quantity || 0;
@@ -529,7 +578,6 @@ export class StoneExpandButton extends Component {
             renderTable();
         };
 
-        // ─── Borrar selección ────────────────────────────────────────────────
         const doClearAll = () => {
             state.pendingIds.clear();
             state.pendingBreakdown = {};
@@ -572,7 +620,6 @@ export class StoneExpandButton extends Component {
 
                 const tipoLabel = tipo.charAt(0).toUpperCase() + tipo.slice(1);
 
-                // Columna de cantidad a tomar
                 let qtyCell;
                 if (isPartial && sel) {
                     const currentVal = state.pendingBreakdown[lotIdStr] !== undefined
@@ -585,7 +632,6 @@ export class StoneExpandButton extends Component {
                 } else if (isPartial && !sel) {
                     qtyCell = `<span class="text-muted">—</span>`;
                 } else {
-                    // Placa: siempre completa
                     qtyCell = `<span>${q.quantity ? q.quantity.toFixed(2) : "-"} ${qtyLabel}</span>`;
                 }
 
@@ -646,7 +692,6 @@ export class StoneExpandButton extends Component {
             body.querySelectorAll("tr[data-lot-id]").forEach((tr) => {
                 tr.style.cursor = "pointer";
                 tr.addEventListener("click", (ev) => {
-                    // No toggle si clic en input
                     if (ev.target.closest(".stone-popup-qty-input")) return;
 
                     const lotId = parseInt(tr.dataset.lotId);
@@ -659,7 +704,6 @@ export class StoneExpandButton extends Component {
                         delete state.pendingBreakdown[String(lotId)];
                     } else {
                         state.pendingIds.add(lotId);
-                        // Para formato/pieza, precargar con cantidad completa del quant
                         if (isPartial) {
                             const q = state.quants.find(qq => qq.lot_id && qq.lot_id[0] === lotId);
                             if (q) {
@@ -674,7 +718,6 @@ export class StoneExpandButton extends Component {
 
             // Inputs de cantidad parcial en popup
             body.querySelectorAll(".stone-popup-qty-input").forEach((input) => {
-                // Stop propagation para que no toggle
                 input.addEventListener("click", (e) => e.stopPropagation());
                 input.addEventListener("input", (e) => {
                     const lotId = parseInt(input.dataset.lotId);
@@ -783,7 +826,7 @@ export class StoneExpandButton extends Component {
             this.destroyPopup();
             const newIds = Array.from(state.pendingIds);
 
-            // Limpiar breakdown de lotes que ya no están seleccionados
+            // Limpiar breakdown de lotes no seleccionados
             const cleanBreakdown = {};
             for (const [k, v] of Object.entries(state.pendingBreakdown)) {
                 if (state.pendingIds.has(parseInt(k))) {
@@ -791,10 +834,14 @@ export class StoneExpandButton extends Component {
                 }
             }
 
+            // Guardar breakdown via orm.write (no record.update)
+            await this._saveBreakdownToServer(cleanBreakdown);
+
+            // Solo lot_ids via record.update
             await this.props.record.update({
                 lot_ids: [[6, 0, newIds]],
-                x_lot_breakdown_json: cleanBreakdown,
             });
+
             this._updateCount();
             await this.refreshSelectedTable();
         };
