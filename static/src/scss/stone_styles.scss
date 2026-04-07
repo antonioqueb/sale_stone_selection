@@ -98,13 +98,16 @@ $stone-radius-sm: 5px;
     overflow: visible;
     position: relative;
     z-index: 100;
+    // Margen izquierdo para evitar que el contenido quede detrás
+    // de la barra lateral / columnas fijas de Odoo
+    margin-left: 8px;
 }
 
 .stone-selected-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 6px 12px;
+    padding: 6px 12px 6px 16px;
     background: $stone-bg;
     border-bottom: 1px solid $stone-border;
 }
@@ -159,6 +162,8 @@ $stone-radius-sm: 5px;
     background: white;
     position: relative;
     z-index: 100;
+    // Padding izquierdo para que la tabla no quede detrás de controles de Odoo
+    padding-left: 6px;
 
     &::-webkit-scrollbar { width: 5px; height: 5px; }
     &::-webkit-scrollbar-thumb { background: #cbd5e0; border-radius: 3px; }
@@ -233,6 +238,7 @@ $stone-radius-sm: 5px;
         overflow: visible !important;
         text-overflow: unset !important;
         min-width: 130px;
+        padding-left: 12px !important;
         letter-spacing: -0.02em;
         position: relative;
         z-index: 1;
