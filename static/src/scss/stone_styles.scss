@@ -993,3 +993,40 @@ $stone-radius-sm: 5px;
     border-color: #fed7d7;
     &:hover { background: #c53030; color: white; border-color: #c53030; }
 }
+
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   AGREGAR ESTOS ESTILOS AL FINAL DE stone_styles.scss
+   (antes del cierre del archivo)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+// Badge de cantidad total en header del popup
+.stone-badge-qty-total {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    padding: 3px 8px;
+    border-radius: 16px;
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+
+    i { font-size: 10px; opacity: 0.85; }
+}
+
+// Resumen de qty en footer del popup
+.stone-footer-qty-summary {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #2c5282;
+    background: #ebf8ff;
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid #bee3f8;
+}

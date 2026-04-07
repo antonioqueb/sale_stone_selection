@@ -51,7 +51,6 @@ export class StoneExpandButton extends Component {
         if (!num) return "-";
         const v = parseFloat(num);
         if (isNaN(v)) return "-";
-        // Si tiene decimales significativos, mostrarlos
         return v % 1 === 0 ? v.toFixed(0) : v.toFixed(2);
     }
 
@@ -391,8 +390,12 @@ export class StoneExpandButton extends Component {
         delete breakdown[String(lotId)];
         await this._saveBreakdownToServer(breakdown);
 
+        // Calcular nueva cantidad total
+        const totalQty = await this._computeTotalQty(newIds, breakdown);
+
         await this.props.record.update({
             lot_ids: [[6, 0, newIds]],
+            product_uom_qty: totalQty,
         });
         this._updateCount();
         await this.refreshSelectedTable();
@@ -413,6 +416,100 @@ export class StoneExpandButton extends Component {
             this._detailsRow.remove();
             this._detailsRow = null;
         }
+    }
+
+    // ─── Cálculo de cantidad total para actualizar product_uom_qty ────────────
+    /**
+     * Calcula el total de m² o piezas para un conjunto de lotes.
+     * - Placa/Formato sin breakdown: usa quant.quantity (m²)
+     * - Formato/Pieza con breakdown: usa el valor del breakdown
+     * - Pieza sin breakdown: usa quant.quantity
+     *
+     * @param {number[]} lotIds - IDs de lotes
+     * @param {Object} breakdown - {lotId: qty} para parciales
+     * @param {Object[]} [quantsCache] - Quants ya cargados (opcional, para popup)
+     * @returns {number} cantidad total
+     */
+    async _computeTotalQty(lotIds, breakdown, quantsCache = null) {
+        if (!lotIds || lotIds.length === 0) return 0;
+
+        let qtyMap = {};
+
+        if (quantsCache) {
+            // Usar cache del popup
+            for (const q of quantsCache) {
+                const lid = q.lot_id ? q.lot_id[0] : 0;
+                if (lid && lotIds.includes(lid)) {
+                    qtyMap[lid] = { qty: q.quantity || 0, tipo: (q.x_tipo || "placa").toLowerCase() };
+                }
+            }
+        }
+
+        // Buscar lotes que falten en cache
+        const missingIds = lotIds.filter((id) => !qtyMap[id]);
+        if (missingIds.length > 0) {
+            try {
+                const [lotsData, quants] = await Promise.all([
+                    this.orm.searchRead(
+                        "stock.lot",
+                        [["id", "in", missingIds]],
+                        ["id", "x_tipo"],
+                        { limit: missingIds.length }
+                    ),
+                    this.orm.searchRead(
+                        "stock.quant",
+                        [
+                            ["lot_id", "in", missingIds],
+                            ["location_id.usage", "=", "internal"],
+                            ["quantity", ">", 0],
+                        ],
+                        ["lot_id", "quantity"],
+                        { limit: missingIds.length * 2 }
+                    ),
+                ]);
+
+                const tipoMap = {};
+                for (const l of lotsData) {
+                    tipoMap[l.id] = (l.x_tipo || "placa").toLowerCase();
+                }
+
+                for (const q of quants) {
+                    const lid = q.lot_id[0];
+                    const prevQty = qtyMap[lid]?.qty || 0;
+                    qtyMap[lid] = {
+                        qty: prevQty + q.quantity,
+                        tipo: tipoMap[lid] || "placa",
+                    };
+                }
+
+                // Asegurar que todos los IDs tienen entrada
+                for (const lid of missingIds) {
+                    if (!qtyMap[lid]) {
+                        qtyMap[lid] = { qty: 0, tipo: tipoMap[lid] || "placa" };
+                    }
+                }
+            } catch (e) {
+                console.error("[STONE] Error calculando qty total:", e);
+            }
+        }
+
+        let total = 0;
+        for (const lid of lotIds) {
+            const info = qtyMap[lid];
+            if (!info) continue;
+
+            const tipo = info.tipo;
+            const lotIdStr = String(lid);
+            const isPartial = tipo === "formato" || tipo === "pieza";
+
+            if (isPartial && breakdown[lotIdStr] !== undefined) {
+                total += parseFloat(breakdown[lotIdStr]) || 0;
+            } else {
+                total += info.qty;
+            }
+        }
+
+        return total;
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -464,6 +561,11 @@ export class StoneExpandButton extends Component {
                             <span class="stone-badge-selected">
                                 <i class="fa fa-check-circle me-1"></i>
                                 <span id="sp-badge-count">${state.pendingIds.size}</span> selec.
+                            </span>
+                            <span class="stone-badge-qty-total">
+                                <i class="fa fa-balance-scale me-1"></i>
+                                <span id="sp-badge-qty">0.00</span>
+                                <span id="sp-badge-unit">m²</span>
                             </span>
                             <button class="stone-btn stone-btn-accent" id="sp-confirm-top">
                                 <i class="fa fa-check me-1"></i> Confirmar
@@ -529,6 +631,9 @@ export class StoneExpandButton extends Component {
 
                     <div class="stone-popup-footer">
                         <span class="stone-footer-info" id="sp-footer-info">—</span>
+                        <div class="stone-footer-qty-summary" id="sp-footer-qty">
+                            <span id="sp-footer-qty-text">0.00 m²</span>
+                        </div>
                         <div class="stone-footer-actions">
                             <button class="stone-btn stone-btn-outline" id="sp-cancel">Cancelar</button>
                             <button class="stone-btn stone-btn-primary-dark" id="sp-confirm-bottom">
@@ -545,8 +650,67 @@ export class StoneExpandButton extends Component {
         const stat = root.querySelector("#sp-stat");
         const footerInfo = root.querySelector("#sp-footer-info");
         const badgeCount = root.querySelector("#sp-badge-count");
+        const badgeQty = root.querySelector("#sp-badge-qty");
+        const badgeUnit = root.querySelector("#sp-badge-unit");
+        const footerQtyText = root.querySelector("#sp-footer-qty-text");
 
-        const updateBadge = () => { badgeCount.textContent = state.pendingIds.size; };
+        // ─── Calcular totales de m²/piezas de la selección actual ────────
+        const computeSelectedTotals = () => {
+            let totalM2 = 0;
+            let totalPiezas = 0;
+            let hasPiezas = false;
+            let hasM2 = false;
+
+            for (const lotId of state.pendingIds) {
+                const q = state.quants.find((qq) => qq.lot_id && qq.lot_id[0] === lotId);
+                const tipo = q ? (q.x_tipo || "placa").toLowerCase() : "placa";
+                const lotIdStr = String(lotId);
+
+                let qty = 0;
+                if ((tipo === "formato" || tipo === "pieza") && state.pendingBreakdown[lotIdStr] !== undefined) {
+                    qty = parseFloat(state.pendingBreakdown[lotIdStr]) || 0;
+                } else if (q) {
+                    qty = q.quantity || 0;
+                }
+
+                if (tipo === "pieza") {
+                    totalPiezas += qty;
+                    hasPiezas = true;
+                } else {
+                    totalM2 += qty;
+                    hasM2 = true;
+                }
+            }
+
+            return { totalM2, totalPiezas, hasM2, hasPiezas };
+        };
+
+        const updateQtyDisplay = () => {
+            const { totalM2, totalPiezas, hasM2, hasPiezas } = computeSelectedTotals();
+
+            // Badge en header
+            if (hasM2 && hasPiezas) {
+                badgeQty.textContent = self._fmt(totalM2);
+                badgeUnit.textContent = `m² + ${self._fmt(totalPiezas)} pzas`;
+            } else if (hasPiezas && !hasM2) {
+                badgeQty.textContent = self._fmt(totalPiezas);
+                badgeUnit.textContent = "pzas";
+            } else {
+                badgeQty.textContent = self._fmt(totalM2);
+                badgeUnit.textContent = "m²";
+            }
+
+            // Footer
+            const parts = [];
+            if (hasM2) parts.push(`${self._fmt(totalM2)} m²`);
+            if (hasPiezas) parts.push(`${self._fmt(totalPiezas)} pzas`);
+            footerQtyText.textContent = parts.length > 0 ? parts.join(" + ") : "0.00 m²";
+        };
+
+        const updateBadge = () => {
+            badgeCount.textContent = state.pendingIds.size;
+            updateQtyDisplay();
+        };
 
         const updateStats = () => {
             stat.className = "stone-filter-stat-count";
@@ -677,6 +841,7 @@ export class StoneExpandButton extends Component {
                 ${sentinel}`;
 
             updateStats();
+            updateQtyDisplay();
 
             // Click en filas
             body.querySelectorAll("tr[data-lot-id]").forEach((tr) => {
@@ -716,6 +881,7 @@ export class StoneExpandButton extends Component {
                     if (val < 0) val = 0;
                     if (val > max) { val = max; input.value = val; }
                     state.pendingBreakdown[String(lotId)] = val;
+                    updateQtyDisplay();
                 });
             });
 
@@ -813,7 +979,6 @@ export class StoneExpandButton extends Component {
 
         // ─── Confirm / Close ─────────────────────────────────────────────────
         const doConfirm = async () => {
-            self.destroyPopup();
             const newIds = Array.from(state.pendingIds);
 
             const cleanBreakdown = {};
@@ -823,10 +988,16 @@ export class StoneExpandButton extends Component {
                 }
             }
 
+            // Calcular la cantidad total ANTES de cerrar el popup (tenemos los quants en cache)
+            const totalQty = await self._computeTotalQty(newIds, cleanBreakdown, state.quants);
+
+            self.destroyPopup();
+
             await self._saveBreakdownToServer(cleanBreakdown);
 
             await self.props.record.update({
                 lot_ids: [[6, 0, newIds]],
+                product_uom_qty: totalQty,
             });
 
             self._updateCount();
