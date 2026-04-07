@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// STONE SELECTION — Estilos principales (Compacto)
+// STONE SELECTION — Estilos principales (Compacto + z-index fix)
 // ═══════════════════════════════════════════════════════════════════════════
 
 $stone-primary: #2c5282;
@@ -13,21 +13,6 @@ $stone-text: #2d3748;
 $stone-muted: #718096;
 $stone-radius: 8px;
 $stone-radius-sm: 5px;
-
-// ═══════════════════════════════════════════════════════════════════════════
-// COMPACTAR LISTA DE LÍNEAS DE VENTA
-// ═══════════════════════════════════════════════════════════════════════════
-
-// Reducir padding general de la lista de líneas SO
-.o_list_view .o_data_row td {
-    // No forzar global, solo en contexto stone
-}
-
-// Cuando la lista tiene js_class stone_order_line_list
-.o_field_one2many .o_list_renderer[class*="stone"] td,
-.o_field_one2many .o_list_renderer td {
-    // Compactar filas de la lista de líneas
-}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // BOTÓN TOGGLE EN LA LISTA
@@ -91,18 +76,28 @@ $stone-radius-sm: 5px;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // FILA DE SELECCIONADAS (inline en la lista)
+// FIX CRÍTICO: z-index alto para que NUNCA quede detrás de otras filas
 // ═══════════════════════════════════════════════════════════════════════════
-.stone-selected-row td.stone-selected-cell {
-    padding: 0 !important;
-    background: #f0f7ff;
-    border-top: 2px solid $stone-primary;
-    border-bottom: 2px solid $stone-border;
+.stone-selected-row {
+    position: relative;
+    z-index: 100;
+
+    td.stone-selected-cell {
+        padding: 0 !important;
+        background: #f0f7ff !important;
+        border-top: 2px solid $stone-primary;
+        border-bottom: 2px solid $stone-border;
+        position: relative;
+        z-index: 100;
+    }
 }
 
 .stone-selected-container {
     background: white;
     border-radius: 0;
-    overflow: hidden;
+    overflow: visible;
+    position: relative;
+    z-index: 100;
 }
 
 .stone-selected-header {
@@ -158,9 +153,12 @@ $stone-radius-sm: 5px;
 }
 
 .stone-selected-body {
-    max-height: 260px;
+    max-height: 280px;
     overflow-y: auto;
     overflow-x: auto;
+    background: white;
+    position: relative;
+    z-index: 100;
 
     &::-webkit-scrollbar { width: 5px; height: 5px; }
     &::-webkit-scrollbar-thumb { background: #cbd5e0; border-radius: 3px; }
@@ -189,6 +187,7 @@ $stone-radius-sm: 5px;
     width: 100%;
     border-collapse: collapse;
     font-size: 11px;
+    background: white;
 
     thead tr { background: #f8fafc; }
 
@@ -209,6 +208,7 @@ $stone-radius-sm: 5px;
 
     tbody tr {
         transition: background 0.08s;
+        background: white;
         &:hover { background: #f7fafc; }
         &:not(:last-child) td { border-bottom: 1px solid #f0f4f8; }
     }
@@ -223,16 +223,20 @@ $stone-radius-sm: 5px;
         &.col-qty-input { text-align: right; }
     }
 
+    // LOTE: SIEMPRE visible completo, sin truncar, sin quedar detrás de nada
     .cell-lot {
         font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
         font-size: 10.5px;
         font-weight: 600;
         color: $stone-primary;
         white-space: nowrap;
+        overflow: visible !important;
+        text-overflow: unset !important;
+        min-width: 130px;
         letter-spacing: -0.02em;
-        // Asegurar que el lote completo sea visible
-        min-width: 120px;
-        overflow: visible;
+        position: relative;
+        z-index: 1;
+        background: inherit;
     }
 
     tfoot .stone-total-row {
@@ -568,7 +572,7 @@ $stone-radius-sm: 5px;
     border-collapse: separate;
     border-spacing: 0;
     font-size: 11px;
-    table-layout: auto; // auto para que se ajuste al contenido
+    table-layout: auto;
 
     thead {
         position: sticky;
@@ -639,15 +643,14 @@ $stone-radius-sm: 5px;
                     overflow: visible;
                 }
 
-                // Lote: SIEMPRE visible completo, sin truncar
                 &.cell-lot {
                     font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
                     font-size: 10.5px;
                     font-weight: 700;
                     color: $stone-primary;
                     white-space: nowrap;
-                    overflow: visible;
-                    text-overflow: unset;
+                    overflow: visible !important;
+                    text-overflow: unset !important;
                     min-width: 100px;
                     letter-spacing: -0.02em;
                 }
