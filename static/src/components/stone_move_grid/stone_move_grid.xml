@@ -5,31 +5,31 @@
             <div class="stone-header">
                 <div class="input-group input-group-sm" style="width: auto;">
                     <span class="input-group-text">Lote</span>
-                    <input type="text" class="form-control" style="width:120px;" 
+                    <input type="text" class="form-control" style="width:110px;" 
                            placeholder="Buscar..."
                            t-model="state.filters.lot_name" 
                            t-on-input="(e) => this.onFilterChange('lot_name', e.target.value)"/>
                 </div>
                 <div class="input-group input-group-sm" style="width: auto;">
                     <span class="input-group-text">Bloque</span>
-                    <input type="text" class="form-control" style="width:100px;" 
+                    <input type="text" class="form-control" style="width:90px;" 
                            t-model="state.filters.bloque" 
                            t-on-input="(e) => this.onFilterChange('bloque', e.target.value)"/>
                 </div>
                 <div class="input-group input-group-sm" style="width: auto;">
                     <span class="input-group-text">Atado</span>
-                    <input type="text" class="form-control" style="width:80px;" 
+                    <input type="text" class="form-control" style="width:70px;" 
                            t-model="state.filters.atado" 
                            t-on-input="(e) => this.onFilterChange('atado', e.target.value)"/>
                 </div>
-                <div class="ms-auto d-flex align-items-center gap-3">
-                    <span class="text-muted">
-                        <t t-esc="state.quants.length"/> disponibles
+                <div class="ms-auto d-flex align-items-center gap-2">
+                    <span class="text-muted small">
+                        <t t-esc="state.quants.length"/> disp.
                     </span>
-                    <span class="text-success fw-bold">
-                        <t t-esc="selectedCount"/> seleccionadas
+                    <span class="text-success fw-bold small">
+                        <t t-esc="selectedCount"/> sel.
                     </span>
-                    <span class="text-primary fw-bold">
+                    <span class="text-primary fw-bold small">
                         <t t-esc="selectedTotalArea"/> m²
                     </span>
                     <button class="btn btn-sm btn-outline-secondary" t-on-click="onRefresh" title="Actualizar">
@@ -59,11 +59,11 @@
                             <th>Atado</th>
                             <th class="text-center">Alto</th>
                             <th class="text-center">Ancho</th>
-                            <th class="text-center">Espesor</th>
+                            <th class="text-center">Esp.</th>
                             <th class="text-end">M²</th>
                             <th>Tipo</th>
                             <th>Color</th>
-                            <th>Ubicación</th>
+                            <th>Ubic.</th>
                             <th>Origen</th>
                             <th>Pedimento</th>
                             <th>Notas</th>
@@ -86,13 +86,13 @@
                                 <td><t t-esc="q.x_bloque or '-'"/></td>
                                 <td><t t-esc="q.x_atado or '-'"/></td>
                                 <td class="text-center">
-                                    <t t-esc="q.x_alto ? q.x_alto.toFixed(0) : '-'"/>
+                                    <t t-esc="q.x_alto ? q.x_alto.toFixed(2) : '-'"/>
                                 </td>
                                 <td class="text-center">
-                                    <t t-esc="q.x_ancho ? q.x_ancho.toFixed(0) : '-'"/>
+                                    <t t-esc="q.x_ancho ? q.x_ancho.toFixed(2) : '-'"/>
                                 </td>
                                 <td class="text-center">
-                                    <t t-esc="q.x_grosor or '-'"/>
+                                    <t t-esc="q.x_grosor ? parseFloat(q.x_grosor).toFixed(2) : '-'"/>
                                 </td>
                                 <td class="text-end fw-bold">
                                     <t t-esc="q.quantity ? q.quantity.toFixed(2) : '0.00'"/>
@@ -118,9 +118,9 @@
                 </table>
             </div>
             <div class="stone-footer">
-                <span class="text-muted">
+                <span class="text-muted small">
                     <i class="fa fa-info-circle me-1"/>
-                    Clic en fila para seleccionar/deseleccionar
+                    Clic para seleccionar/deseleccionar
                 </span>
                 <span>
                     <strong><t t-esc="selectedCount"/></strong> placas = 

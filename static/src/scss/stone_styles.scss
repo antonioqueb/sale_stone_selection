@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// STONE SELECTION — Estilos principales
+// STONE SELECTION — Estilos principales (Compacto)
 // ═══════════════════════════════════════════════════════════════════════════
 
 $stone-primary: #2c5282;
@@ -15,6 +15,21 @@ $stone-radius: 8px;
 $stone-radius-sm: 5px;
 
 // ═══════════════════════════════════════════════════════════════════════════
+// COMPACTAR LISTA DE LÍNEAS DE VENTA
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Reducir padding general de la lista de líneas SO
+.o_list_view .o_data_row td {
+    // No forzar global, solo en contexto stone
+}
+
+// Cuando la lista tiene js_class stone_order_line_list
+.o_field_one2many .o_list_renderer[class*="stone"] td,
+.o_field_one2many .o_list_renderer td {
+    // Compactar filas de la lista de líneas
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // BOTÓN TOGGLE EN LA LISTA
 // ═══════════════════════════════════════════════════════════════════════════
 .stone-field-wrapper {
@@ -28,8 +43,8 @@ $stone-radius-sm: 5px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
+    width: 24px;
+    height: 24px;
     border: 1.5px solid $stone-border;
     border-radius: $stone-radius-sm;
     background: white;
@@ -43,7 +58,7 @@ $stone-radius-sm: 5px;
         border-color: $stone-primary-light;
         background: #ebf8ff;
         color: $stone-primary-light;
-        transform: scale(1.08);
+        transform: scale(1.05);
     }
 
     &.active {
@@ -52,24 +67,24 @@ $stone-radius-sm: 5px;
         color: white;
     }
 
-    i { font-size: 13px; }
+    i { font-size: 12px; }
 }
 
 .stone-count-badge {
     position: absolute;
-    top: -6px;
-    right: -6px;
+    top: -5px;
+    right: -5px;
     background: $stone-accent;
     color: #1a202c;
-    font-size: 9px;
+    font-size: 8px;
     font-weight: 700;
-    min-width: 16px;
-    height: 16px;
-    border-radius: 8px;
+    min-width: 14px;
+    height: 14px;
+    border-radius: 7px;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 0 3px;
+    padding: 0 2px;
     line-height: 1;
     border: 1.5px solid white;
 }
@@ -94,13 +109,13 @@ $stone-radius-sm: 5px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 8px 14px;
+    padding: 6px 12px;
     background: $stone-bg;
     border-bottom: 1px solid $stone-border;
 }
 
 .stone-selected-title {
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
     color: $stone-primary;
     display: flex;
@@ -115,106 +130,91 @@ $stone-radius-sm: 5px;
     justify-content: center;
     background: $stone-primary;
     color: white;
-    font-size: 10px;
+    font-size: 9px;
     font-weight: 700;
-    min-width: 18px;
-    height: 18px;
-    border-radius: 9px;
-    padding: 0 4px;
-    margin-left: 6px;
+    min-width: 16px;
+    height: 16px;
+    border-radius: 8px;
+    padding: 0 3px;
+    margin-left: 5px;
 }
 
 .stone-add-btn {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 5px 12px;
+    gap: 3px;
+    padding: 4px 10px;
     background: $stone-primary;
     color: white;
     border: none;
     border-radius: $stone-radius-sm;
-    font-size: 11px;
+    font-size: 10.5px;
     font-weight: 600;
     cursor: pointer;
     transition: background 0.15s;
 
-    &:hover {
-        background: $stone-primary-light;
-    }
-
-    i { font-size: 10px; }
+    &:hover { background: $stone-primary-light; }
+    i { font-size: 9px; }
 }
 
 .stone-selected-body {
-    max-height: 280px;
+    max-height: 260px;
     overflow-y: auto;
     overflow-x: auto;
 
-    &::-webkit-scrollbar {
-        width: 6px;
-        height: 6px;
-    }
-    &::-webkit-scrollbar-thumb {
-        background: #cbd5e0;
-        border-radius: 3px;
-    }
+    &::-webkit-scrollbar { width: 5px; height: 5px; }
+    &::-webkit-scrollbar-thumb { background: #cbd5e0; border-radius: 3px; }
 }
 
 .stone-no-selection {
-    padding: 16px 14px;
-    font-size: 12px;
+    padding: 12px;
+    font-size: 11px;
     color: $stone-muted;
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 5px;
 }
 
 .stone-table-loading {
-    padding: 20px;
+    padding: 16px;
     text-align: center;
     color: $stone-muted;
-    font-size: 12px;
+    font-size: 11px;
 }
 
-// Tabla de seleccionadas (compacta)
+// ═══════════════════════════════════════════════════════════════════════════
+// Tabla de seleccionadas (COMPACTA)
+// ═══════════════════════════════════════════════════════════════════════════
 .stone-sel-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 11.5px;
+    font-size: 11px;
 
-    thead tr {
-        background: #f8fafc;
-    }
+    thead tr { background: #f8fafc; }
 
     th {
-        padding: 6px 8px;
+        padding: 4px 6px;
         text-align: left;
         font-weight: 600;
-        font-size: 10.5px;
+        font-size: 9.5px;
         text-transform: uppercase;
         color: $stone-muted;
         border-bottom: 1px solid $stone-border;
         white-space: nowrap;
 
         &.col-num { text-align: right; }
-        &.col-act { text-align: center; width: 36px; }
-        &.col-qty-input { text-align: right; width: 110px; }
+        &.col-act { text-align: center; width: 28px; }
+        &.col-qty-input { text-align: right; width: 90px; }
     }
 
     tbody tr {
-        transition: background 0.1s;
-
-        &:hover {
-            background: #f7fafc;
-        }
-
-        &:not(:last-child) td {
-            border-bottom: 1px solid #f0f4f8;
-        }
+        transition: background 0.08s;
+        &:hover { background: #f7fafc; }
+        &:not(:last-child) td { border-bottom: 1px solid #f0f4f8; }
     }
 
     td {
-        padding: 6px 8px;
+        padding: 4px 6px;
         color: $stone-text;
         vertical-align: middle;
 
@@ -224,32 +224,35 @@ $stone-radius-sm: 5px;
     }
 
     .cell-lot {
-        font-family: 'Courier New', monospace;
-        font-size: 11px;
+        font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+        font-size: 10.5px;
         font-weight: 600;
         color: $stone-primary;
         white-space: nowrap;
+        letter-spacing: -0.02em;
+        // Asegurar que el lote completo sea visible
+        min-width: 120px;
+        overflow: visible;
     }
 
     tfoot .stone-total-row {
         background: $stone-bg;
-
         td {
-            padding: 7px 8px;
+            padding: 5px 6px;
             border-top: 2px solid $stone-border;
-            font-size: 12px;
+            font-size: 11px;
         }
     }
 }
 
 .stone-remove-btn {
-    width: 22px;
-    height: 22px;
+    width: 20px;
+    height: 20px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     border: 1px solid #fed7d7;
-    border-radius: 4px;
+    border-radius: 3px;
     background: #fff5f5;
     color: #e53e3e;
     cursor: pointer;
@@ -262,7 +265,7 @@ $stone-radius-sm: 5px;
         color: white;
     }
 
-    i { font-size: 10px; }
+    i { font-size: 9px; }
 }
 
 .fw-semibold { font-weight: 600; }
@@ -272,11 +275,11 @@ $stone-radius-sm: 5px;
 // ═══════════════════════════════════════════════════════════════════════════
 .stone-qty-input,
 .stone-popup-qty-input {
-    width: 80px;
-    padding: 3px 6px;
+    width: 72px;
+    padding: 2px 5px;
     border: 1.5px solid $stone-border;
     border-radius: $stone-radius-sm;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
     text-align: right;
     color: $stone-text;
@@ -290,9 +293,7 @@ $stone-radius-sm: 5px;
         box-shadow: 0 0 0 2px rgba($stone-primary-light, 0.2);
     }
 
-    &:hover {
-        border-color: #a0aec0;
-    }
+    &:hover { border-color: #a0aec0; }
 
     &::-webkit-outer-spin-button,
     &::-webkit-inner-spin-button {
@@ -308,9 +309,9 @@ $stone-radius-sm: 5px;
 .stone-tag-tipo-placa {
     background: #e2e8f0;
     color: #4a5568;
-    padding: 2px 7px;
-    border-radius: 10px;
-    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 8px;
+    font-size: 9px;
     font-weight: 600;
     white-space: nowrap;
 }
@@ -318,9 +319,9 @@ $stone-radius-sm: 5px;
 .stone-tag-tipo-formato {
     background: #fefcbf;
     color: #744210;
-    padding: 2px 7px;
-    border-radius: 10px;
-    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 8px;
+    font-size: 9px;
     font-weight: 600;
     white-space: nowrap;
 }
@@ -328,9 +329,9 @@ $stone-radius-sm: 5px;
 .stone-tag-tipo-pieza {
     background: #bee3f8;
     color: #2a4365;
-    padding: 2px 7px;
-    border-radius: 10px;
-    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 8px;
+    font-size: 9px;
     font-weight: 600;
     white-space: nowrap;
 }
@@ -347,13 +348,13 @@ $stone-radius-sm: 5px;
     display: flex;
     align-items: stretch;
     justify-content: stretch;
-    padding: 16px;
+    padding: 12px;
     box-sizing: border-box;
 }
 
 .stone-popup-container {
     background: white;
-    border-radius: 12px;
+    border-radius: 10px;
     width: 100%;
     height: 100%;
     max-width: 100%;
@@ -361,41 +362,34 @@ $stone-radius-sm: 5px;
     flex-direction: column;
     overflow: hidden;
     box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
-    animation: stonePopupIn 0.2s ease;
+    animation: stonePopupIn 0.18s ease;
 }
 
 @keyframes stonePopupIn {
-    from {
-        opacity: 0;
-        transform: scale(0.97) translateY(8px);
-    }
-    to {
-        opacity: 1;
-        transform: scale(1) translateY(0);
-    }
+    from { opacity: 0; transform: scale(0.97) translateY(6px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
 }
 
 .stone-popup-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 14px 20px;
+    padding: 10px 16px;
     background: $stone-primary;
     color: white;
     flex: 0 0 auto;
 }
 
 .stone-popup-title {
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 700;
     display: flex;
     align-items: center;
-
-    i { font-size: 16px; }
+    i { font-size: 15px; }
 }
 
 .stone-popup-subtitle {
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 400;
     opacity: 0.85;
     margin-left: 4px;
@@ -404,34 +398,34 @@ $stone-radius-sm: 5px;
 .stone-popup-header-actions {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
 }
 
 .stone-badge-selected {
     background: rgba(255, 255, 255, 0.2);
     color: white;
-    padding: 4px 10px;
-    border-radius: 20px;
-    font-size: 12px;
+    padding: 3px 8px;
+    border-radius: 16px;
+    font-size: 11px;
     font-weight: 600;
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 3px;
 }
 
 .stone-btn {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    padding: 7px 14px;
+    gap: 4px;
+    padding: 5px 12px;
     border-radius: $stone-radius-sm;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.15s;
     border: none;
 
-    i { font-size: 11px; }
+    i { font-size: 10px; }
 
     &.stone-btn-primary {
         background: $stone-accent;
@@ -470,8 +464,8 @@ $stone-radius-sm: 5px;
 .stone-popup-filters {
     display: flex;
     align-items: flex-end;
-    gap: 10px;
-    padding: 10px 16px;
+    gap: 8px;
+    padding: 8px 12px;
     background: $stone-bg;
     border-bottom: 1px solid $stone-border;
     flex: 0 0 auto;
@@ -481,10 +475,10 @@ $stone-radius-sm: 5px;
 .stone-filter-group {
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 2px;
 
     label {
-        font-size: 9.5px;
+        font-size: 9px;
         font-weight: 700;
         text-transform: uppercase;
         color: $stone-muted;
@@ -493,16 +487,16 @@ $stone-radius-sm: 5px;
 }
 
 .stone-filter-input {
-    padding: 5px 8px;
+    padding: 4px 7px;
     border: 1.5px solid $stone-border;
     border-radius: $stone-radius-sm;
-    font-size: 12px;
-    width: 130px;
+    font-size: 11px;
+    width: 120px;
     color: $stone-text;
     transition: border-color 0.15s;
     background: white;
 
-    &.stone-filter-sm { width: 70px; }
+    &.stone-filter-sm { width: 60px; }
 
     &:focus {
         outline: none;
@@ -518,16 +512,16 @@ $stone-radius-sm: 5px;
 .stone-filter-stats {
     display: flex;
     align-items: center;
-    padding-bottom: 2px;
+    padding-bottom: 1px;
 }
 
 .stone-filter-stat-loading,
 .stone-filter-stat-count {
-    font-size: 11.5px;
+    font-size: 11px;
     color: $stone-muted;
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 3px;
 }
 
 .stone-filter-stat-count {
@@ -544,17 +538,9 @@ $stone-radius-sm: 5px;
     background: white;
     position: relative;
 
-    &::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
-    }
-    &::-webkit-scrollbar-thumb {
-        background: #cbd5e0;
-        border-radius: 4px;
-    }
-    &::-webkit-scrollbar-track {
-        background: #f7fafc;
-    }
+    &::-webkit-scrollbar { width: 7px; height: 7px; }
+    &::-webkit-scrollbar-thumb { background: #cbd5e0; border-radius: 4px; }
+    &::-webkit-scrollbar-track { background: #f7fafc; }
 }
 
 .stone-empty-state {
@@ -563,27 +549,26 @@ $stone-radius-sm: 5px;
     align-items: center;
     justify-content: center;
     height: 60%;
-    min-height: 250px;
+    min-height: 200px;
     color: #a0aec0;
-    gap: 12px;
-
-    i { font-size: 40px; }
+    gap: 10px;
+    i { font-size: 36px; }
 }
 
 .stone-empty-text {
-    font-size: 14px;
+    font-size: 13px;
     color: $stone-muted;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Tabla del popup — FIX: border-left en seleccionados no empuja contenido
+// Tabla del popup — COMPACTA, lotes visibles completos
 // ═══════════════════════════════════════════════════════════════════════════
 .stone-popup-table {
     width: 100%;
     border-collapse: separate;
     border-spacing: 0;
-    font-size: 12px;
-    table-layout: fixed;
+    font-size: 11px;
+    table-layout: auto; // auto para que se ajuste al contenido
 
     thead {
         position: sticky;
@@ -593,45 +578,26 @@ $stone-radius-sm: 5px;
         tr { background: $stone-bg; }
 
         th {
-            padding: 9px 10px;
+            padding: 6px 7px;
             text-align: left;
-            font-size: 10.5px;
+            font-size: 9.5px;
             font-weight: 700;
             text-transform: uppercase;
             color: $stone-muted;
-            letter-spacing: 0.04em;
+            letter-spacing: 0.03em;
             border-bottom: 2px solid $stone-border;
             white-space: nowrap;
             background: $stone-bg;
-            overflow: hidden;
-            text-overflow: ellipsis;
 
             &.col-chk {
-                width: 40px;
+                width: 32px;
                 text-align: center;
             }
 
             &.col-num {
                 text-align: right;
-                width: 70px;
             }
         }
-    }
-
-    // Anchos de columna fijos para evitar colapso
-    // Orden: ✓ | Lote | Bloque | Atado | Alto | Ancho | Gros. | Disponible | Tipo | A tomar | Color | Ubicación | Estado
-    colgroup {
-        col.col-chk      { width: 40px; }
-        col.col-lot       { width: 160px; }
-        col.col-bloque    { width: 90px; }
-        col.col-atado     { width: 70px; }
-        col.col-num       { width: 55px; }
-        col.col-disponible{ width: 80px; }
-        col.col-tipo      { width: 75px; }
-        col.col-tomar     { width: 100px; }
-        col.col-color     { width: 80px; }
-        col.col-loc       { width: 90px; }
-        col.col-estado    { width: 75px; }
     }
 
     tbody {
@@ -641,11 +607,8 @@ $stone-radius-sm: 5px;
 
             &:hover { background: #f0f7ff; }
 
-            // FIX: Usar box-shadow inset en lugar de border-left
-            // para que no empuje el contenido ni oculte el nombre del lote
             &.row-sel {
                 background: #ebfaf1;
-
                 &:hover { background: #d4f4e0; }
 
                 td:first-child {
@@ -654,18 +617,15 @@ $stone-radius-sm: 5px;
             }
 
             td {
-                padding: 8px 10px;
+                padding: 5px 7px;
                 border-bottom: 1px solid #f0f4f8;
                 vertical-align: middle;
                 color: $stone-text;
-                overflow: hidden;
-                text-overflow: ellipsis;
                 white-space: nowrap;
 
                 &.col-chk {
                     text-align: center;
-                    width: 40px;
-                    overflow: visible;
+                    width: 32px;
                 }
 
                 &.col-num {
@@ -675,24 +635,26 @@ $stone-radius-sm: 5px;
 
                 &.col-popup-qty {
                     text-align: right;
-                    min-width: 100px;
-                    overflow: visible; // para que el input no se corte
+                    min-width: 85px;
+                    overflow: visible;
                 }
 
+                // Lote: SIEMPRE visible completo, sin truncar
                 &.cell-lot {
-                    font-family: 'Courier New', monospace;
-                    font-size: 11.5px;
+                    font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+                    font-size: 10.5px;
                     font-weight: 700;
                     color: $stone-primary;
                     white-space: nowrap;
                     overflow: visible;
                     text-overflow: unset;
-                    min-width: 140px;
+                    min-width: 100px;
+                    letter-spacing: -0.02em;
                 }
 
                 &.cell-loc {
                     color: $stone-muted;
-                    font-size: 11px;
+                    font-size: 10px;
                 }
             }
         }
@@ -701,10 +663,10 @@ $stone-radius-sm: 5px;
 
 // Checkbox personalizado en popup
 .stone-chkbox {
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
     border: 2px solid #cbd5e0;
-    border-radius: 4px;
+    border-radius: 3px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -712,10 +674,7 @@ $stone-radius-sm: 5px;
     transition: all 0.12s;
     background: white;
 
-    i {
-        font-size: 10px;
-        color: white;
-    }
+    i { font-size: 9px; color: white; }
 
     &.checked {
         background: $stone-accent;
@@ -726,9 +685,9 @@ $stone-radius-sm: 5px;
 // Tags de estado
 .stone-tag {
     display: inline-block;
-    padding: 2px 7px;
-    border-radius: 10px;
-    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 8px;
+    font-size: 9px;
     font-weight: 600;
     white-space: nowrap;
 
@@ -751,7 +710,7 @@ $stone-radius-sm: 5px;
 
 // Sentinel de infinite scroll
 .stone-scroll-sentinel {
-    padding: 16px;
+    padding: 12px;
     text-align: center;
 }
 
@@ -759,15 +718,15 @@ $stone-radius-sm: 5px;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    gap: 6px;
     color: $stone-muted;
-    font-size: 12px;
-    padding: 8px;
+    font-size: 11px;
+    padding: 6px;
 }
 
 .stone-scroll-hint {
     color: #a0aec0;
-    font-size: 11px;
+    font-size: 10px;
     animation: hintBounce 2s infinite;
 }
 
@@ -781,20 +740,20 @@ $stone-radius-sm: 5px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 20px;
+    padding: 10px 16px;
     background: $stone-bg;
     border-top: 1px solid $stone-border;
     flex: 0 0 auto;
 }
 
 .stone-footer-info {
-    font-size: 12px;
+    font-size: 11px;
     color: $stone-muted;
 }
 
 .stone-footer-actions {
     display: flex;
-    gap: 8px;
+    gap: 6px;
     align-items: center;
 }
 
@@ -844,8 +803,8 @@ $stone-radius-sm: 5px;
     flex: 0 0 auto;
     display: flex;
     flex-wrap: wrap;
-    gap: 12px;
-    padding: 10px 16px;
+    gap: 10px;
+    padding: 8px 12px;
     background: $stone-bg;
     border-bottom: 1px solid $stone-border;
     align-items: center;
@@ -860,14 +819,8 @@ $stone-radius-sm: 5px;
     background: #fff;
     position: relative;
 
-    &::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
-    }
-    &::-webkit-scrollbar-thumb {
-        background: #ced4da;
-        border-radius: 4px;
-    }
+    &::-webkit-scrollbar { width: 7px; height: 7px; }
+    &::-webkit-scrollbar-thumb { background: #ced4da; border-radius: 4px; }
 }
 
 .stone-empty {
@@ -876,7 +829,7 @@ $stone-radius-sm: 5px;
     align-items: center;
     justify-content: center;
     height: 100%;
-    min-height: 200px;
+    min-height: 180px;
     color: #6c757d;
 }
 
@@ -884,7 +837,7 @@ $stone-radius-sm: 5px;
     width: 100%;
     border-collapse: separate;
     border-spacing: 0;
-    font-size: 12px;
+    font-size: 11px;
 
     thead {
         position: sticky;
@@ -897,9 +850,9 @@ $stone-radius-sm: 5px;
             position: sticky;
             top: 0;
             background: $stone-bg;
-            padding: 10px 8px;
+            padding: 7px 6px;
             font-weight: 600;
-            font-size: 11px;
+            font-size: 10px;
             text-transform: uppercase;
             color: #495057;
             border-bottom: 2px solid $stone-border;
@@ -907,7 +860,7 @@ $stone-radius-sm: 5px;
             box-shadow: 0 1px 2px rgba(0,0,0,0.05);
 
             &.col-check {
-                width: 40px;
+                width: 32px;
                 text-align: center;
             }
         }
@@ -916,15 +869,13 @@ $stone-radius-sm: 5px;
     tbody {
         tr {
             cursor: pointer;
-            transition: background-color 0.1s;
+            transition: background-color 0.08s;
 
             &:hover { background-color: #f1f3f5; }
 
             &.row-selected {
                 background-color: #ebfaf1;
                 &:hover { background-color: #d4f4e0; }
-
-                // FIX: box-shadow en vez de border-left
                 td:first-child {
                     box-shadow: inset 3px 0 0 0 #28a745;
                 }
@@ -932,14 +883,14 @@ $stone-radius-sm: 5px;
         }
 
         td {
-            padding: 8px;
+            padding: 5px 6px;
             border-bottom: 1px solid #eee;
             vertical-align: middle;
             background-color: inherit;
         }
 
         td.col-check {
-            width: 40px;
+            width: 32px;
             text-align: center;
         }
     }
@@ -947,6 +898,8 @@ $stone-radius-sm: 5px;
     .form-check-input {
         margin: 0;
         cursor: pointer;
+        width: 14px;
+        height: 14px;
         &:checked {
             background-color: #28a745;
             border-color: #28a745;
@@ -959,10 +912,10 @@ $stone-radius-sm: 5px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 10px 16px;
+    padding: 8px 12px;
     background: $stone-bg;
     border-top: 1px solid $stone-border;
-    font-size: 13px;
+    font-size: 12px;
     z-index: 20;
 }
 
@@ -980,7 +933,7 @@ $stone-radius-sm: 5px;
 .stone-filter-actions {
     display: flex;
     align-items: flex-end;
-    gap: 6px;
+    gap: 5px;
     padding-bottom: 1px;
 }
 
@@ -988,17 +941,17 @@ $stone-radius-sm: 5px;
 .stone-btn-clear-all {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 5px 10px;
-    border-radius: 5px;
-    font-size: 11px;
+    gap: 3px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 10px;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.15s;
     border: 1.5px solid;
     white-space: nowrap;
 
-    i { font-size: 11px; }
+    i { font-size: 10px; }
 }
 
 .stone-btn-select-all {

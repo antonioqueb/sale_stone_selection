@@ -18,8 +18,6 @@ export class StoneExpandButton extends Component {
         this._popupRoot = null;
         this._popupKeyHandler = null;
         this._popupObserver = null;
-
-        // Breakdown local en memoria (se sincroniza con el server al confirmar)
         this._localBreakdown = {};
 
         this.state = useState({
@@ -41,6 +39,21 @@ export class StoneExpandButton extends Component {
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
+
+    /** Format number with 2 decimals always */
+    _fmt(num) {
+        if (num === null || num === undefined || isNaN(num)) return "0.00";
+        return parseFloat(num).toFixed(2);
+    }
+
+    /** Format dimension - show decimal only if meaningful */
+    _fmtDim(num) {
+        if (!num) return "-";
+        const v = parseFloat(num);
+        if (isNaN(v)) return "-";
+        // Si tiene decimales significativos, mostrarlos
+        return v % 1 === 0 ? v.toFixed(0) : v.toFixed(2);
+    }
 
     _updateCount(props = this.props) {
         const ids = this.extractLotIds(props?.record?.data?.lot_ids);
@@ -77,9 +90,6 @@ export class StoneExpandButton extends Component {
         return this.extractLotIds(this.props.record.data.lot_ids);
     }
 
-    /**
-     * Lee el breakdown desde el record de Odoo hacia nuestra copia local
-     */
     _loadBreakdownFromRecord() {
         const raw = this.props.record.data.x_lot_breakdown_json;
         if (!raw) {
@@ -95,28 +105,17 @@ export class StoneExpandButton extends Component {
         }
     }
 
-    /**
-     * Retorna el breakdown local (en memoria)
-     */
     getBreakdown() {
         return { ...this._localBreakdown };
     }
 
-    /**
-     * Obtiene el ID real del record (sale.order.line) para escritura directa
-     */
     _getRecordId() {
         const rec = this.props.record;
-        // En Odoo OWL, el resId es el ID real del registro en BD
         if (rec.resId) return rec.resId;
         if (rec.data && rec.data.id) return rec.data.id;
         return null;
     }
 
-    /**
-     * Guarda el breakdown al servidor via orm.write (bypass record.update)
-     * Solo si el registro ya existe en BD (tiene ID numérico real)
-     */
     async _saveBreakdownToServer(breakdown) {
         this._localBreakdown = { ...breakdown };
         const recordId = this._getRecordId();
@@ -127,7 +126,6 @@ export class StoneExpandButton extends Component {
                 });
             } catch (e) {
                 console.warn("[STONE] Error guardando breakdown al server:", e);
-                // No es crítico - se guardará en el confirm
             }
         }
     }
@@ -148,7 +146,6 @@ export class StoneExpandButton extends Component {
         const tr = ev.currentTarget.closest("tr");
         if (!tr) return;
 
-        // Recargar breakdown del record por si cambió
         this._loadBreakdownFromRecord();
 
         this.state.isExpanded = true;
@@ -178,7 +175,7 @@ export class StoneExpandButton extends Component {
                 <span class="stone-sel-badge" id="stone-sel-badge">${this.getCurrentLotIds().length}</span>
             </span>
             <button class="stone-add-btn stone-add-btn-trigger">
-                <i class="fa fa-plus me-1"></i> Agregar lote
+                <i class="fa fa-plus me-1"></i> Agregar
             </button>
         `;
 
@@ -204,13 +201,13 @@ export class StoneExpandButton extends Component {
         if (!lotIds || lotIds.length === 0) {
             container.innerHTML = `
                 <div class="stone-no-selection">
-                    <i class="fa fa-info-circle me-2 text-muted"></i>
-                    <span class="text-muted">Sin lotes seleccionados. Usa <strong>Agregar lote</strong> para comenzar.</span>
+                    <i class="fa fa-info-circle me-1 text-muted"></i>
+                    <span class="text-muted">Sin lotes. Usa <strong>Agregar</strong> para comenzar.</span>
                 </div>`;
             return;
         }
 
-        container.innerHTML = `<div class="stone-table-loading"><i class="fa fa-circle-o-notch fa-spin me-2"></i> Cargando datos...</div>`;
+        container.innerHTML = `<div class="stone-table-loading"><i class="fa fa-circle-o-notch fa-spin me-1"></i> Cargando...</div>`;
 
         try {
             const [lotsData, quants] = await Promise.all([
@@ -252,10 +249,10 @@ export class StoneExpandButton extends Component {
                             <th>Atado</th>
                             <th class="col-num">Alto</th>
                             <th class="col-num">Ancho</th>
-                            <th class="col-num">Espesor</th>
+                            <th class="col-num">Esp.</th>
                             <th>Tipo</th>
-                            <th class="col-num">Disponible</th>
-                            <th class="col-num col-qty-input">Cantidad</th>
+                            <th class="col-num">Disp.</th>
+                            <th class="col-num col-qty-input">Cant.</th>
                             <th>Color</th>
                             <th class="col-act"></th>
                         </tr>
@@ -286,20 +283,20 @@ export class StoneExpandButton extends Component {
                         <td class="cell-lot">${lot.name}</td>
                         <td>${lot.x_bloque || "-"}</td>
                         <td>${lot.x_atado || "-"}</td>
-                        <td class="col-num">${lot.x_alto ? parseFloat(lot.x_alto).toFixed(0) : "-"}</td>
-                        <td class="col-num">${lot.x_ancho ? parseFloat(lot.x_ancho).toFixed(0) : "-"}</td>
-                        <td class="col-num">${lot.x_grosor || "-"}</td>
+                        <td class="col-num">${this._fmtDim(lot.x_alto)}</td>
+                        <td class="col-num">${this._fmtDim(lot.x_ancho)}</td>
+                        <td class="col-num">${this._fmtDim(lot.x_grosor)}</td>
                         <td>
                             <span class="stone-tag stone-tag-tipo-${tipo}">${tipo.charAt(0).toUpperCase() + tipo.slice(1)}</span>
                         </td>
-                        <td class="col-num text-muted">${availQty.toFixed(2)} ${qtyLabel}</td>
+                        <td class="col-num text-muted">${this._fmt(availQty)} ${qtyLabel}</td>
                         <td class="col-num col-qty-input">
                             ${isPartial
                                 ? `<input type="number" class="stone-qty-input" 
                                           data-lot-id="${lid}" data-max="${availQty}" 
                                           step="${inputStep}" min="0" max="${availQty}"
                                           value="${displayQty}" />`
-                                : `<span class="fw-semibold">${displayQty.toFixed(2)} m²</span>`
+                                : `<span class="fw-semibold">${this._fmt(displayQty)} m²</span>`
                             }
                         </td>
                         <td>${lot.x_color || "-"}</td>
@@ -316,7 +313,7 @@ export class StoneExpandButton extends Component {
                     <tfoot>
                         <tr class="stone-total-row">
                             <td colspan="8" class="text-end fw-bold text-muted">Total:</td>
-                            <td class="col-num fw-bold" id="stone-sel-total">${totalQty.toFixed(2)}</td>
+                            <td class="col-num fw-bold" id="stone-sel-total">${this._fmt(totalQty)}</td>
                             <td colspan="2"></td>
                         </tr>
                     </tfoot>
@@ -324,7 +321,6 @@ export class StoneExpandButton extends Component {
 
             container.innerHTML = html;
 
-            // Botones quitar
             container.querySelectorAll(".stone-remove-btn").forEach((btn) => {
                 btn.addEventListener("click", (e) => {
                     e.stopPropagation();
@@ -332,7 +328,6 @@ export class StoneExpandButton extends Component {
                 });
             });
 
-            // Inputs de cantidad parcial (formato/pieza)
             container.querySelectorAll(".stone-qty-input").forEach((input) => {
                 let debounceTimer = null;
                 input.addEventListener("input", (e) => {
@@ -362,7 +357,6 @@ export class StoneExpandButton extends Component {
         if (val > maxQty) val = maxQty;
         input.value = val;
 
-        // Actualizar breakdown local
         const breakdown = this.getBreakdown();
         if (val > 0) {
             breakdown[String(lotId)] = val;
@@ -370,10 +364,7 @@ export class StoneExpandButton extends Component {
             delete breakdown[String(lotId)];
         }
 
-        // Guardar al servidor sin pasar por record.update
         await this._saveBreakdownToServer(breakdown);
-
-        // Recalcular total visual
         this._recalcInlineTotal();
     }
 
@@ -390,18 +381,16 @@ export class StoneExpandButton extends Component {
             const m = span.textContent.match(/([\d.]+)/);
             if (m) total += parseFloat(m[1]) || 0;
         });
-        totalEl.textContent = total.toFixed(2);
+        totalEl.textContent = this._fmt(total);
     }
 
     async removeLot(lotId) {
         const newIds = this.getCurrentLotIds().filter((id) => id !== lotId);
 
-        // Limpiar del breakdown local
         const breakdown = this.getBreakdown();
         delete breakdown[String(lotId)];
         await this._saveBreakdownToServer(breakdown);
 
-        // Solo lot_ids pasa por record.update (campo Many2many conocido por OWL)
         await this.props.record.update({
             lot_ids: [[6, 0, newIds]],
         });
@@ -445,6 +434,7 @@ export class StoneExpandButton extends Component {
     _renderPopupDOM(productId) {
         const root = this._popupRoot;
         const PAGE_SIZE = 35;
+        const self = this;
 
         const state = {
             quants: [],
@@ -473,7 +463,7 @@ export class StoneExpandButton extends Component {
                         <div class="stone-popup-header-actions">
                             <span class="stone-badge-selected">
                                 <i class="fa fa-check-circle me-1"></i>
-                                <span id="sp-badge-count">${state.pendingIds.size}</span> seleccionados
+                                <span id="sp-badge-count">${state.pendingIds.size}</span> selec.
                             </span>
                             <button class="stone-btn stone-btn-accent" id="sp-confirm-top">
                                 <i class="fa fa-check me-1"></i> Confirmar
@@ -499,11 +489,11 @@ export class StoneExpandButton extends Component {
                         </div>
                         <div class="stone-filter-group">
                             <label>Alto mín.</label>
-                            <input type="number" class="stone-filter-input stone-filter-sm" id="sf-alto" placeholder="0"/>
+                            <input type="number" class="stone-filter-input stone-filter-sm" id="sf-alto" placeholder="0" step="0.01"/>
                         </div>
                         <div class="stone-filter-group">
                             <label>Ancho mín.</label>
-                            <input type="number" class="stone-filter-input stone-filter-sm" id="sf-ancho" placeholder="0"/>
+                            <input type="number" class="stone-filter-input stone-filter-sm" id="sf-ancho" placeholder="0" step="0.01"/>
                         </div>
                         <div class="stone-filter-group">
                             <label>Tipo</label>
@@ -515,11 +505,11 @@ export class StoneExpandButton extends Component {
                             </select>
                         </div>
                         <div class="stone-filter-actions">
-                            <button class="stone-btn stone-btn-select-all" id="sp-select-all" title="Seleccionar todas las visibles">
-                                <i class="fa fa-check-square-o me-1"></i> Seleccionar todo
+                            <button class="stone-btn stone-btn-select-all" id="sp-select-all" title="Seleccionar todas">
+                                <i class="fa fa-check-square-o me-1"></i> Todo
                             </button>
-                            <button class="stone-btn stone-btn-clear-all" id="sp-clear-all" title="Borrar toda la selección">
-                                <i class="fa fa-square-o me-1"></i> Borrar selección
+                            <button class="stone-btn stone-btn-clear-all" id="sp-clear-all" title="Borrar selección">
+                                <i class="fa fa-square-o me-1"></i> Limpiar
                             </button>
                         </div>
                         <div class="stone-filter-spacer"></div>
@@ -560,8 +550,8 @@ export class StoneExpandButton extends Component {
 
         const updateStats = () => {
             stat.className = "stone-filter-stat-count";
-            stat.innerHTML = `${state.totalCount} lotes disponibles`;
-            footerInfo.innerHTML = `Mostrando <strong>${state.quants.length}</strong> de <strong>${state.totalCount}</strong>`;
+            stat.innerHTML = `${state.totalCount} lotes`;
+            footerInfo.innerHTML = `<strong>${state.quants.length}</strong> de <strong>${state.totalCount}</strong>`;
         };
 
         const doSelectAll = () => {
@@ -613,7 +603,7 @@ export class StoneExpandButton extends Component {
                 if (sel) {
                     statusBadge = `<span class="stone-tag stone-tag-ok">Selec.</span>`;
                 } else if (reserved) {
-                    statusBadge = `<span class="stone-tag stone-tag-warn">Reservado</span>`;
+                    statusBadge = `<span class="stone-tag stone-tag-warn">Reserv.</span>`;
                 } else {
                     statusBadge = `<span class="stone-tag stone-tag-free">Libre</span>`;
                 }
@@ -632,7 +622,7 @@ export class StoneExpandButton extends Component {
                 } else if (isPartial && !sel) {
                     qtyCell = `<span class="text-muted">—</span>`;
                 } else {
-                    qtyCell = `<span>${q.quantity ? q.quantity.toFixed(2) : "-"} ${qtyLabel}</span>`;
+                    qtyCell = `<span>${self._fmt(q.quantity)} ${qtyLabel}</span>`;
                 }
 
                 rows += `
@@ -645,10 +635,10 @@ export class StoneExpandButton extends Component {
                         <td class="cell-lot">${lotName}</td>
                         <td>${q.x_bloque || "-"}</td>
                         <td>${q.x_atado || "-"}</td>
-                        <td class="col-num">${q.x_alto ? q.x_alto.toFixed(0) : "-"}</td>
-                        <td class="col-num">${q.x_ancho ? q.x_ancho.toFixed(0) : "-"}</td>
-                        <td class="col-num">${q.x_grosor || "-"}</td>
-                        <td class="col-num fw-semibold">${q.quantity ? q.quantity.toFixed(2) : "-"}</td>
+                        <td class="col-num">${self._fmtDim(q.x_alto)}</td>
+                        <td class="col-num">${self._fmtDim(q.x_ancho)}</td>
+                        <td class="col-num">${self._fmtDim(q.x_grosor)}</td>
+                        <td class="col-num fw-semibold">${self._fmt(q.quantity)}</td>
                         <td><span class="stone-tag stone-tag-tipo-${tipo}">${tipoLabel}</span></td>
                         <td class="col-num col-popup-qty">${qtyCell}</td>
                         <td>${q.x_color || "-"}</td>
@@ -659,8 +649,8 @@ export class StoneExpandButton extends Component {
 
             const sentinel = `
                 <div id="sp-sentinel" class="stone-scroll-sentinel">
-                    ${state.isLoadingMore ? '<div class="stone-loading-more"><i class="fa fa-circle-o-notch fa-spin me-2"></i> Cargando más...</div>' : ""}
-                    ${state.hasMore && !state.isLoadingMore ? '<div class="stone-scroll-hint"><i class="fa fa-chevron-down me-1"></i> Desplázate para cargar más</div>' : ""}
+                    ${state.isLoadingMore ? '<div class="stone-loading-more"><i class="fa fa-circle-o-notch fa-spin me-1"></i> Cargando más...</div>' : ""}
+                    ${state.hasMore && !state.isLoadingMore ? '<div class="stone-scroll-hint"><i class="fa fa-chevron-down me-1"></i> Más resultados</div>' : ""}
                 </div>`;
 
             body.innerHTML = `
@@ -673,12 +663,12 @@ export class StoneExpandButton extends Component {
                             <th>Atado</th>
                             <th class="col-num">Alto</th>
                             <th class="col-num">Ancho</th>
-                            <th class="col-num">Gros.</th>
-                            <th class="col-num">Disponible</th>
+                            <th class="col-num">Esp.</th>
+                            <th class="col-num">Disp.</th>
                             <th>Tipo</th>
                             <th class="col-num">A tomar</th>
                             <th>Color</th>
-                            <th>Ubicación</th>
+                            <th>Ubic.</th>
                             <th>Estado</th>
                         </tr>
                     </thead>
@@ -688,7 +678,7 @@ export class StoneExpandButton extends Component {
 
             updateStats();
 
-            // Click en filas (toggle selección)
+            // Click en filas
             body.querySelectorAll("tr[data-lot-id]").forEach((tr) => {
                 tr.style.cursor = "pointer";
                 tr.addEventListener("click", (ev) => {
@@ -716,7 +706,7 @@ export class StoneExpandButton extends Component {
                 });
             });
 
-            // Inputs de cantidad parcial en popup
+            // Inputs de cantidad parcial
             body.querySelectorAll(".stone-popup-qty-input").forEach((input) => {
                 input.addEventListener("click", (e) => e.stopPropagation());
                 input.addEventListener("input", (e) => {
@@ -730,13 +720,13 @@ export class StoneExpandButton extends Component {
             });
 
             // Infinite scroll
-            if (this._popupObserver) {
-                this._popupObserver.disconnect();
-                this._popupObserver = null;
+            if (self._popupObserver) {
+                self._popupObserver.disconnect();
+                self._popupObserver = null;
             }
             const sentinelEl = body.querySelector("#sp-sentinel");
             if (sentinelEl && state.hasMore) {
-                this._popupObserver = new IntersectionObserver(
+                self._popupObserver = new IntersectionObserver(
                     (entries) => {
                         if (entries[0].isIntersecting && state.hasMore && !state.isLoadingMore) {
                             loadPage(state.page + 1, false);
@@ -744,7 +734,7 @@ export class StoneExpandButton extends Component {
                     },
                     { root: body, rootMargin: "100px", threshold: 0.1 }
                 );
-                this._popupObserver.observe(sentinelEl);
+                self._popupObserver.observe(sentinelEl);
             }
         };
 
@@ -767,7 +757,7 @@ export class StoneExpandButton extends Component {
             try {
                 let result;
                 try {
-                    result = await this.orm.call(
+                    result = await self.orm.call(
                         "stock.quant",
                         "search_stone_inventory_for_so_paginated",
                         [],
@@ -780,7 +770,7 @@ export class StoneExpandButton extends Component {
                         }
                     );
                 } catch (_e) {
-                    const all = (await this.orm.call(
+                    const all = (await self.orm.call(
                         "stock.quant",
                         "search_stone_inventory_for_so",
                         [],
@@ -823,10 +813,9 @@ export class StoneExpandButton extends Component {
 
         // ─── Confirm / Close ─────────────────────────────────────────────────
         const doConfirm = async () => {
-            this.destroyPopup();
+            self.destroyPopup();
             const newIds = Array.from(state.pendingIds);
 
-            // Limpiar breakdown de lotes no seleccionados
             const cleanBreakdown = {};
             for (const [k, v] of Object.entries(state.pendingBreakdown)) {
                 if (state.pendingIds.has(parseInt(k))) {
@@ -834,19 +823,17 @@ export class StoneExpandButton extends Component {
                 }
             }
 
-            // Guardar breakdown via orm.write (no record.update)
-            await this._saveBreakdownToServer(cleanBreakdown);
+            await self._saveBreakdownToServer(cleanBreakdown);
 
-            // Solo lot_ids via record.update
-            await this.props.record.update({
+            await self.props.record.update({
                 lot_ids: [[6, 0, newIds]],
             });
 
-            this._updateCount();
-            await this.refreshSelectedTable();
+            self._updateCount();
+            await self.refreshSelectedTable();
         };
 
-        const doClose = () => this.destroyPopup();
+        const doClose = () => self.destroyPopup();
 
         // ─── Event listeners ─────────────────────────────────────────────────
         root.querySelector("#sp-close").addEventListener("click", doClose);
