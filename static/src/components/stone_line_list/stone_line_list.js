@@ -18,6 +18,7 @@ export class StoneExpandButton extends Component {
         this._popupRoot = null;
         this._popupKeyHandler = null;
         this._popupObserver = null;
+        this._lightboxRoot = null;
         this._localBreakdown = {};
 
         this.state = useState({
@@ -35,18 +36,17 @@ export class StoneExpandButton extends Component {
         onWillUnmount(() => {
             this.removeDetailsRow();
             this.destroyPopup();
+            this._destroyLightbox();
         });
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
 
-    /** Format number with 2 decimals always */
     _fmt(num) {
         if (num === null || num === undefined || isNaN(num)) return "0.00";
         return parseFloat(num).toFixed(2);
     }
 
-    /** Format dimension - show decimal only if meaningful */
     _fmtDim(num) {
         if (!num) return "-";
         const v = parseFloat(num);
@@ -127,6 +127,211 @@ export class StoneExpandButton extends Component {
                 console.warn("[STONE] Error guardando breakdown al server:", e);
             }
         }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // LIGHTBOX — Preview de fotos a pantalla completa
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Abre un lightbox con todas las fotos de un lote.
+     * @param {number} lotId - ID del lote
+     * @param {string} lotName - Nombre del lote (para título)
+     * @param {string|false} mainPhoto - Base64 de la foto principal (para mostrar rápido)
+     */
+    async openLightbox(lotId, lotName, mainPhoto) {
+        this._destroyLightbox();
+
+        this._lightboxRoot = document.createElement("div");
+        this._lightboxRoot.className = "stone-lightbox-root";
+        document.body.appendChild(this._lightboxRoot);
+
+        // Mostrar inmediatamente la foto principal si la tenemos
+        const initialSrc = mainPhoto ? `data:image/jpeg;base64,${mainPhoto}` : null;
+
+        this._lightboxRoot.innerHTML = `
+            <div class="stone-lightbox-overlay" id="slb-overlay">
+                <div class="stone-lightbox-container">
+                    <div class="stone-lightbox-header">
+                        <span class="stone-lightbox-title">
+                            <i class="fa fa-camera me-2"></i>
+                            Fotos del lote <strong>${lotName || lotId}</strong>
+                            <span class="stone-lightbox-counter" id="slb-counter"></span>
+                        </span>
+                        <button class="stone-lightbox-close" id="slb-close">
+                            <i class="fa fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="stone-lightbox-body" id="slb-body">
+                        ${initialSrc
+                            ? `<img src="${initialSrc}" class="stone-lightbox-img" id="slb-main-img"/>`
+                            : `<div class="stone-lightbox-loading"><i class="fa fa-circle-o-notch fa-spin fa-2x"></i><div class="mt-2">Cargando fotos...</div></div>`
+                        }
+                    </div>
+                    <div class="stone-lightbox-nav" id="slb-nav" style="display:none;">
+                        <button class="stone-lightbox-nav-btn" id="slb-prev"><i class="fa fa-chevron-left"></i></button>
+                        <div class="stone-lightbox-thumbs" id="slb-thumbs"></div>
+                        <button class="stone-lightbox-nav-btn" id="slb-next"><i class="fa fa-chevron-right"></i></button>
+                    </div>
+                </div>
+            </div>`;
+
+        const overlay = this._lightboxRoot.querySelector("#slb-overlay");
+        const bodyEl = this._lightboxRoot.querySelector("#slb-body");
+        const navEl = this._lightboxRoot.querySelector("#slb-nav");
+        const thumbsEl = this._lightboxRoot.querySelector("#slb-thumbs");
+        const counterEl = this._lightboxRoot.querySelector("#slb-counter");
+        const prevBtn = this._lightboxRoot.querySelector("#slb-prev");
+        const nextBtn = this._lightboxRoot.querySelector("#slb-next");
+
+        const closeLb = () => this._destroyLightbox();
+
+        this._lightboxRoot.querySelector("#slb-close").addEventListener("click", closeLb);
+        overlay.addEventListener("click", (e) => { if (e.target === overlay) closeLb(); });
+
+        const keyHandler = (e) => {
+            if (e.key === "Escape") closeLb();
+            if (e.key === "ArrowLeft" && prevBtn) prevBtn.click();
+            if (e.key === "ArrowRight" && nextBtn) nextBtn.click();
+        };
+        document.addEventListener("keydown", keyHandler);
+        this._lightboxKeyHandler = keyHandler;
+
+        // Cargar todas las fotos del lote
+        try {
+            const photos = await this.orm.searchRead(
+                "stock.lot.image",
+                [["lot_id", "=", lotId]],
+                ["id", "name", "image", "notas", "fecha_captura"],
+                { order: "sequence, id", limit: 50 }
+            );
+
+            if (!photos || photos.length === 0) {
+                if (initialSrc) {
+                    // Solo tenemos la principal, ya se muestra
+                    counterEl.textContent = "(1 foto)";
+                } else {
+                    bodyEl.innerHTML = `
+                        <div class="stone-lightbox-loading">
+                            <i class="fa fa-picture-o fa-2x text-muted"></i>
+                            <div class="mt-2 text-muted">Este lote no tiene fotografías</div>
+                        </div>`;
+                }
+                return;
+            }
+
+            // Render con navegación
+            let currentIdx = 0;
+
+            const showPhoto = (idx) => {
+                currentIdx = idx;
+                const photo = photos[idx];
+                const src = `data:image/jpeg;base64,${photo.image}`;
+                bodyEl.innerHTML = `
+                    <img src="${src}" class="stone-lightbox-img" id="slb-main-img"/>
+                    <div class="stone-lightbox-info" id="slb-info">
+                        <strong>${photo.name || ''}</strong>
+                        ${photo.notas ? `<span class="ms-3 text-muted">${photo.notas}</span>` : ''}
+                        ${photo.fecha_captura ? `<span class="ms-3 text-muted small"><i class="fa fa-clock-o me-1"></i>${photo.fecha_captura}</span>` : ''}
+                    </div>`;
+                counterEl.textContent = `(${idx + 1} / ${photos.length})`;
+
+                // Actualizar thumbs activo
+                thumbsEl.querySelectorAll(".stone-lightbox-thumb").forEach((th, i) => {
+                    th.classList.toggle("active", i === idx);
+                });
+            };
+
+            // Generar thumbnails
+            if (photos.length > 1) {
+                navEl.style.display = "flex";
+                let thumbsHtml = "";
+                for (let i = 0; i < photos.length; i++) {
+                    const src = `data:image/jpeg;base64,${photos[i].image}`;
+                    thumbsHtml += `<img src="${src}" class="stone-lightbox-thumb ${i === 0 ? 'active' : ''}" data-idx="${i}"/>`;
+                }
+                thumbsEl.innerHTML = thumbsHtml;
+
+                thumbsEl.querySelectorAll(".stone-lightbox-thumb").forEach((th) => {
+                    th.addEventListener("click", () => showPhoto(parseInt(th.dataset.idx)));
+                });
+
+                prevBtn.addEventListener("click", () => {
+                    if (currentIdx > 0) showPhoto(currentIdx - 1);
+                });
+                nextBtn.addEventListener("click", () => {
+                    if (currentIdx < photos.length - 1) showPhoto(currentIdx + 1);
+                });
+            }
+
+            showPhoto(0);
+
+        } catch (e) {
+            console.error("[STONE] Error cargando fotos:", e);
+            bodyEl.innerHTML = `
+                <div class="stone-lightbox-loading">
+                    <i class="fa fa-exclamation-triangle fa-2x text-danger"></i>
+                    <div class="mt-2 text-danger">Error cargando fotos: ${e.message}</div>
+                </div>`;
+        }
+    }
+
+    _destroyLightbox() {
+        if (this._lightboxKeyHandler) {
+            document.removeEventListener("keydown", this._lightboxKeyHandler);
+            this._lightboxKeyHandler = null;
+        }
+        if (this._lightboxRoot) {
+            this._lightboxRoot.remove();
+            this._lightboxRoot = null;
+        }
+    }
+
+    // ─── Render de celda de foto (reutilizable) ──────────────────────────────
+
+    /**
+     * Genera HTML para una celda de foto thumbnail
+     * @param {string|false} photoBase64 - Foto principal en base64
+     * @param {number} photoCount - Cantidad de fotos
+     * @param {number} lotId - ID del lote
+     * @param {string} lotName - Nombre del lote
+     * @returns {string} HTML
+     */
+    _renderPhotoCell(photoBase64, photoCount, lotId, lotName) {
+        if (photoBase64) {
+            const badge = photoCount > 1 ? `<span class="stone-photo-count">${photoCount}</span>` : "";
+            return `<div class="stone-photo-cell" data-lot-id="${lotId}" data-lot-name="${lotName}" data-has-photo="1">
+                        <img src="data:image/jpeg;base64,${photoBase64}" class="stone-photo-thumb" alt="Foto"/>
+                        ${badge}
+                    </div>`;
+        }
+        if (photoCount > 0) {
+            return `<div class="stone-photo-cell" data-lot-id="${lotId}" data-lot-name="${lotName}" data-has-photo="1">
+                        <div class="stone-photo-placeholder-has"><i class="fa fa-camera"></i><span>${photoCount}</span></div>
+                    </div>`;
+        }
+        return `<div class="stone-photo-cell stone-photo-empty"><i class="fa fa-picture-o text-muted"></i></div>`;
+    }
+
+    /**
+     * Vincula click handlers a las celdas de fotos dentro de un contenedor
+     */
+    _bindPhotoClicks(container) {
+        container.querySelectorAll(".stone-photo-cell[data-has-photo]").forEach((cell) => {
+            cell.style.cursor = "pointer";
+            cell.addEventListener("click", (e) => {
+                e.stopPropagation();
+                const lotId = parseInt(cell.dataset.lotId);
+                const lotName = cell.dataset.lotName || "";
+                // Intentar extraer la base64 del thumb si existe
+                const img = cell.querySelector(".stone-photo-thumb");
+                let mainPhoto = false;
+                if (img && img.src.startsWith("data:")) {
+                    mainPhoto = img.src.replace(/^data:image\/\w+;base64,/, "");
+                }
+                this.openLightbox(lotId, lotName, mainPhoto);
+            });
+        });
     }
 
     // ─── Toggle principal ─────────────────────────────────────────────────────
@@ -213,7 +418,8 @@ export class StoneExpandButton extends Component {
                 this.orm.searchRead(
                     "stock.lot",
                     [["id", "in", lotIds]],
-                    ["name", "x_bloque", "x_atado", "x_alto", "x_ancho", "x_grosor", "x_tipo", "x_color"],
+                    ["name", "x_bloque", "x_atado", "x_alto", "x_ancho", "x_grosor", "x_tipo", "x_color",
+                     "x_fotografia_principal", "x_cantidad_fotos"],
                     { limit: lotIds.length }
                 ),
                 this.orm.searchRead(
@@ -243,6 +449,7 @@ export class StoneExpandButton extends Component {
                 <table class="stone-sel-table">
                     <thead>
                         <tr>
+                            <th class="col-photo">Foto</th>
                             <th>Lote</th>
                             <th>Bloque</th>
                             <th>Atado</th>
@@ -277,8 +484,13 @@ export class StoneExpandButton extends Component {
                 const qtyLabel = tipo === "pieza" ? "pzas" : "m²";
                 const inputStep = tipo === "pieza" ? "1" : "0.01";
 
+                const photoCell = this._renderPhotoCell(
+                    lot.x_fotografia_principal, lot.x_cantidad_fotos || 0, lid, lot.name
+                );
+
                 html += `
                     <tr>
+                        <td class="col-photo">${photoCell}</td>
                         <td class="cell-lot">${lot.name}</td>
                         <td>${lot.x_bloque || "-"}</td>
                         <td>${lot.x_atado || "-"}</td>
@@ -311,7 +523,7 @@ export class StoneExpandButton extends Component {
                     </tbody>
                     <tfoot>
                         <tr class="stone-total-row">
-                            <td colspan="8" class="text-end fw-bold text-muted">Total:</td>
+                            <td colspan="9" class="text-end fw-bold text-muted">Total:</td>
                             <td class="col-num fw-bold" id="stone-sel-total">${this._fmt(totalQty)}</td>
                             <td colspan="2"></td>
                         </tr>
@@ -320,6 +532,7 @@ export class StoneExpandButton extends Component {
 
             container.innerHTML = html;
 
+            // Bind remove buttons
             container.querySelectorAll(".stone-remove-btn").forEach((btn) => {
                 btn.addEventListener("click", (e) => {
                     e.stopPropagation();
@@ -327,6 +540,7 @@ export class StoneExpandButton extends Component {
                 });
             });
 
+            // Bind qty inputs
             container.querySelectorAll(".stone-qty-input").forEach((input) => {
                 let debounceTimer = null;
                 input.addEventListener("input", (e) => {
@@ -340,6 +554,9 @@ export class StoneExpandButton extends Component {
                     this._onQtyInputChange(e.target);
                 });
             });
+
+            // Bind photo clicks
+            this._bindPhotoClicks(container);
 
         } catch (err) {
             console.error("[STONE] Error renderizando seleccionadas:", err);
@@ -390,7 +607,6 @@ export class StoneExpandButton extends Component {
         delete breakdown[String(lotId)];
         await this._saveBreakdownToServer(breakdown);
 
-        // Calcular nueva cantidad total
         const totalQty = await this._computeTotalQty(newIds, breakdown);
 
         await this.props.record.update({
@@ -418,25 +634,14 @@ export class StoneExpandButton extends Component {
         }
     }
 
-    // ─── Cálculo de cantidad total para actualizar product_uom_qty ────────────
-    /**
-     * Calcula el total de m² o piezas para un conjunto de lotes.
-     * - Placa/Formato sin breakdown: usa quant.quantity (m²)
-     * - Formato/Pieza con breakdown: usa el valor del breakdown
-     * - Pieza sin breakdown: usa quant.quantity
-     *
-     * @param {number[]} lotIds - IDs de lotes
-     * @param {Object} breakdown - {lotId: qty} para parciales
-     * @param {Object[]} [quantsCache] - Quants ya cargados (opcional, para popup)
-     * @returns {number} cantidad total
-     */
+    // ─── Cálculo de cantidad total ────────────────────────────────────────────
+
     async _computeTotalQty(lotIds, breakdown, quantsCache = null) {
         if (!lotIds || lotIds.length === 0) return 0;
 
         let qtyMap = {};
 
         if (quantsCache) {
-            // Usar cache del popup
             for (const q of quantsCache) {
                 const lid = q.lot_id ? q.lot_id[0] : 0;
                 if (lid && lotIds.includes(lid)) {
@@ -445,7 +650,6 @@ export class StoneExpandButton extends Component {
             }
         }
 
-        // Buscar lotes que falten en cache
         const missingIds = lotIds.filter((id) => !qtyMap[id]);
         if (missingIds.length > 0) {
             try {
@@ -482,7 +686,6 @@ export class StoneExpandButton extends Component {
                     };
                 }
 
-                // Asegurar que todos los IDs tienen entrada
                 for (const lid of missingIds) {
                     if (!qtyMap[lid]) {
                         qtyMap[lid] = { qty: 0, tipo: tipoMap[lid] || "placa" };
@@ -654,7 +857,6 @@ export class StoneExpandButton extends Component {
         const badgeUnit = root.querySelector("#sp-badge-unit");
         const footerQtyText = root.querySelector("#sp-footer-qty-text");
 
-        // ─── Calcular totales de m²/piezas de la selección actual ────────
         const computeSelectedTotals = () => {
             let totalM2 = 0;
             let totalPiezas = 0;
@@ -688,7 +890,6 @@ export class StoneExpandButton extends Component {
         const updateQtyDisplay = () => {
             const { totalM2, totalPiezas, hasM2, hasPiezas } = computeSelectedTotals();
 
-            // Badge en header
             if (hasM2 && hasPiezas) {
                 badgeQty.textContent = self._fmt(totalM2);
                 badgeUnit.textContent = `m² + ${self._fmt(totalPiezas)} pzas`;
@@ -700,7 +901,6 @@ export class StoneExpandButton extends Component {
                 badgeUnit.textContent = "m²";
             }
 
-            // Footer
             const parts = [];
             if (hasM2) parts.push(`${self._fmt(totalM2)} m²`);
             if (hasPiezas) parts.push(`${self._fmt(totalPiezas)} pzas`);
@@ -789,6 +989,14 @@ export class StoneExpandButton extends Component {
                     qtyCell = `<span>${self._fmt(q.quantity)} ${qtyLabel}</span>`;
                 }
 
+                // Foto
+                const photoCell = self._renderPhotoCell(
+                    q.x_fotografia_principal || false,
+                    q.x_cantidad_fotos || 0,
+                    lotId,
+                    lotName
+                );
+
                 rows += `
                     <tr class="${sel ? "row-sel" : ""}" data-lot-id="${lotId}" data-reserved="${reserved ? "1" : "0"}" data-tipo="${tipo}">
                         <td class="col-chk">
@@ -796,6 +1004,7 @@ export class StoneExpandButton extends Component {
                                 ${sel ? '<i class="fa fa-check"></i>' : ""}
                             </div>
                         </td>
+                        <td class="col-photo">${photoCell}</td>
                         <td class="cell-lot">${lotName}</td>
                         <td>${q.x_bloque || "-"}</td>
                         <td>${q.x_atado || "-"}</td>
@@ -822,6 +1031,7 @@ export class StoneExpandButton extends Component {
                     <thead>
                         <tr>
                             <th class="col-chk">✓</th>
+                            <th class="col-photo">Foto</th>
                             <th>Lote</th>
                             <th>Bloque</th>
                             <th>Atado</th>
@@ -843,11 +1053,12 @@ export class StoneExpandButton extends Component {
             updateStats();
             updateQtyDisplay();
 
-            // Click en filas
+            // Click en filas (evitar click en foto y en input)
             body.querySelectorAll("tr[data-lot-id]").forEach((tr) => {
                 tr.style.cursor = "pointer";
                 tr.addEventListener("click", (ev) => {
                     if (ev.target.closest(".stone-popup-qty-input")) return;
+                    if (ev.target.closest(".stone-photo-cell[data-has-photo]")) return;
 
                     const lotId = parseInt(tr.dataset.lotId);
                     if (!lotId) return;
@@ -884,6 +1095,9 @@ export class StoneExpandButton extends Component {
                     updateQtyDisplay();
                 });
             });
+
+            // Bind photo clicks
+            self._bindPhotoClicks(body);
 
             // Infinite scroll
             if (self._popupObserver) {
@@ -988,7 +1202,6 @@ export class StoneExpandButton extends Component {
                 }
             }
 
-            // Calcular la cantidad total ANTES de cerrar el popup (tenemos los quants en cache)
             const totalQty = await self._computeTotalQty(newIds, cleanBreakdown, state.quants);
 
             self.destroyPopup();
@@ -1019,7 +1232,6 @@ export class StoneExpandButton extends Component {
         document.addEventListener("keydown", onKeyDown);
         this._popupKeyHandler = onKeyDown;
 
-        // Filtros
         const bindFilter = (id, key) => {
             const input = root.querySelector(`#${id}`);
             if (!input) return;
@@ -1041,7 +1253,6 @@ export class StoneExpandButton extends Component {
         bindFilter("sf-ancho", "ancho_min");
         bindFilter("sf-tipo", "tipo");
 
-        // Carga inicial
         loadPage(0, true);
     }
 
