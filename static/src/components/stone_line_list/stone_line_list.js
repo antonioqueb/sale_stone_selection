@@ -169,14 +169,14 @@ export class StoneExpandButton extends Component {
         const header = document.createElement("div");
         header.className = "stone-selected-header";
         header.innerHTML = `
+            <button class="stone-add-btn stone-add-btn-trigger stone-add-btn-prominent">
+                <i class="fa fa-plus me-1"></i> Agregar lotes
+            </button>
             <span class="stone-selected-title">
                 <i class="fa fa-check-circle me-2"></i>
                 Lotes seleccionados
                 <span class="stone-sel-badge" id="stone-sel-badge">${this.getCurrentLotIds().length}</span>
             </span>
-            <button class="stone-add-btn stone-add-btn-trigger">
-                <i class="fa fa-plus me-1"></i> Agregar
-            </button>
         `;
 
         const body = document.createElement("div");

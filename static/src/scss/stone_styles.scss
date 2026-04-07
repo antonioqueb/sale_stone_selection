@@ -153,6 +153,23 @@ $stone-radius-sm: 5px;
 
     &:hover { background: $stone-primary-light; }
     i { font-size: 9px; }
+
+    // Variante prominente: más grande, al inicio
+    &.stone-add-btn-prominent {
+        padding: 6px 14px;
+        font-size: 11.5px;
+        background: $stone-primary;
+        border-radius: $stone-radius;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+        order: -1; // forzar al inicio en flex
+
+        &:hover {
+            background: $stone-primary-light;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+        }
+
+        i { font-size: 10px; }
+    }
 }
 
 .stone-selected-body {
