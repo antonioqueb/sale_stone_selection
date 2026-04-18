@@ -181,42 +181,17 @@ class SaleOrderLine(models.Model):
                     else:
                         _logger.warning("[STONE SYNC] No se pudo sincronizar lote %s: No stock físico encontrado", lot.name)
 
-            # C. CORREGIR cantidades y ubicación de lotes existentes
+            # C. CORREGIR cantidades de lotes existentes que cambiaron en breakdown
             for lot in (target_lots & existing_lots):
-                existing_line = existing_move_lines.filtered(lambda ml: ml.lot_id.id == lot.id)
-                if not existing_line:
-                    continue
-
-                # Resolver el quant real para validar ubicación
-                real_quant = self.env['stock.quant'].search([
-                    ('lot_id', '=', lot.id),
-                    ('product_id', '=', self.product_id.id),
-                    ('location_id', 'child_of', move.location_id.id),
-                    ('quantity', '>', 0),
-                ], limit=1)
-
-                update_vals = {}
-                if real_quant and existing_line[0].location_id.id != real_quant.location_id.id:
-                    _logger.warning(
-                        "[STONE SYNC] Corrigiendo location_id de %s → %s en move_line %s (lote %s)",
-                        existing_line[0].location_id.display_name,
-                        real_quant.location_id.display_name,
-                        existing_line[0].id,
-                        lot.name,
-                    )
-                    update_vals['location_id'] = real_quant.location_id.id
-
                 tipo = str(lot.x_tipo).lower() if lot.x_tipo else 'placa'
                 lot_id_str = str(lot.id)
                 if tipo in ('formato', 'pieza') and lot_id_str in breakdown:
                     expected_qty = float(breakdown[lot_id_str])
-                    if existing_line[0].quantity != expected_qty:
+                    existing_line = existing_move_lines.filtered(lambda ml: ml.lot_id.id == lot.id)
+                    if existing_line and existing_line[0].quantity != expected_qty:
                         _logger.info("[STONE SYNC] Corrigiendo qty lote %s de %s a %s",
                                      lot.name, existing_line[0].quantity, expected_qty)
-                        update_vals['quantity'] = expected_qty
-
-                if update_vals:
-                    existing_line[0].with_context(ctx).write(update_vals)
+                        existing_line[0].with_context(ctx).write({'quantity': expected_qty})
 
     def read(self, fields=None, load='_classic_read'):
         result = super(SaleOrderLine, self).read(fields, load)

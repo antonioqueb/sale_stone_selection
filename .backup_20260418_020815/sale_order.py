@@ -186,17 +186,15 @@ class SaleOrder(models.Model):
 
             for picking in pickings:
                 for move in picking.move_ids.filtered(lambda m: m.state not in ['done', 'cancel']):
-                    # CRÍTICO: Eliminar TODAS las move_lines con lote, no solo las "no protegidas".
-                    # Odoo en action_assign pudo haberlas creado con location_id = ubicación padre
-                    # en lugar de la sub-ubicación real donde vive el quant, lo que causa
-                    # quants fantasma negativos en el padre al validar el picking.
-                    all_lot_lines = move.move_line_ids.filtered(lambda ml: ml.lot_id)
-                    if all_lot_lines:
+                    lines_to_remove = move.move_line_ids.filtered(
+                        lambda ml: ml.lot_id and ml.lot_id.id not in all_protected_lot_ids
+                    )
+                    if lines_to_remove:
                         _logger.info(
-                            "[STONE] Eliminando %s move_lines existentes para recrear con ubicación correcta",
-                            len(all_lot_lines),
+                            "[STONE] Eliminando %s asignaciones automáticas incorrectas (FIFO)",
+                            len(lines_to_remove),
                         )
-                        all_lot_lines.with_context(ctx).unlink()
+                        lines_to_remove.with_context(ctx).unlink()
 
             for line in order.order_line:
                 line_data = lines_lots_map.get(line.id)
@@ -370,30 +368,18 @@ class SaleOrder(models.Model):
                     qty_to_assign = min(qty_to_assign, quant.quantity)
 
                     if lot.id in existing_lot_ids:
-                        _logger.info("[STONE] Lote %s ya existe en move %s, verificando cantidad y ubicación...", lot.name, move.id)
+                        _logger.info("[STONE] Lote %s ya existe en move %s, verificando cantidad...", lot.name, move.id)
                         existing_line = move.move_line_ids.filtered(lambda ml: ml.lot_id.id == lot.id)
                         if existing_line:
-                            update_vals = {}
-                            # Validar ubicación: debe coincidir con la sub-ubicación real del quant
-                            if existing_line.location_id.id != quant.location_id.id:
-                                _logger.warning(
-                                    "[STONE] Corrigiendo location_id de move_line %s: %s → %s",
-                                    existing_line.id,
-                                    existing_line.location_id.display_name,
-                                    quant.location_id.display_name,
-                                )
-                                update_vals['location_id'] = quant.location_id.id
                             if existing_line.quantity != qty_to_assign:
                                 _logger.info(
                                     "[STONE] Corrigiendo cantidad de %s a %s (source=%s, tipo=%s)",
                                     existing_line.quantity, qty_to_assign, qty_source,
                                     lot.x_tipo if hasattr(lot, 'x_tipo') else 'placa',
                                 )
-                                update_vals['quantity'] = qty_to_assign
-                            if update_vals:
-                                existing_line.with_context(ctx).write(update_vals)
+                                existing_line.with_context(ctx).write({'quantity': qty_to_assign})
                             else:
-                                _logger.info("[STONE] Lote %s ya correcto (qty=%s, loc=%s)", lot.name, qty_to_assign, quant.location_id.display_name)
+                                _logger.info("[STONE] Lote %s cantidad correcta: %s", lot.name, qty_to_assign)
                         continue
 
                     _logger.info(
