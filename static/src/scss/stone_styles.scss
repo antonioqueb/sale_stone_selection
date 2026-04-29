@@ -1,21 +1,255 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// STONE SELECTION — Estilos principales (Compacto + z-index fix)
+// SALE STONE SELECTION — Tema Maderero Cálido Claro
+// Odoo 19 / OWL / SCSS modular
+// Reemplaza completamente: sale_stone_selection/static/src/scss/stone_styles.scss
 // ═══════════════════════════════════════════════════════════════════════════
 
-$stone-primary: #2c5282;
-$stone-primary-light: #3182ce;
-$stone-accent: #68d391;
-$stone-danger: #fc8181;
-$stone-warn: #f6ad55;
-$stone-bg: #f7fafc;
-$stone-border: #e2e8f0;
-$stone-text: #2d3748;
-$stone-muted: #718096;
-$stone-radius: 8px;
-$stone-radius-sm: 5px;
+// ───────────────────────────────────────────────────────────────────────────
+// PALETA BASE
+// ───────────────────────────────────────────────────────────────────────────
+$wood-walnut: #4A2A18;
+$wood-walnut-dark: #2F1B10;
+$wood-cedar: #7A4424;
+$wood-copper: #A76735;
+$wood-caramel: #C58A4A;
+$wood-honey: #E4B66A;
+$wood-oak: #F1D6AA;
+$wood-oak-light: #F9E8CC;
+$wood-cream: #FFFDF7;
+$wood-cream-alt: #FFF8EC;
+$wood-parchment: #FCF0DC;
+$wood-parchment-strong: #F8E7CB;
+$wood-sand: #E9CDA5;
+$wood-bark: #6A4A32;
+$wood-charcoal: #2A1A12;
+$wood-muted: #92735A;
+$wood-line: #EBD5B5;
+
+$wood-sage: #61724C;
+$wood-sage-dark: #415136;
+$wood-sage-light: #EEF4E7;
+$wood-redwood: #9A4A32;
+$wood-amber: #C98228;
+
+$stone-primary: $wood-walnut;
+$stone-primary-light: $wood-copper;
+$stone-accent: $wood-honey;
+$stone-danger: $wood-redwood;
+$stone-warn: $wood-amber;
+$stone-bg: $wood-cream;
+$stone-border: $wood-line;
+$stone-text: $wood-charcoal;
+$stone-muted: $wood-muted;
+
+$stone-radius: 18px;
+$stone-radius-sm: 12px;
+$stone-radius-lg: 24px;
+$stone-radius-xl: 30px;
+$stone-pill: 999px;
+
+$shadow-soft: 0 12px 32px rgba($wood-walnut-dark, 0.08);
+$shadow-card: 0 14px 36px rgba($wood-walnut-dark, 0.10), 0 2px 8px rgba($wood-copper, 0.08);
+$shadow-popup: 0 34px 90px rgba($wood-walnut-dark, 0.34), 0 8px 30px rgba($wood-copper, 0.12);
+$shadow-focus: 0 0 0 3px rgba($wood-copper, 0.18);
+$transition-soft: 0.16s ease;
+
+// ───────────────────────────────────────────────────────────────────────────
+// MIXINS
+// ───────────────────────────────────────────────────────────────────────────
+@mixin warm-surface($radius: $stone-radius-lg) {
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba($wood-cream-alt, 0.96)),
+        $wood-cream;
+    border: 1px solid rgba($wood-cedar, 0.13);
+    border-radius: $radius;
+    box-shadow: $shadow-card;
+}
+
+@mixin parchment-panel($radius: $stone-radius) {
+    background:
+        linear-gradient(180deg, rgba($wood-cream, 0.92), rgba($wood-parchment, 0.92)),
+        $wood-parchment;
+    border: 1px solid rgba($wood-cedar, 0.14);
+    border-radius: $radius;
+    box-shadow: 0 8px 24px rgba($wood-walnut-dark, 0.06);
+}
+
+@mixin warm-button-solid {
+    background: linear-gradient(135deg, $wood-cedar 0%, $wood-walnut 100%);
+    color: $wood-cream !important;
+    border: 0;
+    border-radius: $stone-pill;
+    box-shadow: 0 10px 22px rgba($wood-cedar, 0.20);
+    font-weight: 900;
+
+    &:hover {
+        background: linear-gradient(135deg, $wood-copper 0%, $wood-cedar 100%);
+        color: #fff !important;
+        transform: translateY(-1px);
+        box-shadow: 0 12px 26px rgba($wood-cedar, 0.24);
+    }
+}
+
+@mixin warm-button-outline {
+    background: rgba($wood-cream, 0.86);
+    color: $wood-cedar !important;
+    border: 1px solid rgba($wood-cedar, 0.22);
+    border-radius: $stone-pill;
+    font-weight: 850;
+
+    &:hover {
+        background: $wood-parchment;
+        color: $wood-walnut !important;
+        border-color: rgba($wood-copper, 0.40);
+        transform: translateY(-1px);
+        box-shadow: 0 8px 18px rgba($wood-walnut-dark, 0.08);
+    }
+}
+
+@mixin warm-scrollbar {
+    &::-webkit-scrollbar {
+        width: 9px;
+        height: 9px;
+    }
+
+    &::-webkit-scrollbar-track {
+        background: rgba($wood-parchment, 0.64);
+        border-radius: 999px;
+    }
+
+    &::-webkit-scrollbar-thumb {
+        background: linear-gradient(180deg, rgba($wood-sand, 0.95), rgba($wood-caramel, 0.78));
+        border: 2px solid rgba($wood-cream, 0.85);
+        border-radius: 999px;
+
+        &:hover {
+            background: linear-gradient(180deg, rgba($wood-caramel, 0.95), rgba($wood-copper, 0.86));
+        }
+    }
+}
+
+@mixin wood-grain($opacity: 0.10) {
+    background-image:
+        repeating-linear-gradient(
+            105deg,
+            rgba($wood-cedar, $opacity) 0,
+            rgba($wood-cedar, $opacity) 1px,
+            transparent 1px,
+            transparent 13px
+        ),
+        radial-gradient(circle at 12% 4%, rgba($wood-honey, 0.18), transparent 34%),
+        radial-gradient(circle at 88% 0%, rgba($wood-oak, 0.30), transparent 42%);
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// OVERRIDES BOOTSTRAP DENTRO DEL MÓDULO
+// ───────────────────────────────────────────────────────────────────────────
+.o_stone_selection_panel,
+.o_stone_move_panel,
+.stone-popup-root,
+.stone-lightbox-root,
+.stone-selected-row {
+    color: $stone-text;
+
+    .text-primary { color: $wood-walnut !important; }
+    .text-info { color: $wood-copper !important; }
+    .text-success { color: $wood-sage-dark !important; }
+    .text-warning { color: $wood-amber !important; }
+    .text-danger { color: $wood-redwood !important; }
+    .text-muted { color: $wood-muted !important; }
+    .text-dark { color: $wood-charcoal !important; }
+
+    .bg-light {
+        background:
+            linear-gradient(180deg, rgba($wood-cream, 0.95), rgba($wood-parchment, 0.86)) !important;
+    }
+
+    .border {
+        border-color: rgba($wood-cedar, 0.16) !important;
+    }
+
+    .badge {
+        border-radius: $stone-pill !important;
+        font-size: 10px;
+        font-weight: 900;
+        letter-spacing: 0.035em;
+        padding: 4px 9px;
+    }
+
+    .badge.bg-light,
+    .badge.bg-white {
+        background: rgba($wood-cream, 0.95) !important;
+        color: $wood-bark !important;
+        border: 1px solid rgba($wood-cedar, 0.16) !important;
+        box-shadow: 0 4px 10px rgba($wood-walnut-dark, 0.05);
+    }
+
+    .alert-warning {
+        background: linear-gradient(180deg, rgba($wood-oak-light, 0.90), rgba($wood-parchment, 0.94)) !important;
+        color: $wood-cedar !important;
+        border: 1px solid rgba($wood-amber, 0.30) !important;
+        border-radius: $stone-radius !important;
+        box-shadow: 0 8px 18px rgba($wood-walnut-dark, 0.06);
+    }
+
+    .form-control,
+    .form-select {
+        background: rgba($wood-cream, 0.96) !important;
+        border: 1px solid rgba($wood-cedar, 0.20) !important;
+        border-radius: 12px !important;
+        color: $wood-charcoal !important;
+        box-shadow: none !important;
+
+        &::placeholder {
+            color: rgba($wood-muted, 0.78) !important;
+        }
+
+        &:focus {
+            background: #fff !important;
+            border-color: rgba($wood-copper, 0.78) !important;
+            box-shadow: $shadow-focus !important;
+        }
+    }
+
+    .input-group-text {
+        background: rgba($wood-parchment, 0.86) !important;
+        border: 1px solid rgba($wood-cedar, 0.18) !important;
+        color: $wood-bark !important;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-size: 9px;
+        border-radius: 12px 0 0 12px !important;
+    }
+
+    .btn,
+    button {
+        transition: background $transition-soft, color $transition-soft, border-color $transition-soft,
+            box-shadow $transition-soft, transform $transition-soft;
+    }
+
+    .btn-outline-secondary {
+        @include warm-button-outline;
+        border-radius: $stone-pill !important;
+    }
+
+    .form-check-input {
+        border-color: rgba($wood-cedar, 0.30) !important;
+        background-color: $wood-cream !important;
+
+        &:checked {
+            background-color: $wood-sage !important;
+            border-color: $wood-sage-dark !important;
+        }
+
+        &:focus {
+            box-shadow: 0 0 0 3px rgba($wood-sage, 0.18) !important;
+        }
+    }
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
-// BOTÓN TOGGLE EN LA LISTA
+// BOTÓN TOGGLE EN LA LÍNEA DE VENTA
 // ═══════════════════════════════════════════════════════════════════════════
 .stone-field-wrapper {
     display: flex;
@@ -25,599 +259,859 @@ $stone-radius-sm: 5px;
 }
 
 .stone-toggle-btn {
+    position: relative;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 24px;
-    height: 24px;
-    border: 1.5px solid $stone-border;
-    border-radius: $stone-radius-sm;
-    background: white;
-    color: $stone-primary;
-    cursor: pointer;
-    transition: all 0.15s ease;
-    position: relative;
+    width: 28px;
+    height: 28px;
     padding: 0;
+    border: 1px solid rgba($wood-cedar, 0.22);
+    border-radius: 12px;
+    background:
+        linear-gradient(180deg, rgba($wood-cream, 0.98), rgba($wood-parchment, 0.86));
+    color: $wood-cedar;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba($wood-walnut-dark, 0.07);
+    transition: all $transition-soft;
 
     &:hover {
-        border-color: $stone-primary-light;
-        background: #ebf8ff;
-        color: $stone-primary-light;
-        transform: scale(1.05);
+        border-color: rgba($wood-copper, 0.42);
+        background:
+            linear-gradient(180deg, rgba(#fff, 1), rgba($wood-oak-light, 0.92));
+        color: $wood-walnut;
+        transform: translateY(-1px);
+        box-shadow: 0 8px 18px rgba($wood-walnut-dark, 0.10);
     }
 
     &.active {
-        background: $stone-primary;
-        border-color: $stone-primary;
-        color: white;
+        @include warm-button-solid;
+        width: 28px;
+        height: 28px;
+        box-shadow: 0 8px 18px rgba($wood-cedar, 0.26);
     }
 
-    i { font-size: 12px; }
+    i {
+        font-size: 12px;
+    }
 }
 
 .stone-count-badge {
     position: absolute;
-    top: -5px;
-    right: -5px;
-    background: $stone-accent;
-    color: #1a202c;
-    font-size: 8px;
-    font-weight: 700;
-    min-width: 14px;
-    height: 14px;
-    border-radius: 7px;
+    top: -7px;
+    right: -8px;
+    min-width: 17px;
+    height: 17px;
+    padding: 0 4px;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 0 2px;
+    border-radius: $stone-pill;
+    border: 2px solid $wood-cream;
+    background: linear-gradient(135deg, $wood-honey, $wood-caramel);
+    color: $wood-walnut-dark;
+    font-size: 9px;
+    font-weight: 950;
     line-height: 1;
-    border: 1.5px solid white;
+    box-shadow: 0 5px 12px rgba($wood-copper, 0.28);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// FILA DE SELECCIONADAS (inline en la lista)
-// FIX CRÍTICO: z-index alto para que NUNCA quede detrás de otras filas
+// FILA INLINE DE LOTES SELECCIONADOS
 // ═══════════════════════════════════════════════════════════════════════════
 .stone-selected-row {
     position: relative;
     z-index: 100;
 
     td.stone-selected-cell {
-        padding: 0 !important;
-        background: #f0f7ff !important;
-        border-top: 2px solid $stone-primary;
-        border-bottom: 2px solid $stone-border;
         position: relative;
         z-index: 100;
+        padding: 0 !important;
+        background:
+            linear-gradient(180deg, rgba($wood-cream, 0.95), rgba($wood-cream-alt, 0.92)) !important;
+        border-top: 2px solid rgba($wood-copper, 0.38) !important;
+        border-bottom: 1px solid rgba($wood-cedar, 0.16) !important;
+        box-shadow: inset 6px 0 0 rgba($wood-honey, 0.72);
     }
 }
 
 .stone-selected-container {
-    background: white;
-    border-radius: 0;
-    overflow: visible;
+    @include warm-surface(20px);
     position: relative;
     z-index: 100;
-    // Margen izquierdo para evitar que el contenido quede detrás
-    // de la barra lateral / columnas fijas de Odoo
-    margin-left: 8px;
+    margin: 8px 10px 10px 16px;
+    overflow: hidden;
+
+    &::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        opacity: 0.45;
+        @include wood-grain(0.055);
+        mix-blend-mode: multiply;
+    }
+
+    > * {
+        position: relative;
+        z-index: 1;
+    }
 }
 
 .stone-selected-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 6px 12px 6px 16px;
-    background: $stone-bg;
-    border-bottom: 1px solid $stone-border;
+    gap: 14px;
+    padding: 12px 16px;
+    background:
+        radial-gradient(circle at 12% 0%, rgba($wood-honey, 0.24), transparent 32%),
+        linear-gradient(180deg, rgba(#fff, 0.94), rgba($wood-parchment, 0.88));
+    border-bottom: 1px solid rgba($wood-cedar, 0.14);
 }
 
 .stone-selected-title {
-    font-size: 11px;
-    font-weight: 600;
-    color: $stone-primary;
     display: flex;
     align-items: center;
+    color: $wood-walnut;
+    font-size: 12px;
+    font-weight: 950;
+    letter-spacing: -0.01em;
 
-    i { color: $stone-accent; }
+    i {
+        color: $wood-sage;
+        font-size: 14px;
+    }
 }
 
 .stone-sel-badge {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    background: $stone-primary;
-    color: white;
-    font-size: 9px;
-    font-weight: 700;
-    min-width: 16px;
-    height: 16px;
-    border-radius: 8px;
-    padding: 0 3px;
-    margin-left: 5px;
+    min-width: 20px;
+    height: 20px;
+    margin-left: 7px;
+    padding: 0 7px;
+    border-radius: $stone-pill;
+    background: $wood-sage-light;
+    color: $wood-sage-dark;
+    border: 1px solid rgba($wood-sage, 0.22);
+    font-size: 10px;
+    font-weight: 950;
+    box-shadow: 0 4px 10px rgba($wood-sage, 0.10);
 }
 
 .stone-add-btn {
     display: inline-flex;
     align-items: center;
-    gap: 3px;
-    padding: 4px 10px;
-    background: $stone-primary;
-    color: white;
-    border: none;
-    border-radius: $stone-radius-sm;
-    font-size: 10.5px;
-    font-weight: 600;
+    justify-content: center;
+    gap: 5px;
+    padding: 7px 13px;
+    border: 0;
+    border-radius: $stone-pill;
     cursor: pointer;
-    transition: background 0.15s;
+    transition: all $transition-soft;
+    font-size: 11px;
+    line-height: 1;
+    white-space: nowrap;
+    @include warm-button-solid;
 
-    &:hover { background: $stone-primary-light; }
-    i { font-size: 9px; }
+    i {
+        font-size: 10px;
+    }
 
-    // Variante prominente: más grande, al inicio
     &.stone-add-btn-prominent {
-        padding: 6px 14px;
+        padding: 9px 16px;
         font-size: 11.5px;
-        background: $stone-primary;
-        border-radius: $stone-radius;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.15);
-        order: -1; // forzar al inicio en flex
-
-        &:hover {
-            background: $stone-primary-light;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-        }
-
-        i { font-size: 10px; }
+        order: -1;
     }
 }
 
 .stone-selected-body {
-    max-height: 280px;
-    overflow-y: auto;
-    overflow-x: auto;
-    background: white;
     position: relative;
     z-index: 100;
-    // Padding izquierdo para que la tabla no quede detrás de controles de Odoo
-    padding-left: 6px;
-
-    &::-webkit-scrollbar { width: 5px; height: 5px; }
-    &::-webkit-scrollbar-thumb { background: #cbd5e0; border-radius: 3px; }
+    max-height: 300px;
+    padding: 10px;
+    overflow-y: auto;
+    overflow-x: auto;
+    background:
+        linear-gradient(180deg, rgba($wood-cream, 0.98), rgba($wood-cream-alt, 0.94));
+    @include warm-scrollbar;
 }
 
-.stone-no-selection {
-    padding: 12px;
-    font-size: 11px;
-    color: $stone-muted;
+.stone-no-selection,
+.stone-table-loading {
+    padding: 18px;
+    font-size: 12px;
+    color: $wood-muted;
     display: flex;
     align-items: center;
-    gap: 5px;
-}
+    justify-content: center;
+    gap: 8px;
 
-.stone-table-loading {
-    padding: 16px;
-    text-align: center;
-    color: $stone-muted;
-    font-size: 11px;
+    strong {
+        color: $wood-cedar;
+        font-weight: 950;
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Tabla de seleccionadas (COMPACTA)
+// TABLA INLINE DE SELECCIONADAS
 // ═══════════════════════════════════════════════════════════════════════════
 .stone-sel-table {
     width: 100%;
-    border-collapse: collapse;
+    min-width: 980px;
+    border-collapse: separate;
+    border-spacing: 0;
+    overflow: hidden;
+    background: rgba($wood-cream, 0.98);
+    border: 1px solid rgba($wood-cedar, 0.13);
+    border-radius: 16px;
+    box-shadow: 0 8px 22px rgba($wood-walnut-dark, 0.06);
     font-size: 11px;
-    background: white;
 
-    thead tr { background: #f8fafc; }
+    thead tr {
+        background:
+            linear-gradient(180deg, rgba($wood-oak-light, 0.92), rgba($wood-parchment, 0.92));
+    }
 
     th {
-        padding: 4px 6px;
+        padding: 8px 9px;
         text-align: left;
-        font-weight: 600;
+        color: $wood-bark;
+        border-bottom: 1px solid rgba($wood-cedar, 0.16);
         font-size: 9.5px;
+        font-weight: 950;
         text-transform: uppercase;
-        color: $stone-muted;
-        border-bottom: 1px solid $stone-border;
+        letter-spacing: 0.085em;
         white-space: nowrap;
 
         &.col-num { text-align: right; }
-        &.col-act { text-align: center; width: 28px; }
-        &.col-qty-input { text-align: right; width: 90px; }
+        &.col-act { text-align: center; width: 36px; }
+        &.col-qty-input { text-align: right; width: 100px; }
     }
 
     tbody tr {
-        transition: background 0.08s;
-        background: white;
-        &:hover { background: #f7fafc; }
-        &:not(:last-child) td { border-bottom: 1px solid #f0f4f8; }
+        background: rgba(#fff, 0.68);
+        transition: background $transition-soft, box-shadow $transition-soft;
+
+        &:hover {
+            background: rgba($wood-honey, 0.12);
+        }
+
+        &:not(:last-child) td {
+            border-bottom: 1px solid rgba($wood-line, 0.72);
+        }
     }
 
     td {
-        padding: 4px 6px;
-        color: $stone-text;
+        padding: 7px 9px;
+        color: $wood-charcoal;
         vertical-align: middle;
 
-        &.col-num { text-align: right; font-variant-numeric: tabular-nums; }
-        &.col-act { text-align: center; }
-        &.col-qty-input { text-align: right; }
+        &.col-num {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+
+        &.col-act {
+            text-align: center;
+        }
+
+        &.col-qty-input {
+            text-align: right;
+        }
     }
 
-    // LOTE: SIEMPRE visible completo, sin truncar, sin quedar detrás de nada
     .cell-lot {
-        font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+        min-width: 140px;
+        padding-left: 12px !important;
+        color: $wood-walnut;
+        background: inherit;
+        font-family: "JetBrains Mono", "Fira Code", "SFMono-Regular", Consolas, monospace;
         font-size: 10.5px;
-        font-weight: 600;
-        color: $stone-primary;
+        font-weight: 900;
+        letter-spacing: -0.02em;
         white-space: nowrap;
         overflow: visible !important;
         text-overflow: unset !important;
-        min-width: 130px;
-        padding-left: 12px !important;
-        letter-spacing: -0.02em;
         position: relative;
         z-index: 1;
-        background: inherit;
     }
 
     tfoot .stone-total-row {
-        background: $stone-bg;
+        background:
+            linear-gradient(180deg, rgba($wood-parchment, 0.92), rgba($wood-oak-light, 0.70));
+
         td {
-            padding: 5px 6px;
-            border-top: 2px solid $stone-border;
+            padding: 9px;
+            border-top: 2px solid rgba($wood-copper, 0.22);
+            color: $wood-walnut;
             font-size: 11px;
         }
     }
 }
 
 .stone-remove-btn {
-    width: 20px;
-    height: 20px;
+    width: 24px;
+    height: 24px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border: 1px solid #fed7d7;
-    border-radius: 3px;
-    background: #fff5f5;
-    color: #e53e3e;
+    border: 1px solid rgba($wood-redwood, 0.20);
+    border-radius: 10px;
+    background: rgba($wood-redwood, 0.08);
+    color: $wood-redwood;
     cursor: pointer;
-    transition: all 0.12s;
     padding: 0;
+    transition: all $transition-soft;
 
     &:hover {
-        background: #fc8181;
-        border-color: #fc8181;
-        color: white;
+        background: $wood-redwood;
+        border-color: $wood-redwood;
+        color: #fff;
+        transform: translateY(-1px);
+        box-shadow: 0 8px 16px rgba($wood-redwood, 0.20);
     }
 
-    i { font-size: 9px; }
+    i {
+        font-size: 10px;
+    }
 }
 
-.fw-semibold { font-weight: 600; }
+.fw-semibold {
+    font-weight: 850;
+    color: $wood-walnut;
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
-// INPUT DE CANTIDAD PARCIAL (formato/pieza)
+// INPUTS DE CANTIDAD PARCIAL
 // ═══════════════════════════════════════════════════════════════════════════
 .stone-qty-input,
 .stone-popup-qty-input {
-    width: 72px;
-    padding: 2px 5px;
-    border: 1.5px solid $stone-border;
-    border-radius: $stone-radius-sm;
+    width: 78px;
+    padding: 5px 7px;
+    border: 1px solid rgba($wood-cedar, 0.24);
+    border-radius: 11px;
+    background: rgba($wood-cream, 0.96);
+    color: $wood-charcoal;
+    box-shadow: inset 0 1px 2px rgba($wood-walnut-dark, 0.04);
     font-size: 11px;
-    font-weight: 600;
+    font-weight: 900;
     text-align: right;
-    color: $stone-text;
-    background: white;
-    transition: border-color 0.15s, box-shadow 0.15s;
+    transition: border-color $transition-soft, box-shadow $transition-soft, background $transition-soft;
     font-variant-numeric: tabular-nums;
 
     &:focus {
         outline: none;
-        border-color: $stone-primary-light;
-        box-shadow: 0 0 0 2px rgba($stone-primary-light, 0.2);
+        background: #fff;
+        border-color: rgba($wood-copper, 0.82);
+        box-shadow: $shadow-focus;
     }
 
-    &:hover { border-color: #a0aec0; }
+    &:hover {
+        border-color: rgba($wood-copper, 0.48);
+    }
 
     &::-webkit-outer-spin-button,
     &::-webkit-inner-spin-button {
         -webkit-appearance: none;
         margin: 0;
     }
+
     -moz-appearance: textfield;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TAGS DE TIPO (Placa / Formato / Pieza)
+// TAGS / BADGES
 // ═══════════════════════════════════════════════════════════════════════════
-.stone-tag-tipo-placa {
-    background: #e2e8f0;
-    color: #4a5568;
-    padding: 1px 6px;
-    border-radius: 8px;
-    font-size: 9px;
-    font-weight: 600;
+.stone-tag,
+.stone-tag-tipo-placa,
+.stone-tag-tipo-formato,
+.stone-tag-tipo-pieza {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 18px;
+    padding: 3px 8px;
+    border-radius: $stone-pill;
+    font-size: 9.5px;
+    font-weight: 950;
+    line-height: 1;
+    letter-spacing: 0.035em;
     white-space: nowrap;
+    border: 1px solid transparent;
+}
+
+.stone-tag-tipo-placa {
+    background: rgba($wood-parchment, 0.96);
+    color: $wood-bark;
+    border-color: rgba($wood-cedar, 0.14);
 }
 
 .stone-tag-tipo-formato {
-    background: #fefcbf;
-    color: #744210;
-    padding: 1px 6px;
-    border-radius: 8px;
-    font-size: 9px;
-    font-weight: 600;
-    white-space: nowrap;
+    background: rgba($wood-honey, 0.22);
+    color: $wood-cedar;
+    border-color: rgba($wood-amber, 0.22);
 }
 
 .stone-tag-tipo-pieza {
-    background: #bee3f8;
-    color: #2a4365;
-    padding: 1px 6px;
-    border-radius: 8px;
-    font-size: 9px;
-    font-weight: 600;
-    white-space: nowrap;
+    background: rgba($wood-oak-light, 0.82);
+    color: $wood-walnut;
+    border-color: rgba($wood-copper, 0.18);
+}
+
+.stone-tag {
+    &.stone-tag-ok {
+        background: $wood-sage-light;
+        color: $wood-sage-dark;
+        border-color: rgba($wood-sage, 0.24);
+    }
+
+    &.stone-tag-warn {
+        background: rgba($wood-honey, 0.24);
+        color: $wood-cedar;
+        border-color: rgba($wood-amber, 0.26);
+    }
+
+    &.stone-tag-free {
+        background: rgba($wood-cream, 0.92);
+        color: $wood-sage-dark;
+        border-color: rgba($wood-sage, 0.18);
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// POPUP FULLSCREEN
+// POPUP FULLSCREEN DE SELECCIÓN
 // ═══════════════════════════════════════════════════════════════════════════
 .stone-popup-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.55);
-    backdrop-filter: blur(2px);
     z-index: 10500;
     display: flex;
     align-items: stretch;
     justify-content: stretch;
-    padding: 12px;
+    padding: 16px;
     box-sizing: border-box;
+    background:
+        radial-gradient(circle at 20% 10%, rgba($wood-honey, 0.18), transparent 28%),
+        radial-gradient(circle at 84% 0%, rgba($wood-copper, 0.12), transparent 36%),
+        rgba($wood-walnut-dark, 0.46);
+    backdrop-filter: blur(5px);
 }
 
 .stone-popup-container {
-    background: white;
-    border-radius: 10px;
+    position: relative;
     width: 100%;
     height: 100%;
     max-width: 100%;
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
-    animation: stonePopupIn 0.18s ease;
+    border: 1px solid rgba($wood-oak, 0.60);
+    border-radius: $stone-radius-xl;
+    background:
+        linear-gradient(180deg, rgba(#fff, 0.96), rgba($wood-cream, 0.98) 34%, rgba($wood-cream-alt, 0.98)),
+        $wood-cream;
+    box-shadow: $shadow-popup;
+    animation: stonePopupIn 0.20s ease;
+
+    &::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        opacity: 0.55;
+        @include wood-grain(0.045);
+        mix-blend-mode: multiply;
+    }
+
+    > * {
+        position: relative;
+        z-index: 1;
+    }
 }
 
 @keyframes stonePopupIn {
-    from { opacity: 0; transform: scale(0.97) translateY(6px); }
-    to { opacity: 1; transform: scale(1) translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(8px) scale(0.985);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
 }
 
 .stone-popup-header {
+    flex: 0 0 auto;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 10px 16px;
-    background: $stone-primary;
-    color: white;
-    flex: 0 0 auto;
+    gap: 18px;
+    padding: 20px 24px 18px;
+    color: $wood-walnut;
+    background:
+        radial-gradient(circle at 4% 0%, rgba($wood-honey, 0.34), transparent 28%),
+        radial-gradient(circle at 80% 0%, rgba($wood-oak, 0.40), transparent 34%),
+        linear-gradient(180deg, rgba(#fff, 0.96), rgba($wood-oak-light, 0.76));
+    border-bottom: 1px solid rgba($wood-cedar, 0.16);
 }
 
 .stone-popup-title {
-    font-size: 14px;
-    font-weight: 700;
     display: flex;
     align-items: center;
-    i { font-size: 15px; }
+    min-width: 0;
+    color: $wood-walnut;
+    font-size: 23px;
+    font-weight: 950;
+    line-height: 1.1;
+    letter-spacing: -0.035em;
+
+    i {
+        width: 42px;
+        height: 42px;
+        margin-right: 11px !important;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid rgba($wood-copper, 0.18);
+        border-radius: 16px;
+        background:
+            radial-gradient(circle at 30% 20%, rgba(#fff, 0.74), transparent 38%),
+            linear-gradient(135deg, rgba($wood-honey, 0.70), rgba($wood-oak, 0.58));
+        color: $wood-walnut;
+        box-shadow: 0 10px 20px rgba($wood-copper, 0.14);
+        font-size: 16px;
+        flex: 0 0 auto;
+    }
 }
 
 .stone-popup-subtitle {
-    font-size: 12px;
-    font-weight: 400;
-    opacity: 0.85;
-    margin-left: 4px;
+    min-width: 0;
+    margin-left: 8px;
+    color: $wood-bark;
+    opacity: 0.86;
+    font-size: 13px;
+    font-weight: 750;
+    letter-spacing: -0.01em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .stone-popup-header-actions {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 9px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.stone-badge-selected,
+.stone-badge-qty-total {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 30px;
+    padding: 6px 11px;
+    border-radius: $stone-pill;
+    font-size: 11px;
+    font-weight: 950;
+    white-space: nowrap;
 }
 
 .stone-badge-selected {
-    background: rgba(255, 255, 255, 0.2);
-    color: white;
-    padding: 3px 8px;
-    border-radius: 16px;
-    font-size: 11px;
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-    gap: 3px;
+    background: $wood-sage-light;
+    color: $wood-sage-dark;
+    border: 1px solid rgba($wood-sage, 0.22);
+
+    i {
+        color: $wood-sage;
+    }
+}
+
+.stone-badge-qty-total {
+    background: rgba($wood-honey, 0.22);
+    color: $wood-walnut;
+    border: 1px solid rgba($wood-amber, 0.22);
+
+    i {
+        color: $wood-copper;
+    }
 }
 
 .stone-btn {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 5px 12px;
-    border-radius: $stone-radius-sm;
-    font-size: 11px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.15s;
+    justify-content: center;
+    gap: 6px;
+    min-height: 32px;
+    padding: 7px 14px;
     border: none;
+    border-radius: $stone-pill;
+    font-size: 11.5px;
+    font-weight: 900;
+    line-height: 1;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all $transition-soft;
 
-    i { font-size: 10px; }
-
-    &.stone-btn-primary {
-        background: $stone-accent;
-        color: #1a202c;
-        &:hover { background: darken(#68d391, 8%); }
+    i {
+        font-size: 11px;
     }
 
-    &.stone-btn-accent {
-        background: $stone-accent;
-        color: #1a202c;
-        &:hover { background: darken(#68d391, 8%); }
+    &.stone-btn-primary,
+    &.stone-btn-accent,
+    &.stone-btn-primary-dark {
+        @include warm-button-solid;
+    }
+
+    &.stone-btn-ghost,
+    &.stone-btn-outline {
+        @include warm-button-outline;
     }
 
     &.stone-btn-ghost {
-        background: rgba(255, 255, 255, 0.15);
-        color: white;
-        border: 1px solid rgba(255, 255, 255, 0.3);
-        &:hover { background: rgba(255, 255, 255, 0.25); }
-    }
+        min-width: 36px;
+        width: 36px;
+        padding: 0;
+        background: rgba($wood-cream, 0.78);
 
-    &.stone-btn-outline {
-        background: white;
-        color: $stone-muted;
-        border: 1.5px solid $stone-border;
-        &:hover { background: $stone-bg; color: $stone-text; }
-    }
-
-    &.stone-btn-primary-dark {
-        background: $stone-primary;
-        color: white;
-        &:hover { background: $stone-primary-light; }
+        &:hover {
+            background: rgba($wood-redwood, 0.10);
+            color: $wood-redwood !important;
+            border-color: rgba($wood-redwood, 0.28);
+        }
     }
 }
 
-// Filtros del popup
+// ───────────────────────────────────────────────────────────────────────────
+// FILTROS DEL POPUP
+// ───────────────────────────────────────────────────────────────────────────
 .stone-popup-filters {
+    flex: 0 0 auto;
     display: flex;
     align-items: flex-end;
-    gap: 8px;
-    padding: 8px 12px;
-    background: $stone-bg;
-    border-bottom: 1px solid $stone-border;
-    flex: 0 0 auto;
+    gap: 10px;
+    padding: 13px 16px;
     flex-wrap: wrap;
+    background:
+        linear-gradient(180deg, rgba($wood-parchment, 0.88), rgba($wood-cream-alt, 0.94));
+    border-bottom: 1px solid rgba($wood-cedar, 0.14);
+    box-shadow: 0 8px 18px rgba($wood-walnut-dark, 0.04);
 }
 
 .stone-filter-group {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 4px;
 
     label {
-        font-size: 9px;
-        font-weight: 700;
+        color: $wood-muted;
+        font-size: 9.5px;
+        font-weight: 950;
         text-transform: uppercase;
-        color: $stone-muted;
-        letter-spacing: 0.03em;
+        letter-spacing: 0.10em;
     }
 }
 
 .stone-filter-input {
-    padding: 4px 7px;
-    border: 1.5px solid $stone-border;
-    border-radius: $stone-radius-sm;
-    font-size: 11px;
-    width: 120px;
-    color: $stone-text;
-    transition: border-color 0.15s;
-    background: white;
+    width: 126px;
+    min-height: 34px;
+    padding: 7px 10px;
+    border: 1px solid rgba($wood-cedar, 0.22);
+    border-radius: 12px;
+    background: rgba($wood-cream, 0.92);
+    color: $wood-charcoal;
+    box-shadow: inset 0 1px 2px rgba($wood-walnut-dark, 0.04);
+    font-size: 11.5px;
+    font-weight: 800;
+    transition: border-color $transition-soft, box-shadow $transition-soft, background $transition-soft;
 
-    &.stone-filter-sm { width: 60px; }
+    &.stone-filter-sm {
+        width: 74px;
+    }
 
     &:focus {
         outline: none;
-        border-color: $stone-primary-light;
-        box-shadow: 0 0 0 2px rgba($stone-primary-light, 0.2);
+        background: #fff;
+        border-color: rgba($wood-copper, 0.78);
+        box-shadow: $shadow-focus;
     }
 
-    &::placeholder { color: #a0aec0; }
+    &::placeholder {
+        color: rgba($wood-muted, 0.72);
+    }
 }
 
-.stone-filter-spacer { flex: 1; }
+select.stone-filter-input {
+    cursor: pointer;
+    color: $wood-bark;
+}
+
+.stone-filter-spacer {
+    flex: 1 1 auto;
+}
 
 .stone-filter-stats {
     display: flex;
     align-items: center;
-    padding-bottom: 1px;
+    padding-bottom: 2px;
 }
 
 .stone-filter-stat-loading,
 .stone-filter-stat-count {
-    font-size: 11px;
-    color: $stone-muted;
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 3px;
+    gap: 5px;
+    min-height: 30px;
+    padding: 6px 11px;
+    border-radius: $stone-pill;
+    font-size: 11px;
+    font-weight: 900;
+}
+
+.stone-filter-stat-loading {
+    background: rgba($wood-parchment, 0.70);
+    color: $wood-muted;
+    border: 1px solid rgba($wood-cedar, 0.13);
 }
 
 .stone-filter-stat-count {
-    color: $stone-primary;
-    font-weight: 600;
+    background: rgba($wood-cream, 0.92);
+    color: $wood-cedar;
+    border: 1px solid rgba($wood-cedar, 0.18);
 }
 
-// Body del popup (scrolleable)
+.stone-filter-actions {
+    display: flex;
+    align-items: flex-end;
+    gap: 7px;
+    padding-bottom: 1px;
+}
+
+.stone-btn-select-all,
+.stone-btn-clear-all {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 32px;
+    padding: 7px 12px;
+    border-radius: $stone-pill;
+    font-size: 10.5px;
+    font-weight: 950;
+    cursor: pointer;
+    transition: all $transition-soft;
+    border: 1px solid;
+    white-space: nowrap;
+
+    i {
+        font-size: 10px;
+    }
+}
+
+.stone-btn-select-all {
+    background: $wood-sage-light;
+    color: $wood-sage-dark;
+    border-color: rgba($wood-sage, 0.24);
+
+    &:hover {
+        background: linear-gradient(135deg, $wood-sage, $wood-sage-dark);
+        color: $wood-cream;
+        border-color: $wood-sage-dark;
+        transform: translateY(-1px);
+        box-shadow: 0 10px 20px rgba($wood-sage, 0.18);
+    }
+}
+
+.stone-btn-clear-all {
+    background: rgba($wood-redwood, 0.07);
+    color: $wood-redwood;
+    border-color: rgba($wood-redwood, 0.20);
+
+    &:hover {
+        background: $wood-redwood;
+        color: #fff;
+        border-color: $wood-redwood;
+        transform: translateY(-1px);
+        box-shadow: 0 10px 20px rgba($wood-redwood, 0.18);
+    }
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// BODY / TABLA DEL POPUP
+// ───────────────────────────────────────────────────────────────────────────
 .stone-popup-body {
     flex: 1 1 auto;
+    min-height: 0;
     overflow-y: auto;
     overflow-x: auto;
-    min-height: 0;
-    background: white;
     position: relative;
-
-    &::-webkit-scrollbar { width: 7px; height: 7px; }
-    &::-webkit-scrollbar-thumb { background: #cbd5e0; border-radius: 4px; }
-    &::-webkit-scrollbar-track { background: #f7fafc; }
+    background:
+        linear-gradient(180deg, rgba(#fff, 0.82), rgba($wood-cream, 0.98) 42%, rgba($wood-cream-alt, 0.92));
+    @include warm-scrollbar;
 }
 
 .stone-empty-state {
+    min-height: 240px;
+    height: 58%;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    height: 60%;
-    min-height: 200px;
-    color: #a0aec0;
     gap: 10px;
-    i { font-size: 36px; }
+    color: $wood-muted;
+
+    i {
+        color: $wood-copper;
+        opacity: 0.72;
+        font-size: 38px;
+    }
 }
 
 .stone-empty-text {
+    color: $wood-muted;
     font-size: 13px;
-    color: $stone-muted;
+    font-weight: 800;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Tabla del popup — COMPACTA, lotes visibles completos
-// ═══════════════════════════════════════════════════════════════════════════
 .stone-popup-table {
     width: 100%;
+    min-width: 1180px;
     border-collapse: separate;
     border-spacing: 0;
-    font-size: 11px;
     table-layout: auto;
+    background: rgba($wood-cream, 0.98);
+    font-size: 11px;
 
     thead {
         position: sticky;
         top: 0;
         z-index: 10;
 
-        tr { background: $stone-bg; }
+        tr {
+            background:
+                linear-gradient(180deg, rgba($wood-oak-light, 0.96), rgba($wood-parchment, 0.98));
+        }
 
         th {
-            padding: 6px 7px;
-            text-align: left;
+            padding: 10px 9px;
+            background:
+                linear-gradient(180deg, rgba($wood-oak-light, 0.96), rgba($wood-parchment, 0.98));
+            border-bottom: 1px solid rgba($wood-cedar, 0.18);
+            color: $wood-bark;
             font-size: 9.5px;
-            font-weight: 700;
+            font-weight: 950;
+            text-align: left;
             text-transform: uppercase;
-            color: $stone-muted;
-            letter-spacing: 0.03em;
-            border-bottom: 2px solid $stone-border;
+            letter-spacing: 0.085em;
             white-space: nowrap;
-            background: $stone-bg;
+            box-shadow: 0 2px 10px rgba($wood-walnut-dark, 0.04);
 
             &.col-chk {
-                width: 32px;
+                width: 42px;
                 text-align: center;
             }
 
@@ -630,29 +1124,37 @@ $stone-radius-sm: 5px;
     tbody {
         tr {
             cursor: pointer;
-            transition: background 0.08s;
+            transition: background $transition-soft, box-shadow $transition-soft;
 
-            &:hover { background: #f0f7ff; }
+            &:hover {
+                background: rgba($wood-honey, 0.12);
+            }
 
             &.row-sel {
-                background: #ebfaf1;
-                &:hover { background: #d4f4e0; }
+                background:
+                    linear-gradient(90deg, rgba($wood-sage-light, 0.98), rgba($wood-cream, 0.94));
+
+                &:hover {
+                    background:
+                        linear-gradient(90deg, rgba($wood-sage-light, 1), rgba($wood-honey, 0.12));
+                }
 
                 td:first-child {
-                    box-shadow: inset 3px 0 0 0 $stone-accent;
+                    box-shadow: inset 5px 0 0 0 $wood-sage;
                 }
             }
 
             td {
-                padding: 5px 7px;
-                border-bottom: 1px solid #f0f4f8;
+                padding: 8px 9px;
+                border-bottom: 1px solid rgba($wood-line, 0.70);
                 vertical-align: middle;
-                color: $stone-text;
+                color: $wood-charcoal;
                 white-space: nowrap;
+                background-color: inherit;
 
                 &.col-chk {
+                    width: 42px;
                     text-align: center;
-                    width: 32px;
                 }
 
                 &.col-num {
@@ -661,130 +1163,233 @@ $stone-radius-sm: 5px;
                 }
 
                 &.col-popup-qty {
+                    min-width: 92px;
                     text-align: right;
-                    min-width: 85px;
                     overflow: visible;
                 }
 
                 &.cell-lot {
-                    font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+                    min-width: 120px;
+                    color: $wood-walnut;
+                    font-family: "JetBrains Mono", "Fira Code", "SFMono-Regular", Consolas, monospace;
                     font-size: 10.5px;
-                    font-weight: 700;
-                    color: $stone-primary;
-                    white-space: nowrap;
+                    font-weight: 950;
+                    letter-spacing: -0.02em;
                     overflow: visible !important;
                     text-overflow: unset !important;
-                    min-width: 100px;
-                    letter-spacing: -0.02em;
+                    white-space: nowrap;
                 }
 
                 &.cell-loc {
-                    color: $stone-muted;
-                    font-size: 10px;
+                    color: $wood-muted;
+                    font-size: 10.5px;
+                    font-weight: 750;
                 }
             }
         }
     }
 }
 
-// Checkbox personalizado en popup
 .stone-chkbox {
-    width: 16px;
-    height: 16px;
-    border: 2px solid #cbd5e0;
-    border-radius: 3px;
+    width: 18px;
+    height: 18px;
+    margin: 0 auto;
+    border: 2px solid rgba($wood-cedar, 0.26);
+    border-radius: 7px;
+    background: rgba($wood-cream, 0.95);
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    margin: 0 auto;
-    transition: all 0.12s;
-    background: white;
+    transition: all $transition-soft;
 
-    i { font-size: 9px; color: white; }
+    i {
+        color: #fff;
+        font-size: 9px;
+    }
 
     &.checked {
-        background: $stone-accent;
-        border-color: darken(#68d391, 10%);
+        background: linear-gradient(135deg, $wood-sage, $wood-sage-dark);
+        border-color: $wood-sage-dark;
+        box-shadow: 0 6px 12px rgba($wood-sage, 0.18);
     }
 }
 
-// Tags de estado
-.stone-tag {
-    display: inline-block;
-    padding: 1px 6px;
-    border-radius: 8px;
-    font-size: 9px;
-    font-weight: 600;
-    white-space: nowrap;
-
-    &.stone-tag-ok {
-        background: #c6f6d5;
-        color: #276749;
-    }
-
-    &.stone-tag-warn {
-        background: #fefcbf;
-        color: #744210;
-    }
-
-    &.stone-tag-free {
-        background: #edf2f7;
-        color: #718096;
-        border: 1px solid #e2e8f0;
-    }
-}
-
-// Sentinel de infinite scroll
 .stone-scroll-sentinel {
-    padding: 12px;
+    padding: 14px;
     text-align: center;
+    background: rgba($wood-cream-alt, 0.72);
 }
 
 .stone-loading-more {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
-    color: $stone-muted;
+    gap: 7px;
+    padding: 8px;
+    color: $wood-muted;
     font-size: 11px;
-    padding: 6px;
+    font-weight: 800;
 }
 
 .stone-scroll-hint {
-    color: #a0aec0;
+    color: rgba($wood-muted, 0.78);
     font-size: 10px;
+    font-weight: 850;
     animation: hintBounce 2s infinite;
 }
 
 @keyframes hintBounce {
-    0%, 100% { opacity: 0.5; transform: translateY(0); }
-    50% { opacity: 1; transform: translateY(3px); }
+    0%, 100% {
+        opacity: 0.55;
+        transform: translateY(0);
+    }
+
+    50% {
+        opacity: 1;
+        transform: translateY(3px);
+    }
 }
 
-// Footer del popup
+// ───────────────────────────────────────────────────────────────────────────
+// FOOTER DEL POPUP
+// ───────────────────────────────────────────────────────────────────────────
 .stone-popup-footer {
+    flex: 0 0 auto;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 10px 16px;
-    background: $stone-bg;
-    border-top: 1px solid $stone-border;
-    flex: 0 0 auto;
+    gap: 14px;
+    padding: 14px 18px;
+    background:
+        linear-gradient(180deg, rgba($wood-cream, 0.98), rgba($wood-parchment, 0.88));
+    border-top: 1px solid rgba($wood-cedar, 0.16);
 }
 
 .stone-footer-info {
-    font-size: 11px;
-    color: $stone-muted;
+    color: $wood-muted;
+    font-size: 11.5px;
+    font-weight: 800;
+
+    strong {
+        color: $wood-walnut;
+        font-weight: 950;
+    }
+}
+
+.stone-footer-qty-summary {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 8px 13px;
+    border-radius: $stone-pill;
+    border: 1px solid rgba($wood-sage, 0.20);
+    background: $wood-sage-light;
+    color: $wood-sage-dark;
+    font-size: 12px;
+    font-weight: 950;
+    box-shadow: 0 8px 18px rgba($wood-sage, 0.09);
 }
 
 .stone-footer-actions {
     display: flex;
-    gap: 6px;
+    gap: 8px;
     align-items: center;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// MODAL FULLSCREEN: Stone Move Grid (para Picking)
+// PANEL STONE GRID LEGACY / TABLA SIMPLE
+// ═══════════════════════════════════════════════════════════════════════════
+.o_stone_selection_panel {
+    @include warm-surface(20px);
+    overflow: hidden;
+    background:
+        linear-gradient(180deg, rgba(#fff, 0.96), rgba($wood-cream, 0.98));
+
+    .stone-grid-wrapper {
+        overflow: auto;
+        @include warm-scrollbar;
+    }
+
+    .o_stone_table {
+        margin-bottom: 0 !important;
+        border-collapse: separate;
+        border-spacing: 0;
+        color: $wood-charcoal;
+
+        thead tr {
+            background:
+                linear-gradient(180deg, rgba($wood-oak-light, 0.96), rgba($wood-parchment, 0.98));
+        }
+
+        thead th {
+            padding: 9px 10px;
+            border-bottom: 1px solid rgba($wood-cedar, 0.18) !important;
+            color: $wood-bark;
+            background: transparent !important;
+            font-size: 9.5px;
+            font-weight: 950;
+            text-transform: uppercase;
+            letter-spacing: 0.085em;
+            white-space: nowrap;
+        }
+
+        tbody td {
+            padding: 8px 10px;
+            border-bottom: 1px solid rgba($wood-line, 0.70) !important;
+            color: $wood-charcoal;
+            vertical-align: middle;
+        }
+
+        tbody tr {
+            background: rgba(#fff, 0.60);
+            transition: background $transition-soft;
+
+            &:hover {
+                background: rgba($wood-honey, 0.12) !important;
+            }
+
+            &.row-selected {
+                background:
+                    linear-gradient(90deg, rgba($wood-sage-light, 0.98), rgba($wood-cream, 0.94)) !important;
+
+                td:first-child {
+                    box-shadow: inset 5px 0 0 $wood-sage;
+                }
+            }
+        }
+
+        .group-header-row {
+            td {
+                background:
+                    linear-gradient(90deg, rgba($wood-parchment, 0.98), rgba($wood-oak-light, 0.72)) !important;
+                border-top: 1px solid rgba($wood-cedar, 0.14);
+                border-bottom: 1px solid rgba($wood-cedar, 0.14) !important;
+            }
+
+            .fw-bold {
+                color: $wood-walnut !important;
+                font-weight: 950 !important;
+            }
+        }
+
+        .stone-item-row .fw-bold,
+        .stone-item-row .font-monospace {
+            color: $wood-walnut !important;
+        }
+    }
+
+    > .p-2.bg-light {
+        padding: 10px 14px !important;
+        background:
+            linear-gradient(180deg, rgba($wood-cream, 0.98), rgba($wood-parchment, 0.88)) !important;
+        border-top: 1px solid rgba($wood-cedar, 0.14) !important;
+        color: $wood-muted !important;
+        font-weight: 800;
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MODAL FULLSCREEN: STONE MOVE GRID PARA PICKING
 // ═══════════════════════════════════════════════════════════════════════════
 .o_dialog:has(.o_stone_move_panel),
 .modal-dialog:has(.o_stone_move_panel) {
@@ -803,90 +1408,155 @@ $stone-radius-sm: 5px;
     display: flex !important;
     flex-direction: column !important;
     overflow: hidden !important;
+    border: 1px solid rgba($wood-oak, 0.68) !important;
+    border-radius: $stone-radius-xl !important;
+    background:
+        linear-gradient(180deg, rgba(#fff, 0.96), rgba($wood-cream, 0.98)) !important;
+    box-shadow: $shadow-popup !important;
+}
+
+.o_dialog:has(.o_stone_move_panel) .modal-header,
+.modal-dialog:has(.o_stone_move_panel) .modal-header {
+    background:
+        linear-gradient(180deg, rgba($wood-oak-light, 0.88), rgba($wood-parchment, 0.80)) !important;
+    border-bottom: 1px solid rgba($wood-cedar, 0.14) !important;
+    color: $wood-walnut !important;
+}
+
+.o_dialog:has(.o_stone_move_panel) .modal-title,
+.modal-dialog:has(.o_stone_move_panel) .modal-title {
+    color: $wood-walnut !important;
+    font-weight: 950 !important;
 }
 
 .o_dialog:has(.o_stone_move_panel) .modal-body,
 .modal-dialog:has(.o_stone_move_panel) .modal-body {
     flex: 1 1 auto !important;
+    min-height: 0 !important;
     padding: 0 !important;
     overflow: hidden !important;
     display: flex !important;
     flex-direction: column !important;
-    min-height: 0 !important;
+    background: $wood-cream !important;
 }
 
 .o_stone_move_panel {
-    display: flex;
-    flex-direction: column;
     width: 100%;
     height: 100%;
     min-height: 0;
-    background: #fff;
+    display: flex;
+    flex-direction: column;
     overflow: hidden;
+    background:
+        linear-gradient(180deg, rgba(#fff, 0.96), rgba($wood-cream, 0.98) 36%, rgba($wood-cream-alt, 0.92));
+    color: $wood-charcoal;
 }
 
 .stone-header {
     flex: 0 0 auto;
     display: flex;
     flex-wrap: wrap;
-    gap: 10px;
-    padding: 8px 12px;
-    background: $stone-bg;
-    border-bottom: 1px solid $stone-border;
     align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
     z-index: 20;
+    background:
+        radial-gradient(circle at 7% 0%, rgba($wood-honey, 0.22), transparent 34%),
+        linear-gradient(180deg, rgba($wood-parchment, 0.90), rgba($wood-cream-alt, 0.94));
+    border-bottom: 1px solid rgba($wood-cedar, 0.14);
+    box-shadow: 0 8px 18px rgba($wood-walnut-dark, 0.04);
+
+    .ms-auto span {
+        display: inline-flex;
+        align-items: center;
+        min-height: 28px;
+        padding: 5px 10px;
+        border-radius: $stone-pill;
+        border: 1px solid rgba($wood-cedar, 0.13);
+        background: rgba($wood-cream, 0.82);
+        font-size: 11px !important;
+        font-weight: 950 !important;
+
+        &.text-success {
+            background: $wood-sage-light;
+            color: $wood-sage-dark !important;
+            border-color: rgba($wood-sage, 0.20);
+        }
+
+        &.text-primary {
+            background: rgba($wood-honey, 0.18);
+            color: $wood-walnut !important;
+            border-color: rgba($wood-amber, 0.20);
+        }
+    }
+
+    button.btn {
+        min-height: 30px;
+        padding: 6px 10px;
+    }
 }
 
 .stone-body {
     flex: 1 1 auto;
+    min-height: 0;
     overflow-y: auto !important;
     overflow-x: auto;
-    min-height: 0;
-    background: #fff;
     position: relative;
-
-    &::-webkit-scrollbar { width: 7px; height: 7px; }
-    &::-webkit-scrollbar-thumb { background: #ced4da; border-radius: 4px; }
+    background:
+        linear-gradient(180deg, rgba(#fff, 0.86), rgba($wood-cream, 0.98));
+    @include warm-scrollbar;
 }
 
 .stone-empty {
+    min-height: 220px;
+    height: 100%;
     display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: center;
-    height: 100%;
-    min-height: 180px;
-    color: #6c757d;
+    flex-direction: column;
+    color: $wood-muted;
+
+    i {
+        color: $wood-copper;
+        opacity: 0.70;
+    }
 }
 
 .stone-table {
     width: 100%;
+    min-width: 1160px;
     border-collapse: separate;
     border-spacing: 0;
     font-size: 11px;
+    background: rgba($wood-cream, 0.96);
 
     thead {
         position: sticky;
         top: 0;
         z-index: 10;
 
-        tr { background: $stone-bg; }
+        tr {
+            background:
+                linear-gradient(180deg, rgba($wood-oak-light, 0.96), rgba($wood-parchment, 0.98));
+        }
 
         th {
             position: sticky;
             top: 0;
-            background: $stone-bg;
-            padding: 7px 6px;
-            font-weight: 600;
-            font-size: 10px;
+            padding: 10px 9px;
+            background:
+                linear-gradient(180deg, rgba($wood-oak-light, 0.96), rgba($wood-parchment, 0.98));
+            border-bottom: 1px solid rgba($wood-cedar, 0.18);
+            color: $wood-bark;
+            box-shadow: 0 2px 10px rgba($wood-walnut-dark, 0.04);
+            font-size: 9.5px;
+            font-weight: 950;
             text-transform: uppercase;
-            color: #495057;
-            border-bottom: 2px solid $stone-border;
+            letter-spacing: 0.085em;
             white-space: nowrap;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
 
             &.col-check {
-                width: 32px;
+                width: 42px;
                 text-align: center;
             }
         }
@@ -895,40 +1565,57 @@ $stone-radius-sm: 5px;
     tbody {
         tr {
             cursor: pointer;
-            transition: background-color 0.08s;
+            transition: background-color $transition-soft, box-shadow $transition-soft;
 
-            &:hover { background-color: #f1f3f5; }
+            &:hover {
+                background-color: rgba($wood-honey, 0.12);
+            }
 
             &.row-selected {
-                background-color: #ebfaf1;
-                &:hover { background-color: #d4f4e0; }
+                background:
+                    linear-gradient(90deg, rgba($wood-sage-light, 0.98), rgba($wood-cream, 0.94));
+
+                &:hover {
+                    background:
+                        linear-gradient(90deg, rgba($wood-sage-light, 1), rgba($wood-honey, 0.12));
+                }
+
                 td:first-child {
-                    box-shadow: inset 3px 0 0 0 #28a745;
+                    box-shadow: inset 5px 0 0 0 $wood-sage;
                 }
             }
         }
 
         td {
-            padding: 5px 6px;
-            border-bottom: 1px solid #eee;
+            padding: 8px 9px;
+            border-bottom: 1px solid rgba($wood-line, 0.70);
             vertical-align: middle;
             background-color: inherit;
-        }
+            color: $wood-charcoal;
+            white-space: nowrap;
 
-        td.col-check {
-            width: 32px;
-            text-align: center;
+            &.col-check {
+                width: 42px;
+                text-align: center;
+            }
+
+            &.fw-bold,
+            &.font-monospace {
+                color: $wood-walnut !important;
+                font-weight: 950 !important;
+            }
         }
     }
 
     .form-check-input {
         margin: 0;
+        width: 16px;
+        height: 16px;
         cursor: pointer;
-        width: 14px;
-        height: 14px;
+
         &:checked {
-            background-color: #28a745;
-            border-color: #28a745;
+            background-color: $wood-sage !important;
+            border-color: $wood-sage-dark !important;
         }
     }
 }
@@ -938,206 +1625,161 @@ $stone-radius-sm: 5px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 8px 12px;
-    background: $stone-bg;
-    border-top: 1px solid $stone-border;
-    font-size: 12px;
+    gap: 12px;
+    padding: 11px 14px;
     z-index: 20;
+    background:
+        linear-gradient(180deg, rgba($wood-cream, 0.98), rgba($wood-parchment, 0.88));
+    border-top: 1px solid rgba($wood-cedar, 0.14);
+    color: $wood-bark;
+    font-size: 12px;
+    font-weight: 800;
+
+    strong {
+        color: $wood-walnut;
+        font-weight: 950;
+    }
 }
 
 // Legacy
 .o_stone_toggle_btn {
-    color: #495057 !important;
-    &:hover { color: #212529 !important; }
+    color: $wood-cedar !important;
+
+    &:hover {
+        color: $wood-walnut !important;
+    }
 }
+
 .o_stone_details_row_tr td {
-    background-color: $stone-bg;
+    background-color: $wood-cream-alt;
     padding: 0 !important;
 }
 
-// Botones Seleccionar todo / Borrar selección
-.stone-filter-actions {
-    display: flex;
-    align-items: flex-end;
-    gap: 5px;
-    padding-bottom: 1px;
-}
-
-.stone-btn-select-all,
-.stone-btn-clear-all {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-size: 10px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.15s;
-    border: 1.5px solid;
-    white-space: nowrap;
-
-    i { font-size: 10px; }
-}
-
-.stone-btn-select-all {
-    background: #ebf8ff;
-    color: #2c5282;
-    border-color: #bee3f8;
-    &:hover { background: #2c5282; color: white; border-color: #2c5282; }
-}
-
-.stone-btn-clear-all {
-    background: #fff5f5;
-    color: #c53030;
-    border-color: #fed7d7;
-    &:hover { background: #c53030; color: white; border-color: #c53030; }
-}
-
-
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   AGREGAR ESTOS ESTILOS AL FINAL DE stone_styles.scss
-   (antes del cierre del archivo)
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-// Badge de cantidad total en header del popup
-.stone-badge-qty-total {
-    background: rgba(255, 255, 255, 0.2);
-    color: white;
-    padding: 3px 8px;
-    border-radius: 16px;
-    font-size: 11px;
-    font-weight: 700;
-    display: flex;
-    align-items: center;
-    gap: 3px;
-    border: 1px solid rgba(255, 255, 255, 0.3);
-
-    i { font-size: 10px; opacity: 0.85; }
-}
-
-// Resumen de qty en footer del popup
-.stone-footer-qty-summary {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 12px;
-    font-weight: 700;
-    color: #2c5282;
-    background: #ebf8ff;
-    padding: 4px 10px;
-    border-radius: 6px;
-    border: 1px solid #bee3f8;
-}
-
-
 // ═══════════════════════════════════════════════════════════════════════════
-// FOTOS EN TABLAS — Thumbnail + contador
+// FOTOS EN TABLAS — THUMBNAIL + CONTADOR
 // ═══════════════════════════════════════════════════════════════════════════
-
-// Columna de foto en tablas
 .col-photo {
-    width: 44px !important;
-    min-width: 44px;
-    max-width: 44px;
+    width: 48px !important;
+    min-width: 48px;
+    max-width: 48px;
     text-align: center;
-    padding: 2px 4px !important;
+    padding: 3px 5px !important;
 }
 
 .stone-photo-cell {
+    position: relative;
+    width: 38px;
+    height: 38px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    position: relative;
-    width: 36px;
-    height: 36px;
-    border-radius: 4px;
     overflow: visible;
+    border-radius: 13px;
 
     &[data-has-photo] {
         cursor: pointer;
+
         &:hover {
-            .stone-photo-thumb {
-                transform: scale(1.08);
-                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+            .stone-photo-thumb,
+            .stone-photo-placeholder-has {
+                transform: translateY(-1px);
+                box-shadow: 0 8px 18px rgba($wood-walnut-dark, 0.18);
+                border-color: rgba($wood-copper, 0.42);
             }
         }
     }
 
     &.stone-photo-empty {
-        opacity: 0.3;
-        i { font-size: 14px; }
+        opacity: 0.55;
+
+        i {
+            color: $wood-muted !important;
+            font-size: 14px;
+        }
     }
 }
 
 .stone-photo-thumb {
-    width: 36px;
-    height: 36px;
+    width: 38px;
+    height: 38px;
     object-fit: cover;
-    border-radius: 4px;
-    border: 1px solid #e2e8f0;
-    transition: transform 0.15s, box-shadow 0.15s;
-    background: #f7fafc;
+    border-radius: 13px;
+    border: 1px solid rgba($wood-cedar, 0.18);
+    background: $wood-parchment;
+    box-shadow: 0 4px 10px rgba($wood-walnut-dark, 0.08);
+    transition: transform $transition-soft, box-shadow $transition-soft, border-color $transition-soft;
 }
 
 .stone-photo-count {
     position: absolute;
-    top: -4px;
-    right: -4px;
-    background: #2c5282;
-    color: white;
-    font-size: 8px;
-    font-weight: 700;
-    min-width: 14px;
-    height: 14px;
-    border-radius: 7px;
+    top: -5px;
+    right: -6px;
+    z-index: 1;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: $stone-pill;
+    border: 2px solid $wood-cream;
+    background: linear-gradient(135deg, $wood-copper, $wood-cedar);
+    color: #fff;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 0 2px;
+    font-size: 8px;
+    font-weight: 950;
     line-height: 1;
-    border: 1.5px solid white;
-    z-index: 1;
+    box-shadow: 0 5px 12px rgba($wood-cedar, 0.24);
 }
 
 .stone-photo-placeholder-has {
-    width: 36px;
-    height: 36px;
-    background: #ebf8ff;
-    border: 1px dashed #90cdf4;
-    border-radius: 4px;
+    width: 38px;
+    height: 38px;
+    border: 1px dashed rgba($wood-copper, 0.38);
+    border-radius: 13px;
+    background:
+        radial-gradient(circle at 35% 22%, rgba(#fff, 0.64), transparent 38%),
+        linear-gradient(135deg, rgba($wood-honey, 0.30), rgba($wood-oak-light, 0.74));
+    color: $wood-cedar;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: 1px;
-    color: #3182ce;
     font-size: 10px;
-    i { font-size: 12px; }
-    span { font-size: 8px; font-weight: 700; }
+    transition: transform $transition-soft, box-shadow $transition-soft, border-color $transition-soft;
+
+    i {
+        font-size: 12px;
+    }
+
+    span {
+        font-size: 8px;
+        font-weight: 950;
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// LIGHTBOX — Visor de fotos fullscreen
+// LIGHTBOX — VISOR DE FOTOS FULLSCREEN
+// El visor puede ser oscuro; se conserva cálido, sin azul/morado dominante.
 // ═══════════════════════════════════════════════════════════════════════════
-
 .stone-lightbox-root {
     position: fixed;
     inset: 0;
-    z-index: 11000; // Encima del popup (10500)
+    z-index: 11000;
 }
 
 .stone-lightbox-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.85);
-    backdrop-filter: blur(4px);
+    z-index: 11000;
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 11000;
-    animation: stoneLbIn 0.2s ease;
+    background:
+        radial-gradient(circle at 20% 0%, rgba($wood-copper, 0.20), transparent 32%),
+        rgba($wood-walnut-dark, 0.88);
+    backdrop-filter: blur(5px);
+    animation: stoneLbIn 0.20s ease;
 }
 
 @keyframes stoneLbIn {
@@ -1146,104 +1788,132 @@ $stone-radius-sm: 5px;
 }
 
 .stone-lightbox-container {
-    display: flex;
-    flex-direction: column;
     width: 90vw;
-    max-width: 1200px;
+    max-width: 1220px;
     height: 85vh;
     max-height: 85vh;
-    background: #1a1a2e;
-    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
     overflow: hidden;
-    box-shadow: 0 32px 100px rgba(0, 0, 0, 0.6);
+    border: 1px solid rgba($wood-honey, 0.18);
+    border-radius: 24px;
+    background: $wood-walnut-dark;
+    box-shadow: 0 34px 100px rgba(#000, 0.62);
 }
 
 .stone-lightbox-header {
+    flex: 0 0 auto;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 10px 16px;
-    background: #16213e;
-    color: white;
-    flex: 0 0 auto;
+    padding: 12px 16px;
+    background:
+        linear-gradient(180deg, rgba($wood-walnut, 0.98), rgba($wood-walnut-dark, 0.98));
+    color: $wood-cream;
+    border-bottom: 1px solid rgba($wood-honey, 0.16);
 }
 
 .stone-lightbox-title {
-    font-size: 13px;
-    font-weight: 600;
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 5px;
+    color: $wood-cream;
+    font-size: 13px;
+    font-weight: 850;
 
-    i { opacity: 0.7; }
-    strong { color: #68d391; }
+    i {
+        color: $wood-honey;
+        opacity: 0.86;
+    }
+
+    strong {
+        color: $wood-honey;
+        font-weight: 950;
+    }
 }
 
 .stone-lightbox-counter {
-    font-size: 11px;
-    font-weight: 400;
-    color: #a0aec0;
     margin-left: 8px;
+    color: rgba($wood-cream, 0.72);
+    font-size: 11px;
+    font-weight: 700;
 }
 
 .stone-lightbox-close {
+    width: 34px;
+    height: 34px;
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    height: 32px;
-    border: none;
-    border-radius: 6px;
-    background: rgba(255, 255, 255, 0.1);
-    color: white;
+    border: 1px solid rgba($wood-honey, 0.18);
+    border-radius: $stone-pill;
+    background: rgba($wood-cream, 0.08);
+    color: $wood-cream;
     cursor: pointer;
-    transition: background 0.15s;
+    transition: all $transition-soft;
     font-size: 16px;
 
     &:hover {
-        background: rgba(255, 255, 255, 0.25);
+        background: rgba($wood-redwood, 0.34);
+        border-color: rgba($wood-redwood, 0.50);
+        transform: translateY(-1px);
     }
 }
 
 .stone-lightbox-body {
     flex: 1 1 auto;
+    min-height: 0;
+    position: relative;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    min-height: 0;
-    overflow: hidden;
-    position: relative;
-    background: #0f0f23;
+    background:
+        radial-gradient(circle at 50% 12%, rgba($wood-bark, 0.32), transparent 38%),
+        #130C08;
 }
 
 .stone-lightbox-img {
     max-width: 100%;
-    max-height: calc(85vh - 140px);
+    max-height: calc(85vh - 145px);
     object-fit: contain;
-    border-radius: 4px;
-    animation: stoneLbImgIn 0.2s ease;
+    border-radius: 10px;
     user-select: none;
+    box-shadow: 0 20px 60px rgba(#000, 0.34);
+    animation: stoneLbImgIn 0.20s ease;
 }
 
 @keyframes stoneLbImgIn {
-    from { opacity: 0; transform: scale(0.95); }
-    to { opacity: 1; transform: scale(1); }
+    from {
+        opacity: 0;
+        transform: scale(0.96);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
 }
 
 .stone-lightbox-info {
     position: absolute;
+    right: 0;
     bottom: 0;
     left: 0;
-    right: 0;
-    padding: 8px 16px;
-    background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
-    color: white;
-    font-size: 11px;
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: 4px;
+    gap: 5px;
+    padding: 10px 16px;
+    background:
+        linear-gradient(transparent, rgba($wood-walnut-dark, 0.88));
+    color: $wood-cream;
+    font-size: 11px;
+
+    .text-muted {
+        color: rgba($wood-cream, 0.72) !important;
+    }
 }
 
 .stone-lightbox-loading {
@@ -1251,71 +1921,146 @@ $stone-radius-sm: 5px;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    color: #a0aec0;
     gap: 8px;
+    color: rgba($wood-cream, 0.72);
 }
 
-// Navegación
 .stone-lightbox-nav {
+    flex: 0 0 auto;
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 8px 12px;
-    background: #16213e;
-    flex: 0 0 auto;
+    padding: 9px 12px;
     overflow: hidden;
+    background:
+        linear-gradient(180deg, rgba($wood-walnut, 0.98), rgba($wood-walnut-dark, 0.98));
+    border-top: 1px solid rgba($wood-honey, 0.16);
 }
 
 .stone-lightbox-nav-btn {
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    height: 32px;
-    min-width: 32px;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 6px;
-    background: rgba(255, 255, 255, 0.08);
-    color: white;
+    border: 1px solid rgba($wood-honey, 0.18);
+    border-radius: $stone-pill;
+    background: rgba($wood-cream, 0.08);
+    color: $wood-cream;
     cursor: pointer;
-    transition: background 0.15s;
+    transition: all $transition-soft;
     font-size: 14px;
 
     &:hover {
-        background: rgba(255, 255, 255, 0.2);
+        background: rgba($wood-honey, 0.18);
+        border-color: rgba($wood-honey, 0.38);
+        transform: translateY(-1px);
     }
 }
 
 .stone-lightbox-thumbs {
-    display: flex;
-    gap: 6px;
-    overflow-x: auto;
     flex: 1 1 auto;
+    display: flex;
+    gap: 7px;
+    overflow-x: auto;
     padding: 2px 0;
+    @include warm-scrollbar;
 
-    &::-webkit-scrollbar { height: 4px; }
-    &::-webkit-scrollbar-thumb { background: #4a5568; border-radius: 2px; }
+    &::-webkit-scrollbar-track {
+        background: rgba($wood-walnut-dark, 0.42);
+    }
 }
 
 .stone-lightbox-thumb {
-    width: 48px;
-    height: 48px;
-    min-width: 48px;
+    width: 52px;
+    height: 52px;
+    min-width: 52px;
     object-fit: cover;
-    border-radius: 4px;
+    border-radius: 12px;
     border: 2px solid transparent;
     cursor: pointer;
-    opacity: 0.5;
-    transition: all 0.15s;
+    opacity: 0.56;
+    transition: all $transition-soft;
 
     &:hover {
-        opacity: 0.8;
-        border-color: rgba(255, 255, 255, 0.4);
+        opacity: 0.84;
+        border-color: rgba($wood-honey, 0.42);
+        transform: translateY(-1px);
     }
 
     &.active {
         opacity: 1;
-        border-color: #68d391;
-        box-shadow: 0 0 0 1px rgba(104, 211, 145, 0.4);
+        border-color: $wood-honey;
+        box-shadow: 0 0 0 1px rgba($wood-honey, 0.38), 0 8px 18px rgba(#000, 0.28);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RESPONSIVE
+// ═══════════════════════════════════════════════════════════════════════════
+@media (max-width: 992px) {
+    .stone-popup-overlay {
+        padding: 8px;
+    }
+
+    .stone-popup-container {
+        border-radius: 22px;
+    }
+
+    .stone-popup-header {
+        align-items: flex-start;
+        flex-direction: column;
+        padding: 16px;
+    }
+
+    .stone-popup-title {
+        font-size: 19px;
+        width: 100%;
+    }
+
+    .stone-popup-subtitle {
+        max-width: 100%;
+        display: inline-block;
+    }
+
+    .stone-popup-header-actions {
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .stone-popup-footer {
+        flex-wrap: wrap;
+    }
+
+    .stone-footer-actions {
+        margin-left: auto;
+    }
+}
+
+@media (max-width: 640px) {
+    .stone-selected-header,
+    .stone-popup-filters,
+    .stone-header {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .stone-filter-group,
+    .stone-filter-input,
+    .stone-filter-input.stone-filter-sm {
+        width: 100%;
+    }
+
+    .stone-filter-actions,
+    .stone-footer-actions {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .stone-btn,
+    .stone-btn-select-all,
+    .stone-btn-clear-all {
+        flex: 1 1 auto;
     }
 }
