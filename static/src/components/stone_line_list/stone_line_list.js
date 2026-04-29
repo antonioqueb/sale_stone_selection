@@ -2,8 +2,17 @@
 import { registry } from "@web/core/registry";
 import { listView } from "@web/views/list/list_view";
 import { standardFieldProps } from "@web/views/fields/standard_field_props";
-import { Component, useState, onWillStart, onWillUpdateProps, onWillUnmount } from "@odoo/owl";
+import {
+    Component,
+    useState,
+    onWillStart,
+    onMounted,
+    onWillUpdateProps,
+    onWillUnmount,
+} from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
+
+const AUTO_OPEN_STONE_SELECTOR_KEY = "stock_transit_allocation.auto_open_stone_selector";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // COMPONENTE PRINCIPAL: BOTÓN STONE
@@ -19,6 +28,7 @@ export class StoneExpandButton extends Component {
         this._popupKeyHandler = null;
         this._popupObserver = null;
         this._lightboxRoot = null;
+        this._lightboxKeyHandler = null;
         this._localBreakdown = {};
 
         this.state = useState({
@@ -30,9 +40,19 @@ export class StoneExpandButton extends Component {
             this._loadBreakdownFromRecord();
             this._updateCount();
         });
+
+        onMounted(() => {
+            // Cuando venimos desde To Be Allocated, el pedido debe abrirse
+            // directamente con el selector de placas abierto en la línea correcta.
+            window.setTimeout(() => {
+                this._autoOpenStoneSelectorFromAllocationHub();
+            }, 350);
+        });
+
         onWillUpdateProps((nextProps) => {
             this._updateCount(nextProps);
         });
+
         onWillUnmount(() => {
             this.removeDetailsRow();
             this.destroyPopup();
@@ -96,7 +116,11 @@ export class StoneExpandButton extends Component {
             return;
         }
         if (typeof raw === "string") {
-            try { this._localBreakdown = JSON.parse(raw); } catch { this._localBreakdown = {}; }
+            try {
+                this._localBreakdown = JSON.parse(raw);
+            } catch {
+                this._localBreakdown = {};
+            }
         } else if (typeof raw === "object") {
             this._localBreakdown = { ...raw };
         } else {
@@ -127,6 +151,58 @@ export class StoneExpandButton extends Component {
                 console.warn("[STONE] Error guardando breakdown al server:", e);
             }
         }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // AUTO OPEN DESDE TO BE ALLOCATED
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    _autoOpenStoneSelectorFromAllocationHub() {
+        if (typeof window === "undefined" || !window.sessionStorage) {
+            return;
+        }
+
+        let payload = null;
+
+        try {
+            const raw = window.sessionStorage.getItem(AUTO_OPEN_STONE_SELECTOR_KEY);
+            if (!raw) {
+                return;
+            }
+
+            payload = JSON.parse(raw);
+        } catch (error) {
+            console.warn("[STONE] Auto-open inválido:", error);
+            window.sessionStorage.removeItem(AUTO_OPEN_STONE_SELECTOR_KEY);
+            return;
+        }
+
+        if (!payload || payload.source !== "to_be_allocated") {
+            return;
+        }
+
+        // Evita que una instrucción vieja abra popups por accidente.
+        const maxAgeMs = 5 * 60 * 1000;
+        if (!payload.ts || Date.now() - payload.ts > maxAgeMs) {
+            window.sessionStorage.removeItem(AUTO_OPEN_STONE_SELECTOR_KEY);
+            return;
+        }
+
+        const currentLineId = this._getRecordId();
+        const targetLineId = parseInt(payload.sale_line_id, 10);
+
+        if (!currentLineId || !targetLineId || parseInt(currentLineId, 10) !== targetLineId) {
+            return;
+        }
+
+        window.sessionStorage.removeItem(AUTO_OPEN_STONE_SELECTOR_KEY);
+
+        // Abrimos directamente el popup real de selección, sin exigir:
+        // 1. clic en botón de línea
+        // 2. clic en "Agregar lotes"
+        window.setTimeout(() => {
+            this.openPopup();
+        }, 150);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -187,7 +263,9 @@ export class StoneExpandButton extends Component {
         const closeLb = () => this._destroyLightbox();
 
         this._lightboxRoot.querySelector("#slb-close").addEventListener("click", closeLb);
-        overlay.addEventListener("click", (e) => { if (e.target === overlay) closeLb(); });
+        overlay.addEventListener("click", (e) => {
+            if (e.target === overlay) closeLb();
+        });
 
         const keyHandler = (e) => {
             if (e.key === "Escape") closeLb();
@@ -230,9 +308,9 @@ export class StoneExpandButton extends Component {
                 bodyEl.innerHTML = `
                     <img src="${src}" class="stone-lightbox-img" id="slb-main-img"/>
                     <div class="stone-lightbox-info" id="slb-info">
-                        <strong>${photo.name || ''}</strong>
-                        ${photo.notas ? `<span class="ms-3 text-muted">${photo.notas}</span>` : ''}
-                        ${photo.fecha_captura ? `<span class="ms-3 text-muted small"><i class="fa fa-clock-o me-1"></i>${photo.fecha_captura}</span>` : ''}
+                        <strong>${photo.name || ""}</strong>
+                        ${photo.notas ? `<span class="ms-3 text-muted">${photo.notas}</span>` : ""}
+                        ${photo.fecha_captura ? `<span class="ms-3 text-muted small"><i class="fa fa-clock-o me-1"></i>${photo.fecha_captura}</span>` : ""}
                     </div>`;
                 counterEl.textContent = `(${idx + 1} / ${photos.length})`;
 
@@ -248,7 +326,7 @@ export class StoneExpandButton extends Component {
                 let thumbsHtml = "";
                 for (let i = 0; i < photos.length; i++) {
                     const src = `data:image/jpeg;base64,${photos[i].image}`;
-                    thumbsHtml += `<img src="${src}" class="stone-lightbox-thumb ${i === 0 ? 'active' : ''}" data-idx="${i}"/>`;
+                    thumbsHtml += `<img src="${src}" class="stone-lightbox-thumb ${i === 0 ? "active" : ""}" data-idx="${i}"/>`;
                 }
                 thumbsEl.innerHTML = thumbsHtml;
 
@@ -1090,7 +1168,10 @@ export class StoneExpandButton extends Component {
                     const max = parseFloat(input.dataset.max) || 0;
                     let val = parseFloat(input.value) || 0;
                     if (val < 0) val = 0;
-                    if (val > max) { val = max; input.value = val; }
+                    if (val > max) {
+                        val = max;
+                        input.value = val;
+                    }
                     state.pendingBreakdown[String(lotId)] = val;
                     updateQtyDisplay();
                 });
@@ -1226,9 +1307,15 @@ export class StoneExpandButton extends Component {
         root.querySelector("#sp-confirm-bottom").addEventListener("click", doConfirm);
         root.querySelector("#sp-select-all").addEventListener("click", doSelectAll);
         root.querySelector("#sp-clear-all").addEventListener("click", doClearAll);
-        overlay.addEventListener("click", (e) => { if (e.target === overlay) doClose(); });
+        overlay.addEventListener("click", (e) => {
+            if (e.target === overlay) doClose();
+        });
 
-        const onKeyDown = (e) => { if (e.key === "Escape") { doClose(); } };
+        const onKeyDown = (e) => {
+            if (e.key === "Escape") {
+                doClose();
+            }
+        };
         document.addEventListener("keydown", onKeyDown);
         this._popupKeyHandler = onKeyDown;
 
