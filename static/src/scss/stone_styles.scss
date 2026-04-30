@@ -1,144 +1,160 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// SALE STONE SELECTION — Tema Maderero Cálido Claro
-// Odoo 19 / OWL / SCSS modular
-// Reemplaza completamente: sale_stone_selection/static/src/scss/stone_styles.scss
+// SALE STONE SELECTION — Theme homologado con To Be Allocated / To Be Purchased
+// Odoo 19 / OWL / SCSS
+//
+// Paleta aplicada:
+// Dominante:      #5CB9F2
+// Azul soporte:   #4BA4F2
+// Azul hielo:     #DCEAF2
+// Verde acento:   #04D94F
+// Amarillo:       #F2B705
+// Cabeceras tabla: negro profesional
 // ═══════════════════════════════════════════════════════════════════════════
 
 // ───────────────────────────────────────────────────────────────────────────
 // PALETA BASE
 // ───────────────────────────────────────────────────────────────────────────
-$wood-walnut: #4A2A18;
-$wood-walnut-dark: #2F1B10;
-$wood-cedar: #7A4424;
-$wood-copper: #A76735;
-$wood-caramel: #C58A4A;
-$wood-honey: #E4B66A;
-$wood-oak: #F1D6AA;
-$wood-oak-light: #F9E8CC;
-$wood-cream: #FFFDF7;
-$wood-cream-alt: #FFF8EC;
-$wood-parchment: #FCF0DC;
-$wood-parchment-strong: #F8E7CB;
-$wood-sand: #E9CDA5;
-$wood-bark: #6A4A32;
-$wood-charcoal: #2A1A12;
-$wood-muted: #92735A;
-$wood-line: #EBD5B5;
+$stone-bg: #eef8fe;
+$stone-bg-2: #e6f4fc;
+$stone-panel: #ffffff;
+$stone-panel-soft: #f8fcff;
+$stone-panel-muted: #edf7fd;
 
-$wood-sage: #61724C;
-$wood-sage-dark: #415136;
-$wood-sage-light: #EEF4E7;
-$wood-redwood: #9A4A32;
-$wood-amber: #C98228;
+$stone-text: #0f172a;
+$stone-text-2: #284256;
+$stone-muted: #60798c;
+$stone-muted-2: #91a9b8;
 
-$stone-primary: $wood-walnut;
-$stone-primary-light: $wood-copper;
-$stone-accent: $wood-honey;
-$stone-danger: $wood-redwood;
-$stone-warn: $wood-amber;
-$stone-bg: $wood-cream;
-$stone-border: $wood-line;
-$stone-text: $wood-charcoal;
-$stone-muted: $wood-muted;
+$stone-border: #d7e8f2;
+$stone-border-strong: #bdd7e8;
 
-$stone-radius: 18px;
-$stone-radius-sm: 12px;
-$stone-radius-lg: 24px;
+$stone-blue: #5CB9F2;
+$stone-blue-2: #4BA4F2;
+$stone-blue-dark: #247fbd;
+$stone-blue-deep: #155f94;
+$stone-blue-soft: rgba(92, 185, 242, 0.14);
+$stone-blue-glass: rgba(92, 185, 242, 0.20);
+$stone-blue-ice: #DCEAF2;
+
+$stone-green: #04D94F;
+$stone-green-dark: #047a31;
+$stone-green-soft: rgba(4, 217, 79, 0.12);
+
+$stone-amber: #F2B705;
+$stone-amber-dark: #8f6500;
+$stone-amber-soft: rgba(242, 183, 5, 0.15);
+
+$stone-red: #dc2626;
+$stone-red-dark: #991b1b;
+$stone-red-soft: #fef2f2;
+
+$stone-head: #0f172a;
+$stone-head-2: #111827;
+$stone-head-border: rgba(15, 23, 42, 0.96);
+
+$stone-radius-sm: 10px;
+$stone-radius: 16px;
+$stone-radius-lg: 22px;
 $stone-radius-xl: 30px;
 $stone-pill: 999px;
 
-$shadow-soft: 0 12px 32px rgba($wood-walnut-dark, 0.08);
-$shadow-card: 0 14px 36px rgba($wood-walnut-dark, 0.10), 0 2px 8px rgba($wood-copper, 0.08);
-$shadow-popup: 0 34px 90px rgba($wood-walnut-dark, 0.34), 0 8px 30px rgba($wood-copper, 0.12);
-$shadow-focus: 0 0 0 3px rgba($wood-copper, 0.18);
+$shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
+$shadow-sm: 0 4px 14px rgba(75, 164, 242, 0.09);
+$shadow-md: 0 12px 34px rgba(75, 164, 242, 0.14);
+$shadow-popup: 0 34px 90px rgba(15, 23, 42, 0.34), 0 8px 30px rgba(75, 164, 242, 0.12);
+$shadow-focus: 0 0 0 4px rgba(92, 185, 242, 0.18);
 $transition-soft: 0.16s ease;
 
 // ───────────────────────────────────────────────────────────────────────────
 // MIXINS
 // ───────────────────────────────────────────────────────────────────────────
-@mixin warm-surface($radius: $stone-radius-lg) {
+@mixin stone-surface($radius: $stone-radius-lg) {
     background:
-        linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba($wood-cream-alt, 0.96)),
-        $wood-cream;
-    border: 1px solid rgba($wood-cedar, 0.13);
+        linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 252, 255, 0.94)),
+        $stone-panel;
+    border: 1px solid rgba(215, 232, 242, 0.96);
     border-radius: $radius;
-    box-shadow: $shadow-card;
+    box-shadow: $shadow-sm;
 }
 
-@mixin parchment-panel($radius: $stone-radius) {
+@mixin stone-panel-soft($radius: $stone-radius) {
     background:
-        linear-gradient(180deg, rgba($wood-cream, 0.92), rgba($wood-parchment, 0.92)),
-        $wood-parchment;
-    border: 1px solid rgba($wood-cedar, 0.14);
+        linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(237, 247, 253, 0.92)),
+        $stone-panel-soft;
+    border: 1px solid rgba(215, 232, 242, 0.96);
     border-radius: $radius;
-    box-shadow: 0 8px 24px rgba($wood-walnut-dark, 0.06);
+    box-shadow: $shadow-xs;
 }
 
-@mixin warm-button-solid {
-    background: linear-gradient(135deg, $wood-cedar 0%, $wood-walnut 100%);
-    color: $wood-cream !important;
-    border: 0;
+@mixin stone-button-solid {
+    border: 1px solid rgba(92, 185, 242, 0.70);
     border-radius: $stone-pill;
-    box-shadow: 0 10px 22px rgba($wood-cedar, 0.20);
+    background: linear-gradient(180deg, $stone-blue, $stone-blue-2);
+    color: #ffffff !important;
+    box-shadow: 0 10px 22px rgba(75, 164, 242, 0.20);
     font-weight: 900;
 
     &:hover {
-        background: linear-gradient(135deg, $wood-copper 0%, $wood-cedar 100%);
-        color: #fff !important;
+        color: #ffffff !important;
         transform: translateY(-1px);
-        box-shadow: 0 12px 26px rgba($wood-cedar, 0.24);
+        box-shadow: 0 12px 28px rgba(75, 164, 242, 0.26);
+        filter: saturate(1.04);
     }
 }
 
-@mixin warm-button-outline {
-    background: rgba($wood-cream, 0.86);
-    color: $wood-cedar !important;
-    border: 1px solid rgba($wood-cedar, 0.22);
+@mixin stone-button-outline {
+    border: 1px solid rgba(92, 185, 242, 0.42);
     border-radius: $stone-pill;
+    background: rgba(255, 255, 255, 0.86);
+    color: $stone-blue-deep !important;
     font-weight: 850;
 
     &:hover {
-        background: $wood-parchment;
-        color: $wood-walnut !important;
-        border-color: rgba($wood-copper, 0.40);
+        border-color: rgba(92, 185, 242, 0.68);
+        background: $stone-blue-soft;
+        color: $stone-blue-deep !important;
         transform: translateY(-1px);
-        box-shadow: 0 8px 18px rgba($wood-walnut-dark, 0.08);
+        box-shadow: $shadow-sm;
     }
 }
 
-@mixin warm-scrollbar {
+@mixin stone-scrollbar {
     &::-webkit-scrollbar {
-        width: 9px;
-        height: 9px;
+        width: 10px;
+        height: 10px;
     }
 
     &::-webkit-scrollbar-track {
-        background: rgba($wood-parchment, 0.64);
+        background: rgba(220, 234, 242, 0.60);
         border-radius: 999px;
     }
 
     &::-webkit-scrollbar-thumb {
-        background: linear-gradient(180deg, rgba($wood-sand, 0.95), rgba($wood-caramel, 0.78));
-        border: 2px solid rgba($wood-cream, 0.85);
+        background: rgba(92, 185, 242, 0.60);
+        border: 2px solid rgba(238, 248, 254, 0.92);
         border-radius: 999px;
 
         &:hover {
-            background: linear-gradient(180deg, rgba($wood-caramel, 0.95), rgba($wood-copper, 0.86));
+            background: rgba(75, 164, 242, 0.82);
         }
     }
 }
 
-@mixin wood-grain($opacity: 0.10) {
-    background-image:
-        repeating-linear-gradient(
-            105deg,
-            rgba($wood-cedar, $opacity) 0,
-            rgba($wood-cedar, $opacity) 1px,
-            transparent 1px,
-            transparent 13px
-        ),
-        radial-gradient(circle at 12% 4%, rgba($wood-honey, 0.18), transparent 34%),
-        radial-gradient(circle at 88% 0%, rgba($wood-oak, 0.30), transparent 42%);
+@mixin stone-app-bg {
+    background:
+        radial-gradient(circle at top left, rgba(92, 185, 242, 0.24), transparent 31%),
+        radial-gradient(circle at top right, rgba(75, 164, 242, 0.16), transparent 30%),
+        radial-gradient(circle at 72% 18%, rgba(4, 217, 79, 0.07), transparent 24%),
+        linear-gradient(180deg, #fbfdff 0%, $stone-bg 48%, $stone-bg-2 100%);
+}
+
+@mixin stone-table-head {
+    background: linear-gradient(180deg, $stone-head-2 0%, $stone-head 100%) !important;
+    color: rgba(255, 255, 255, 0.96) !important;
+    border-bottom: 1px solid $stone-head-border !important;
+    font-weight: 850;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -150,22 +166,23 @@ $transition-soft: 0.16s ease;
 .stone-lightbox-root,
 .stone-selected-row {
     color: $stone-text;
+    font-family: "Inter", "SF Pro Display", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    letter-spacing: -0.01em;
 
-    .text-primary { color: $wood-walnut !important; }
-    .text-info { color: $wood-copper !important; }
-    .text-success { color: $wood-sage-dark !important; }
-    .text-warning { color: $wood-amber !important; }
-    .text-danger { color: $wood-redwood !important; }
-    .text-muted { color: $wood-muted !important; }
-    .text-dark { color: $wood-charcoal !important; }
+    .text-primary { color: $stone-blue-deep !important; }
+    .text-info { color: $stone-blue-dark !important; }
+    .text-success { color: $stone-green-dark !important; }
+    .text-warning { color: $stone-amber-dark !important; }
+    .text-danger { color: $stone-red-dark !important; }
+    .text-muted { color: $stone-muted !important; }
+    .text-dark { color: $stone-text !important; }
 
     .bg-light {
-        background:
-            linear-gradient(180deg, rgba($wood-cream, 0.95), rgba($wood-parchment, 0.86)) !important;
+        background: $stone-panel-soft !important;
     }
 
     .border {
-        border-color: rgba($wood-cedar, 0.16) !important;
+        border-color: rgba(215, 232, 242, 0.96) !important;
     }
 
     .badge {
@@ -178,43 +195,43 @@ $transition-soft: 0.16s ease;
 
     .badge.bg-light,
     .badge.bg-white {
-        background: rgba($wood-cream, 0.95) !important;
-        color: $wood-bark !important;
-        border: 1px solid rgba($wood-cedar, 0.16) !important;
-        box-shadow: 0 4px 10px rgba($wood-walnut-dark, 0.05);
+        background: rgba(255, 255, 255, 0.96) !important;
+        color: $stone-text-2 !important;
+        border: 1px solid rgba(215, 232, 242, 0.96) !important;
+        box-shadow: $shadow-xs;
     }
 
     .alert-warning {
-        background: linear-gradient(180deg, rgba($wood-oak-light, 0.90), rgba($wood-parchment, 0.94)) !important;
-        color: $wood-cedar !important;
-        border: 1px solid rgba($wood-amber, 0.30) !important;
+        background: linear-gradient(180deg, #fffdf3, rgba(242, 183, 5, 0.14)) !important;
+        color: $stone-amber-dark !important;
+        border: 1px solid rgba(242, 183, 5, 0.34) !important;
         border-radius: $stone-radius !important;
-        box-shadow: 0 8px 18px rgba($wood-walnut-dark, 0.06);
+        box-shadow: $shadow-xs;
     }
 
     .form-control,
     .form-select {
-        background: rgba($wood-cream, 0.96) !important;
-        border: 1px solid rgba($wood-cedar, 0.20) !important;
+        background: rgba(255, 255, 255, 0.98) !important;
+        border: 1px solid $stone-border-strong !important;
         border-radius: 12px !important;
-        color: $wood-charcoal !important;
+        color: $stone-text !important;
         box-shadow: none !important;
 
         &::placeholder {
-            color: rgba($wood-muted, 0.78) !important;
+            color: $stone-muted-2 !important;
         }
 
         &:focus {
-            background: #fff !important;
-            border-color: rgba($wood-copper, 0.78) !important;
+            background: #ffffff !important;
+            border-color: $stone-blue !important;
             box-shadow: $shadow-focus !important;
         }
     }
 
     .input-group-text {
-        background: rgba($wood-parchment, 0.86) !important;
-        border: 1px solid rgba($wood-cedar, 0.18) !important;
-        color: $wood-bark !important;
+        background: rgba(220, 234, 242, 0.48) !important;
+        border: 1px solid $stone-border-strong !important;
+        color: $stone-muted !important;
         font-weight: 900;
         text-transform: uppercase;
         letter-spacing: 0.08em;
@@ -229,21 +246,21 @@ $transition-soft: 0.16s ease;
     }
 
     .btn-outline-secondary {
-        @include warm-button-outline;
+        @include stone-button-outline;
         border-radius: $stone-pill !important;
     }
 
     .form-check-input {
-        border-color: rgba($wood-cedar, 0.30) !important;
-        background-color: $wood-cream !important;
+        border-color: rgba(92, 185, 242, 0.42) !important;
+        background-color: #ffffff !important;
 
         &:checked {
-            background-color: $wood-sage !important;
-            border-color: $wood-sage-dark !important;
+            background-color: $stone-blue-2 !important;
+            border-color: $stone-blue-dark !important;
         }
 
         &:focus {
-            box-shadow: 0 0 0 3px rgba($wood-sage, 0.18) !important;
+            box-shadow: $shadow-focus !important;
         }
     }
 }
@@ -266,29 +283,32 @@ $transition-soft: 0.16s ease;
     width: 28px;
     height: 28px;
     padding: 0;
-    border: 1px solid rgba($wood-cedar, 0.22);
+    border: 1px solid rgba(92, 185, 242, 0.42);
     border-radius: 12px;
     background:
-        linear-gradient(180deg, rgba($wood-cream, 0.98), rgba($wood-parchment, 0.86));
-    color: $wood-cedar;
+        linear-gradient(145deg, rgba(92, 185, 242, 0.20), rgba(220, 234, 242, 0.62)),
+        #ffffff;
+    color: $stone-blue-deep;
     cursor: pointer;
-    box-shadow: 0 4px 12px rgba($wood-walnut-dark, 0.07);
+    box-shadow: $shadow-xs;
     transition: all $transition-soft;
 
     &:hover {
-        border-color: rgba($wood-copper, 0.42);
+        border-color: rgba(92, 185, 242, 0.68);
         background:
-            linear-gradient(180deg, rgba(#fff, 1), rgba($wood-oak-light, 0.92));
-        color: $wood-walnut;
+            linear-gradient(145deg, rgba(92, 185, 242, 0.30), rgba(220, 234, 242, 0.74)),
+            #ffffff;
+        color: $stone-blue-dark;
         transform: translateY(-1px);
-        box-shadow: 0 8px 18px rgba($wood-walnut-dark, 0.10);
+        box-shadow: $shadow-sm;
     }
 
     &.active {
-        @include warm-button-solid;
+        @include stone-button-solid;
         width: 28px;
         height: 28px;
-        box-shadow: 0 8px 18px rgba($wood-cedar, 0.26);
+        border-radius: 12px;
+        padding: 0;
     }
 
     i {
@@ -307,13 +327,13 @@ $transition-soft: 0.16s ease;
     align-items: center;
     justify-content: center;
     border-radius: $stone-pill;
-    border: 2px solid $wood-cream;
-    background: linear-gradient(135deg, $wood-honey, $wood-caramel);
-    color: $wood-walnut-dark;
+    border: 2px solid #ffffff;
+    background: linear-gradient(135deg, $stone-amber, #ffd84a);
+    color: #3f2c00;
     font-size: 9px;
     font-weight: 950;
     line-height: 1;
-    box-shadow: 0 5px 12px rgba($wood-copper, 0.28);
+    box-shadow: 0 5px 12px rgba(242, 183, 5, 0.28);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -328,34 +348,19 @@ $transition-soft: 0.16s ease;
         z-index: 100;
         padding: 0 !important;
         background:
-            linear-gradient(180deg, rgba($wood-cream, 0.95), rgba($wood-cream-alt, 0.92)) !important;
-        border-top: 2px solid rgba($wood-copper, 0.38) !important;
-        border-bottom: 1px solid rgba($wood-cedar, 0.16) !important;
-        box-shadow: inset 6px 0 0 rgba($wood-honey, 0.72);
+            linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(248, 252, 255, 0.92)) !important;
+        border-top: 2px solid rgba(92, 185, 242, 0.42) !important;
+        border-bottom: 1px solid rgba(215, 232, 242, 0.96) !important;
+        box-shadow: inset 6px 0 0 rgba(92, 185, 242, 0.72);
     }
 }
 
 .stone-selected-container {
-    @include warm-surface(20px);
+    @include stone-surface(20px);
     position: relative;
     z-index: 100;
     margin: 8px 10px 10px 16px;
     overflow: hidden;
-
-    &::before {
-        content: "";
-        position: absolute;
-        inset: 0;
-        pointer-events: none;
-        opacity: 0.45;
-        @include wood-grain(0.055);
-        mix-blend-mode: multiply;
-    }
-
-    > * {
-        position: relative;
-        z-index: 1;
-    }
 }
 
 .stone-selected-header {
@@ -365,21 +370,21 @@ $transition-soft: 0.16s ease;
     gap: 14px;
     padding: 12px 16px;
     background:
-        radial-gradient(circle at 12% 0%, rgba($wood-honey, 0.24), transparent 32%),
-        linear-gradient(180deg, rgba(#fff, 0.94), rgba($wood-parchment, 0.88));
-    border-bottom: 1px solid rgba($wood-cedar, 0.14);
+        linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(248, 252, 255, 0.94)),
+        radial-gradient(circle at top left, rgba(92, 185, 242, 0.14), transparent 42%);
+    border-bottom: 1px solid rgba(215, 232, 242, 0.96);
 }
 
 .stone-selected-title {
     display: flex;
     align-items: center;
-    color: $wood-walnut;
+    color: $stone-text;
     font-size: 12px;
     font-weight: 950;
     letter-spacing: -0.01em;
 
     i {
-        color: $wood-sage;
+        color: $stone-green-dark;
         font-size: 14px;
     }
 }
@@ -393,12 +398,12 @@ $transition-soft: 0.16s ease;
     margin-left: 7px;
     padding: 0 7px;
     border-radius: $stone-pill;
-    background: $wood-sage-light;
-    color: $wood-sage-dark;
-    border: 1px solid rgba($wood-sage, 0.22);
+    background: $stone-green-soft;
+    color: $stone-green-dark;
+    border: 1px solid rgba(4, 217, 79, 0.24);
     font-size: 10px;
     font-weight: 950;
-    box-shadow: 0 4px 10px rgba($wood-sage, 0.10);
+    box-shadow: $shadow-xs;
 }
 
 .stone-add-btn {
@@ -407,14 +412,13 @@ $transition-soft: 0.16s ease;
     justify-content: center;
     gap: 5px;
     padding: 7px 13px;
-    border: 0;
     border-radius: $stone-pill;
     cursor: pointer;
     transition: all $transition-soft;
     font-size: 11px;
     line-height: 1;
     white-space: nowrap;
-    @include warm-button-solid;
+    @include stone-button-solid;
 
     i {
         font-size: 10px;
@@ -434,23 +438,22 @@ $transition-soft: 0.16s ease;
     padding: 10px;
     overflow-y: auto;
     overflow-x: auto;
-    background:
-        linear-gradient(180deg, rgba($wood-cream, 0.98), rgba($wood-cream-alt, 0.94));
-    @include warm-scrollbar;
+    background: #ffffff;
+    @include stone-scrollbar;
 }
 
 .stone-no-selection,
 .stone-table-loading {
     padding: 18px;
     font-size: 12px;
-    color: $wood-muted;
+    color: $stone-muted;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
 
     strong {
-        color: $wood-cedar;
+        color: $stone-blue-deep;
         font-weight: 950;
     }
 }
@@ -464,27 +467,22 @@ $transition-soft: 0.16s ease;
     border-collapse: separate;
     border-spacing: 0;
     overflow: hidden;
-    background: rgba($wood-cream, 0.98);
-    border: 1px solid rgba($wood-cedar, 0.13);
+    background: #ffffff;
+    border: 1px solid rgba(215, 232, 242, 0.96);
     border-radius: 16px;
-    box-shadow: 0 8px 22px rgba($wood-walnut-dark, 0.06);
+    box-shadow: $shadow-xs;
     font-size: 11px;
 
     thead tr {
-        background:
-            linear-gradient(180deg, rgba($wood-oak-light, 0.92), rgba($wood-parchment, 0.92));
+        background: $stone-head;
     }
 
     th {
-        padding: 8px 9px;
+        padding: 9px 10px;
         text-align: left;
-        color: $wood-bark;
-        border-bottom: 1px solid rgba($wood-cedar, 0.16);
-        font-size: 9.5px;
-        font-weight: 950;
-        text-transform: uppercase;
-        letter-spacing: 0.085em;
+        font-size: 9px;
         white-space: nowrap;
+        @include stone-table-head;
 
         &.col-num { text-align: right; }
         &.col-act { text-align: center; width: 36px; }
@@ -492,22 +490,27 @@ $transition-soft: 0.16s ease;
     }
 
     tbody tr {
-        background: rgba(#fff, 0.68);
+        background: #ffffff;
         transition: background $transition-soft, box-shadow $transition-soft;
 
+        &:nth-child(even) {
+            background: rgba(248, 252, 255, 0.72);
+        }
+
         &:hover {
-            background: rgba($wood-honey, 0.12);
+            background: rgba(92, 185, 242, 0.13);
         }
 
         &:not(:last-child) td {
-            border-bottom: 1px solid rgba($wood-line, 0.72);
+            border-bottom: 1px solid rgba(215, 232, 242, 0.94);
         }
     }
 
     td {
         padding: 7px 9px;
-        color: $wood-charcoal;
+        color: $stone-text-2;
         vertical-align: middle;
+        font-weight: 550;
 
         &.col-num {
             text-align: right;
@@ -526,7 +529,7 @@ $transition-soft: 0.16s ease;
     .cell-lot {
         min-width: 140px;
         padding-left: 12px !important;
-        color: $wood-walnut;
+        color: $stone-blue-deep;
         background: inherit;
         font-family: "JetBrains Mono", "Fira Code", "SFMono-Regular", Consolas, monospace;
         font-size: 10.5px;
@@ -541,12 +544,12 @@ $transition-soft: 0.16s ease;
 
     tfoot .stone-total-row {
         background:
-            linear-gradient(180deg, rgba($wood-parchment, 0.92), rgba($wood-oak-light, 0.70));
+            linear-gradient(180deg, rgba(237, 247, 253, 0.96), rgba(220, 234, 242, 0.70));
 
         td {
             padding: 9px;
-            border-top: 2px solid rgba($wood-copper, 0.22);
-            color: $wood-walnut;
+            border-top: 2px solid rgba(92, 185, 242, 0.24);
+            color: $stone-text;
             font-size: 11px;
         }
     }
@@ -558,20 +561,20 @@ $transition-soft: 0.16s ease;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border: 1px solid rgba($wood-redwood, 0.20);
+    border: 1px solid rgba(220, 38, 38, 0.22);
     border-radius: 10px;
-    background: rgba($wood-redwood, 0.08);
-    color: $wood-redwood;
+    background: rgba(220, 38, 38, 0.08);
+    color: $stone-red-dark;
     cursor: pointer;
     padding: 0;
     transition: all $transition-soft;
 
     &:hover {
-        background: $wood-redwood;
-        border-color: $wood-redwood;
-        color: #fff;
+        background: $stone-red;
+        border-color: $stone-red;
+        color: #ffffff;
         transform: translateY(-1px);
-        box-shadow: 0 8px 16px rgba($wood-redwood, 0.20);
+        box-shadow: 0 8px 16px rgba(220, 38, 38, 0.20);
     }
 
     i {
@@ -581,7 +584,7 @@ $transition-soft: 0.16s ease;
 
 .fw-semibold {
     font-weight: 850;
-    color: $wood-walnut;
+    color: $stone-text;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -591,11 +594,11 @@ $transition-soft: 0.16s ease;
 .stone-popup-qty-input {
     width: 78px;
     padding: 5px 7px;
-    border: 1px solid rgba($wood-cedar, 0.24);
+    border: 1px solid $stone-border-strong;
     border-radius: 11px;
-    background: rgba($wood-cream, 0.96);
-    color: $wood-charcoal;
-    box-shadow: inset 0 1px 2px rgba($wood-walnut-dark, 0.04);
+    background: rgba(255, 255, 255, 0.98);
+    color: $stone-text;
+    box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04);
     font-size: 11px;
     font-weight: 900;
     text-align: right;
@@ -604,13 +607,13 @@ $transition-soft: 0.16s ease;
 
     &:focus {
         outline: none;
-        background: #fff;
-        border-color: rgba($wood-copper, 0.82);
+        background: #ffffff;
+        border-color: $stone-blue;
         box-shadow: $shadow-focus;
     }
 
     &:hover {
-        border-color: rgba($wood-copper, 0.48);
+        border-color: rgba(92, 185, 242, 0.72);
     }
 
     &::-webkit-outer-spin-button,
@@ -644,40 +647,40 @@ $transition-soft: 0.16s ease;
 }
 
 .stone-tag-tipo-placa {
-    background: rgba($wood-parchment, 0.96);
-    color: $wood-bark;
-    border-color: rgba($wood-cedar, 0.14);
+    background: rgba(220, 234, 242, 0.72);
+    color: $stone-text-2;
+    border-color: rgba(215, 232, 242, 0.96);
 }
 
 .stone-tag-tipo-formato {
-    background: rgba($wood-honey, 0.22);
-    color: $wood-cedar;
-    border-color: rgba($wood-amber, 0.22);
+    background: rgba(92, 185, 242, 0.14);
+    color: $stone-blue-deep;
+    border-color: rgba(92, 185, 242, 0.30);
 }
 
 .stone-tag-tipo-pieza {
-    background: rgba($wood-oak-light, 0.82);
-    color: $wood-walnut;
-    border-color: rgba($wood-copper, 0.18);
+    background: rgba(242, 183, 5, 0.16);
+    color: $stone-amber-dark;
+    border-color: rgba(242, 183, 5, 0.30);
 }
 
 .stone-tag {
     &.stone-tag-ok {
-        background: $wood-sage-light;
-        color: $wood-sage-dark;
-        border-color: rgba($wood-sage, 0.24);
+        background: $stone-green-soft;
+        color: $stone-green-dark;
+        border-color: rgba(4, 217, 79, 0.24);
     }
 
     &.stone-tag-warn {
-        background: rgba($wood-honey, 0.24);
-        color: $wood-cedar;
-        border-color: rgba($wood-amber, 0.26);
+        background: $stone-amber-soft;
+        color: $stone-amber-dark;
+        border-color: rgba(242, 183, 5, 0.30);
     }
 
     &.stone-tag-free {
-        background: rgba($wood-cream, 0.92);
-        color: $wood-sage-dark;
-        border-color: rgba($wood-sage, 0.18);
+        background: rgba(255, 255, 255, 0.92);
+        color: $stone-green-dark;
+        border-color: rgba(4, 217, 79, 0.18);
     }
 }
 
@@ -694,9 +697,9 @@ $transition-soft: 0.16s ease;
     padding: 16px;
     box-sizing: border-box;
     background:
-        radial-gradient(circle at 20% 10%, rgba($wood-honey, 0.18), transparent 28%),
-        radial-gradient(circle at 84% 0%, rgba($wood-copper, 0.12), transparent 36%),
-        rgba($wood-walnut-dark, 0.46);
+        radial-gradient(circle at 20% 10%, rgba(92, 185, 242, 0.24), transparent 28%),
+        radial-gradient(circle at 84% 0%, rgba(75, 164, 242, 0.18), transparent 36%),
+        rgba(15, 23, 42, 0.58);
     backdrop-filter: blur(5px);
 }
 
@@ -708,28 +711,13 @@ $transition-soft: 0.16s ease;
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    border: 1px solid rgba($wood-oak, 0.60);
+    border: 1px solid rgba(215, 232, 242, 0.96);
     border-radius: $stone-radius-xl;
     background:
-        linear-gradient(180deg, rgba(#fff, 0.96), rgba($wood-cream, 0.98) 34%, rgba($wood-cream-alt, 0.98)),
-        $wood-cream;
+        linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 252, 255, 0.98) 34%, rgba(238, 248, 254, 0.98)),
+        #ffffff;
     box-shadow: $shadow-popup;
     animation: stonePopupIn 0.20s ease;
-
-    &::before {
-        content: "";
-        position: absolute;
-        inset: 0;
-        pointer-events: none;
-        opacity: 0.55;
-        @include wood-grain(0.045);
-        mix-blend-mode: multiply;
-    }
-
-    > * {
-        position: relative;
-        z-index: 1;
-    }
 }
 
 @keyframes stonePopupIn {
@@ -751,19 +739,18 @@ $transition-soft: 0.16s ease;
     justify-content: space-between;
     gap: 18px;
     padding: 20px 24px 18px;
-    color: $wood-walnut;
+    color: $stone-text;
     background:
-        radial-gradient(circle at 4% 0%, rgba($wood-honey, 0.34), transparent 28%),
-        radial-gradient(circle at 80% 0%, rgba($wood-oak, 0.40), transparent 34%),
-        linear-gradient(180deg, rgba(#fff, 0.96), rgba($wood-oak-light, 0.76));
-    border-bottom: 1px solid rgba($wood-cedar, 0.16);
+        linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(248, 252, 255, 0.94)),
+        linear-gradient(90deg, rgba(92, 185, 242, 0.12), rgba(220, 234, 242, 0.40));
+    border-bottom: 1px solid rgba(215, 232, 242, 0.96);
 }
 
 .stone-popup-title {
     display: flex;
     align-items: center;
     min-width: 0;
-    color: $wood-walnut;
+    color: $stone-text;
     font-size: 23px;
     font-weight: 950;
     line-height: 1.1;
@@ -776,13 +763,13 @@ $transition-soft: 0.16s ease;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        border: 1px solid rgba($wood-copper, 0.18);
+        border: 1px solid rgba(92, 185, 242, 0.42);
         border-radius: 16px;
         background:
-            radial-gradient(circle at 30% 20%, rgba(#fff, 0.74), transparent 38%),
-            linear-gradient(135deg, rgba($wood-honey, 0.70), rgba($wood-oak, 0.58));
-        color: $wood-walnut;
-        box-shadow: 0 10px 20px rgba($wood-copper, 0.14);
+            linear-gradient(145deg, rgba(92, 185, 242, 0.30), rgba(220, 234, 242, 0.62)),
+            #ffffff;
+        color: $stone-blue-dark;
+        box-shadow: 0 12px 26px rgba(92, 185, 242, 0.18);
         font-size: 16px;
         flex: 0 0 auto;
     }
@@ -791,8 +778,8 @@ $transition-soft: 0.16s ease;
 .stone-popup-subtitle {
     min-width: 0;
     margin-left: 8px;
-    color: $wood-bark;
-    opacity: 0.86;
+    color: $stone-muted;
+    opacity: 0.92;
     font-size: 13px;
     font-weight: 750;
     letter-spacing: -0.01em;
@@ -823,22 +810,22 @@ $transition-soft: 0.16s ease;
 }
 
 .stone-badge-selected {
-    background: $wood-sage-light;
-    color: $wood-sage-dark;
-    border: 1px solid rgba($wood-sage, 0.22);
+    background: $stone-green-soft;
+    color: $stone-green-dark;
+    border: 1px solid rgba(4, 217, 79, 0.24);
 
     i {
-        color: $wood-sage;
+        color: $stone-green-dark;
     }
 }
 
 .stone-badge-qty-total {
-    background: rgba($wood-honey, 0.22);
-    color: $wood-walnut;
-    border: 1px solid rgba($wood-amber, 0.22);
+    background: rgba(92, 185, 242, 0.14);
+    color: $stone-blue-deep;
+    border: 1px solid rgba(92, 185, 242, 0.30);
 
     i {
-        color: $wood-copper;
+        color: $stone-blue-dark;
     }
 }
 
@@ -849,7 +836,6 @@ $transition-soft: 0.16s ease;
     gap: 6px;
     min-height: 32px;
     padding: 7px 14px;
-    border: none;
     border-radius: $stone-pill;
     font-size: 11.5px;
     font-weight: 900;
@@ -865,24 +851,24 @@ $transition-soft: 0.16s ease;
     &.stone-btn-primary,
     &.stone-btn-accent,
     &.stone-btn-primary-dark {
-        @include warm-button-solid;
+        @include stone-button-solid;
     }
 
     &.stone-btn-ghost,
     &.stone-btn-outline {
-        @include warm-button-outline;
+        @include stone-button-outline;
     }
 
     &.stone-btn-ghost {
         min-width: 36px;
         width: 36px;
         padding: 0;
-        background: rgba($wood-cream, 0.78);
+        background: rgba(255, 255, 255, 0.78);
 
         &:hover {
-            background: rgba($wood-redwood, 0.10);
-            color: $wood-redwood !important;
-            border-color: rgba($wood-redwood, 0.28);
+            background: rgba(220, 38, 38, 0.10);
+            color: $stone-red-dark !important;
+            border-color: rgba(220, 38, 38, 0.28);
         }
     }
 }
@@ -897,10 +883,9 @@ $transition-soft: 0.16s ease;
     gap: 10px;
     padding: 13px 16px;
     flex-wrap: wrap;
-    background:
-        linear-gradient(180deg, rgba($wood-parchment, 0.88), rgba($wood-cream-alt, 0.94));
-    border-bottom: 1px solid rgba($wood-cedar, 0.14);
-    box-shadow: 0 8px 18px rgba($wood-walnut-dark, 0.04);
+    background: rgba(255, 255, 255, 0.92);
+    border-bottom: 1px solid rgba(215, 232, 242, 0.96);
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04);
 }
 
 .stone-filter-group {
@@ -909,7 +894,7 @@ $transition-soft: 0.16s ease;
     gap: 4px;
 
     label {
-        color: $wood-muted;
+        color: $stone-muted;
         font-size: 9.5px;
         font-weight: 950;
         text-transform: uppercase;
@@ -921,11 +906,11 @@ $transition-soft: 0.16s ease;
     width: 126px;
     min-height: 34px;
     padding: 7px 10px;
-    border: 1px solid rgba($wood-cedar, 0.22);
+    border: 1px solid $stone-border-strong;
     border-radius: 12px;
-    background: rgba($wood-cream, 0.92);
-    color: $wood-charcoal;
-    box-shadow: inset 0 1px 2px rgba($wood-walnut-dark, 0.04);
+    background: rgba(255, 255, 255, 0.98);
+    color: $stone-text;
+    box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04);
     font-size: 11.5px;
     font-weight: 800;
     transition: border-color $transition-soft, box-shadow $transition-soft, background $transition-soft;
@@ -936,19 +921,19 @@ $transition-soft: 0.16s ease;
 
     &:focus {
         outline: none;
-        background: #fff;
-        border-color: rgba($wood-copper, 0.78);
+        background: #ffffff;
+        border-color: $stone-blue;
         box-shadow: $shadow-focus;
     }
 
     &::placeholder {
-        color: rgba($wood-muted, 0.72);
+        color: $stone-muted-2;
     }
 }
 
 select.stone-filter-input {
     cursor: pointer;
-    color: $wood-bark;
+    color: $stone-text-2;
 }
 
 .stone-filter-spacer {
@@ -974,15 +959,15 @@ select.stone-filter-input {
 }
 
 .stone-filter-stat-loading {
-    background: rgba($wood-parchment, 0.70);
-    color: $wood-muted;
-    border: 1px solid rgba($wood-cedar, 0.13);
+    background: rgba(220, 234, 242, 0.58);
+    color: $stone-muted;
+    border: 1px solid rgba(215, 232, 242, 0.96);
 }
 
 .stone-filter-stat-count {
-    background: rgba($wood-cream, 0.92);
-    color: $wood-cedar;
-    border: 1px solid rgba($wood-cedar, 0.18);
+    background: rgba(255, 255, 255, 0.92);
+    color: $stone-blue-deep;
+    border: 1px solid rgba(92, 185, 242, 0.28);
 }
 
 .stone-filter-actions {
@@ -1013,30 +998,30 @@ select.stone-filter-input {
 }
 
 .stone-btn-select-all {
-    background: $wood-sage-light;
-    color: $wood-sage-dark;
-    border-color: rgba($wood-sage, 0.24);
+    background: $stone-green-soft;
+    color: $stone-green-dark;
+    border-color: rgba(4, 217, 79, 0.24);
 
     &:hover {
-        background: linear-gradient(135deg, $wood-sage, $wood-sage-dark);
-        color: $wood-cream;
-        border-color: $wood-sage-dark;
+        background: linear-gradient(135deg, $stone-green, $stone-green-dark);
+        color: #ffffff;
+        border-color: $stone-green-dark;
         transform: translateY(-1px);
-        box-shadow: 0 10px 20px rgba($wood-sage, 0.18);
+        box-shadow: 0 10px 20px rgba(4, 217, 79, 0.18);
     }
 }
 
 .stone-btn-clear-all {
-    background: rgba($wood-redwood, 0.07);
-    color: $wood-redwood;
-    border-color: rgba($wood-redwood, 0.20);
+    background: rgba(220, 38, 38, 0.07);
+    color: $stone-red-dark;
+    border-color: rgba(220, 38, 38, 0.20);
 
     &:hover {
-        background: $wood-redwood;
-        color: #fff;
-        border-color: $wood-redwood;
+        background: $stone-red;
+        color: #ffffff;
+        border-color: $stone-red;
         transform: translateY(-1px);
-        box-shadow: 0 10px 20px rgba($wood-redwood, 0.18);
+        box-shadow: 0 10px 20px rgba(220, 38, 38, 0.18);
     }
 }
 
@@ -1049,9 +1034,8 @@ select.stone-filter-input {
     overflow-y: auto;
     overflow-x: auto;
     position: relative;
-    background:
-        linear-gradient(180deg, rgba(#fff, 0.82), rgba($wood-cream, 0.98) 42%, rgba($wood-cream-alt, 0.92));
-    @include warm-scrollbar;
+    background: #ffffff;
+    @include stone-scrollbar;
 }
 
 .stone-empty-state {
@@ -1062,17 +1046,17 @@ select.stone-filter-input {
     align-items: center;
     justify-content: center;
     gap: 10px;
-    color: $wood-muted;
+    color: $stone-muted;
 
     i {
-        color: $wood-copper;
-        opacity: 0.72;
+        color: $stone-blue;
+        opacity: 0.80;
         font-size: 38px;
     }
 }
 
 .stone-empty-text {
-    color: $wood-muted;
+    color: $stone-muted;
     font-size: 13px;
     font-weight: 800;
 }
@@ -1083,7 +1067,7 @@ select.stone-filter-input {
     border-collapse: separate;
     border-spacing: 0;
     table-layout: auto;
-    background: rgba($wood-cream, 0.98);
+    background: #ffffff;
     font-size: 11px;
 
     thead {
@@ -1092,23 +1076,18 @@ select.stone-filter-input {
         z-index: 10;
 
         tr {
-            background:
-                linear-gradient(180deg, rgba($wood-oak-light, 0.96), rgba($wood-parchment, 0.98));
+            background: $stone-head;
         }
 
         th {
+            position: sticky;
+            top: 0;
             padding: 10px 9px;
-            background:
-                linear-gradient(180deg, rgba($wood-oak-light, 0.96), rgba($wood-parchment, 0.98));
-            border-bottom: 1px solid rgba($wood-cedar, 0.18);
-            color: $wood-bark;
-            font-size: 9.5px;
-            font-weight: 950;
+            font-size: 9px;
             text-align: left;
-            text-transform: uppercase;
-            letter-spacing: 0.085em;
             white-space: nowrap;
-            box-shadow: 0 2px 10px rgba($wood-walnut-dark, 0.04);
+            box-shadow: none;
+            @include stone-table-head;
 
             &.col-chk {
                 width: 42px;
@@ -1126,31 +1105,36 @@ select.stone-filter-input {
             cursor: pointer;
             transition: background $transition-soft, box-shadow $transition-soft;
 
+            &:nth-child(even) {
+                background: rgba(248, 252, 255, 0.72);
+            }
+
             &:hover {
-                background: rgba($wood-honey, 0.12);
+                background: rgba(92, 185, 242, 0.13);
             }
 
             &.row-sel {
                 background:
-                    linear-gradient(90deg, rgba($wood-sage-light, 0.98), rgba($wood-cream, 0.94));
+                    linear-gradient(90deg, rgba(4, 217, 79, 0.13), rgba(255, 255, 255, 0.96));
 
                 &:hover {
                     background:
-                        linear-gradient(90deg, rgba($wood-sage-light, 1), rgba($wood-honey, 0.12));
+                        linear-gradient(90deg, rgba(4, 217, 79, 0.16), rgba(92, 185, 242, 0.10));
                 }
 
                 td:first-child {
-                    box-shadow: inset 5px 0 0 0 $wood-sage;
+                    box-shadow: inset 5px 0 0 0 $stone-green;
                 }
             }
 
             td {
                 padding: 8px 9px;
-                border-bottom: 1px solid rgba($wood-line, 0.70);
+                border-bottom: 1px solid rgba(215, 232, 242, 0.94);
                 vertical-align: middle;
-                color: $wood-charcoal;
+                color: $stone-text-2;
                 white-space: nowrap;
                 background-color: inherit;
+                font-weight: 550;
 
                 &.col-chk {
                     width: 42px;
@@ -1170,7 +1154,7 @@ select.stone-filter-input {
 
                 &.cell-lot {
                     min-width: 120px;
-                    color: $wood-walnut;
+                    color: $stone-blue-deep;
                     font-family: "JetBrains Mono", "Fira Code", "SFMono-Regular", Consolas, monospace;
                     font-size: 10.5px;
                     font-weight: 950;
@@ -1181,7 +1165,7 @@ select.stone-filter-input {
                 }
 
                 &.cell-loc {
-                    color: $wood-muted;
+                    color: $stone-muted;
                     font-size: 10.5px;
                     font-weight: 750;
                 }
@@ -1194,30 +1178,30 @@ select.stone-filter-input {
     width: 18px;
     height: 18px;
     margin: 0 auto;
-    border: 2px solid rgba($wood-cedar, 0.26);
+    border: 2px solid rgba(92, 185, 242, 0.42);
     border-radius: 7px;
-    background: rgba($wood-cream, 0.95);
+    background: #ffffff;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     transition: all $transition-soft;
 
     i {
-        color: #fff;
+        color: #ffffff;
         font-size: 9px;
     }
 
     &.checked {
-        background: linear-gradient(135deg, $wood-sage, $wood-sage-dark);
-        border-color: $wood-sage-dark;
-        box-shadow: 0 6px 12px rgba($wood-sage, 0.18);
+        background: linear-gradient(135deg, $stone-blue, $stone-blue-2);
+        border-color: $stone-blue-dark;
+        box-shadow: 0 6px 12px rgba(75, 164, 242, 0.18);
     }
 }
 
 .stone-scroll-sentinel {
     padding: 14px;
     text-align: center;
-    background: rgba($wood-cream-alt, 0.72);
+    background: rgba(248, 252, 255, 0.72);
 }
 
 .stone-loading-more {
@@ -1226,13 +1210,13 @@ select.stone-filter-input {
     justify-content: center;
     gap: 7px;
     padding: 8px;
-    color: $wood-muted;
+    color: $stone-muted;
     font-size: 11px;
     font-weight: 800;
 }
 
 .stone-scroll-hint {
-    color: rgba($wood-muted, 0.78);
+    color: $stone-muted;
     font-size: 10px;
     font-weight: 850;
     animation: hintBounce 2s infinite;
@@ -1260,18 +1244,17 @@ select.stone-filter-input {
     justify-content: space-between;
     gap: 14px;
     padding: 14px 18px;
-    background:
-        linear-gradient(180deg, rgba($wood-cream, 0.98), rgba($wood-parchment, 0.88));
-    border-top: 1px solid rgba($wood-cedar, 0.16);
+    background: #ffffff;
+    border-top: 1px solid rgba(215, 232, 242, 0.96);
 }
 
 .stone-footer-info {
-    color: $wood-muted;
+    color: $stone-muted;
     font-size: 11.5px;
     font-weight: 800;
 
     strong {
-        color: $wood-walnut;
+        color: $stone-text;
         font-weight: 950;
     }
 }
@@ -1282,12 +1265,12 @@ select.stone-filter-input {
     gap: 5px;
     padding: 8px 13px;
     border-radius: $stone-pill;
-    border: 1px solid rgba($wood-sage, 0.20);
-    background: $wood-sage-light;
-    color: $wood-sage-dark;
+    border: 1px solid rgba(4, 217, 79, 0.24);
+    background: $stone-green-soft;
+    color: $stone-green-dark;
     font-size: 12px;
     font-weight: 950;
-    box-shadow: 0 8px 18px rgba($wood-sage, 0.09);
+    box-shadow: $shadow-xs;
 }
 
 .stone-footer-actions {
@@ -1300,60 +1283,58 @@ select.stone-filter-input {
 // PANEL STONE GRID LEGACY / TABLA SIMPLE
 // ═══════════════════════════════════════════════════════════════════════════
 .o_stone_selection_panel {
-    @include warm-surface(20px);
+    @include stone-surface(20px);
     overflow: hidden;
-    background:
-        linear-gradient(180deg, rgba(#fff, 0.96), rgba($wood-cream, 0.98));
+    background: #ffffff;
 
     .stone-grid-wrapper {
         overflow: auto;
-        @include warm-scrollbar;
+        @include stone-scrollbar;
     }
 
     .o_stone_table {
         margin-bottom: 0 !important;
         border-collapse: separate;
         border-spacing: 0;
-        color: $wood-charcoal;
+        color: $stone-text;
 
         thead tr {
-            background:
-                linear-gradient(180deg, rgba($wood-oak-light, 0.96), rgba($wood-parchment, 0.98));
+            background: $stone-head;
         }
 
         thead th {
             padding: 9px 10px;
-            border-bottom: 1px solid rgba($wood-cedar, 0.18) !important;
-            color: $wood-bark;
-            background: transparent !important;
-            font-size: 9.5px;
-            font-weight: 950;
-            text-transform: uppercase;
-            letter-spacing: 0.085em;
+            font-size: 9px;
             white-space: nowrap;
+            @include stone-table-head;
         }
 
         tbody td {
             padding: 8px 10px;
-            border-bottom: 1px solid rgba($wood-line, 0.70) !important;
-            color: $wood-charcoal;
+            border-bottom: 1px solid rgba(215, 232, 242, 0.94) !important;
+            color: $stone-text-2;
             vertical-align: middle;
+            font-weight: 550;
         }
 
         tbody tr {
-            background: rgba(#fff, 0.60);
+            background: #ffffff;
             transition: background $transition-soft;
 
+            &:nth-child(even) {
+                background: rgba(248, 252, 255, 0.72);
+            }
+
             &:hover {
-                background: rgba($wood-honey, 0.12) !important;
+                background: rgba(92, 185, 242, 0.13) !important;
             }
 
             &.row-selected {
                 background:
-                    linear-gradient(90deg, rgba($wood-sage-light, 0.98), rgba($wood-cream, 0.94)) !important;
+                    linear-gradient(90deg, rgba(4, 217, 79, 0.13), rgba(255, 255, 255, 0.96)) !important;
 
                 td:first-child {
-                    box-shadow: inset 5px 0 0 $wood-sage;
+                    box-shadow: inset 5px 0 0 $stone-green;
                 }
             }
         }
@@ -1361,29 +1342,29 @@ select.stone-filter-input {
         .group-header-row {
             td {
                 background:
-                    linear-gradient(90deg, rgba($wood-parchment, 0.98), rgba($wood-oak-light, 0.72)) !important;
-                border-top: 1px solid rgba($wood-cedar, 0.14);
-                border-bottom: 1px solid rgba($wood-cedar, 0.14) !important;
+                    linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(248, 252, 255, 0.94)),
+                    radial-gradient(circle at top left, rgba(92, 185, 242, 0.12), transparent 40%) !important;
+                border-top: 1px solid rgba(215, 232, 242, 0.96);
+                border-bottom: 1px solid rgba(215, 232, 242, 0.96) !important;
             }
 
             .fw-bold {
-                color: $wood-walnut !important;
+                color: $stone-blue-deep !important;
                 font-weight: 950 !important;
             }
         }
 
         .stone-item-row .fw-bold,
         .stone-item-row .font-monospace {
-            color: $wood-walnut !important;
+            color: $stone-blue-deep !important;
         }
     }
 
     > .p-2.bg-light {
         padding: 10px 14px !important;
-        background:
-            linear-gradient(180deg, rgba($wood-cream, 0.98), rgba($wood-parchment, 0.88)) !important;
-        border-top: 1px solid rgba($wood-cedar, 0.14) !important;
-        color: $wood-muted !important;
+        background: #ffffff !important;
+        border-top: 1px solid rgba(215, 232, 242, 0.96) !important;
+        color: $stone-muted !important;
         font-weight: 800;
     }
 }
@@ -1408,24 +1389,24 @@ select.stone-filter-input {
     display: flex !important;
     flex-direction: column !important;
     overflow: hidden !important;
-    border: 1px solid rgba($wood-oak, 0.68) !important;
+    border: 1px solid rgba(215, 232, 242, 0.96) !important;
     border-radius: $stone-radius-xl !important;
-    background:
-        linear-gradient(180deg, rgba(#fff, 0.96), rgba($wood-cream, 0.98)) !important;
+    background: #ffffff !important;
     box-shadow: $shadow-popup !important;
 }
 
 .o_dialog:has(.o_stone_move_panel) .modal-header,
 .modal-dialog:has(.o_stone_move_panel) .modal-header {
     background:
-        linear-gradient(180deg, rgba($wood-oak-light, 0.88), rgba($wood-parchment, 0.80)) !important;
-    border-bottom: 1px solid rgba($wood-cedar, 0.14) !important;
-    color: $wood-walnut !important;
+        linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(248, 252, 255, 0.94)),
+        linear-gradient(90deg, rgba(92, 185, 242, 0.12), rgba(220, 234, 242, 0.40)) !important;
+    border-bottom: 1px solid rgba(215, 232, 242, 0.96) !important;
+    color: $stone-text !important;
 }
 
 .o_dialog:has(.o_stone_move_panel) .modal-title,
 .modal-dialog:has(.o_stone_move_panel) .modal-title {
-    color: $wood-walnut !important;
+    color: $stone-text !important;
     font-weight: 950 !important;
 }
 
@@ -1437,7 +1418,7 @@ select.stone-filter-input {
     overflow: hidden !important;
     display: flex !important;
     flex-direction: column !important;
-    background: $wood-cream !important;
+    background: #ffffff !important;
 }
 
 .o_stone_move_panel {
@@ -1447,9 +1428,8 @@ select.stone-filter-input {
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    background:
-        linear-gradient(180deg, rgba(#fff, 0.96), rgba($wood-cream, 0.98) 36%, rgba($wood-cream-alt, 0.92));
-    color: $wood-charcoal;
+    background: #ffffff;
+    color: $stone-text;
 }
 
 .stone-header {
@@ -1460,11 +1440,9 @@ select.stone-filter-input {
     gap: 10px;
     padding: 12px 14px;
     z-index: 20;
-    background:
-        radial-gradient(circle at 7% 0%, rgba($wood-honey, 0.22), transparent 34%),
-        linear-gradient(180deg, rgba($wood-parchment, 0.90), rgba($wood-cream-alt, 0.94));
-    border-bottom: 1px solid rgba($wood-cedar, 0.14);
-    box-shadow: 0 8px 18px rgba($wood-walnut-dark, 0.04);
+    background: rgba(255, 255, 255, 0.92);
+    border-bottom: 1px solid rgba(215, 232, 242, 0.96);
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04);
 
     .ms-auto span {
         display: inline-flex;
@@ -1472,21 +1450,21 @@ select.stone-filter-input {
         min-height: 28px;
         padding: 5px 10px;
         border-radius: $stone-pill;
-        border: 1px solid rgba($wood-cedar, 0.13);
-        background: rgba($wood-cream, 0.82);
+        border: 1px solid rgba(215, 232, 242, 0.96);
+        background: rgba(255, 255, 255, 0.82);
         font-size: 11px !important;
         font-weight: 950 !important;
 
         &.text-success {
-            background: $wood-sage-light;
-            color: $wood-sage-dark !important;
-            border-color: rgba($wood-sage, 0.20);
+            background: $stone-green-soft;
+            color: $stone-green-dark !important;
+            border-color: rgba(4, 217, 79, 0.24);
         }
 
         &.text-primary {
-            background: rgba($wood-honey, 0.18);
-            color: $wood-walnut !important;
-            border-color: rgba($wood-amber, 0.20);
+            background: rgba(92, 185, 242, 0.14);
+            color: $stone-blue-deep !important;
+            border-color: rgba(92, 185, 242, 0.30);
         }
     }
 
@@ -1502,9 +1480,8 @@ select.stone-filter-input {
     overflow-y: auto !important;
     overflow-x: auto;
     position: relative;
-    background:
-        linear-gradient(180deg, rgba(#fff, 0.86), rgba($wood-cream, 0.98));
-    @include warm-scrollbar;
+    background: #ffffff;
+    @include stone-scrollbar;
 }
 
 .stone-empty {
@@ -1514,11 +1491,11 @@ select.stone-filter-input {
     align-items: center;
     justify-content: center;
     flex-direction: column;
-    color: $wood-muted;
+    color: $stone-muted;
 
     i {
-        color: $wood-copper;
-        opacity: 0.70;
+        color: $stone-blue;
+        opacity: 0.80;
     }
 }
 
@@ -1528,7 +1505,7 @@ select.stone-filter-input {
     border-collapse: separate;
     border-spacing: 0;
     font-size: 11px;
-    background: rgba($wood-cream, 0.96);
+    background: #ffffff;
 
     thead {
         position: sticky;
@@ -1536,24 +1513,16 @@ select.stone-filter-input {
         z-index: 10;
 
         tr {
-            background:
-                linear-gradient(180deg, rgba($wood-oak-light, 0.96), rgba($wood-parchment, 0.98));
+            background: $stone-head;
         }
 
         th {
             position: sticky;
             top: 0;
             padding: 10px 9px;
-            background:
-                linear-gradient(180deg, rgba($wood-oak-light, 0.96), rgba($wood-parchment, 0.98));
-            border-bottom: 1px solid rgba($wood-cedar, 0.18);
-            color: $wood-bark;
-            box-shadow: 0 2px 10px rgba($wood-walnut-dark, 0.04);
-            font-size: 9.5px;
-            font-weight: 950;
-            text-transform: uppercase;
-            letter-spacing: 0.085em;
+            font-size: 9px;
             white-space: nowrap;
+            @include stone-table-head;
 
             &.col-check {
                 width: 42px;
@@ -1567,32 +1536,37 @@ select.stone-filter-input {
             cursor: pointer;
             transition: background-color $transition-soft, box-shadow $transition-soft;
 
+            &:nth-child(even) {
+                background: rgba(248, 252, 255, 0.72);
+            }
+
             &:hover {
-                background-color: rgba($wood-honey, 0.12);
+                background-color: rgba(92, 185, 242, 0.13);
             }
 
             &.row-selected {
                 background:
-                    linear-gradient(90deg, rgba($wood-sage-light, 0.98), rgba($wood-cream, 0.94));
+                    linear-gradient(90deg, rgba(4, 217, 79, 0.13), rgba(255, 255, 255, 0.96));
 
                 &:hover {
                     background:
-                        linear-gradient(90deg, rgba($wood-sage-light, 1), rgba($wood-honey, 0.12));
+                        linear-gradient(90deg, rgba(4, 217, 79, 0.16), rgba(92, 185, 242, 0.10));
                 }
 
                 td:first-child {
-                    box-shadow: inset 5px 0 0 0 $wood-sage;
+                    box-shadow: inset 5px 0 0 0 $stone-green;
                 }
             }
         }
 
         td {
             padding: 8px 9px;
-            border-bottom: 1px solid rgba($wood-line, 0.70);
+            border-bottom: 1px solid rgba(215, 232, 242, 0.94);
             vertical-align: middle;
             background-color: inherit;
-            color: $wood-charcoal;
+            color: $stone-text-2;
             white-space: nowrap;
+            font-weight: 550;
 
             &.col-check {
                 width: 42px;
@@ -1601,7 +1575,7 @@ select.stone-filter-input {
 
             &.fw-bold,
             &.font-monospace {
-                color: $wood-walnut !important;
+                color: $stone-blue-deep !important;
                 font-weight: 950 !important;
             }
         }
@@ -1614,8 +1588,8 @@ select.stone-filter-input {
         cursor: pointer;
 
         &:checked {
-            background-color: $wood-sage !important;
-            border-color: $wood-sage-dark !important;
+            background-color: $stone-blue-2 !important;
+            border-color: $stone-blue-dark !important;
         }
     }
 }
@@ -1628,30 +1602,29 @@ select.stone-filter-input {
     gap: 12px;
     padding: 11px 14px;
     z-index: 20;
-    background:
-        linear-gradient(180deg, rgba($wood-cream, 0.98), rgba($wood-parchment, 0.88));
-    border-top: 1px solid rgba($wood-cedar, 0.14);
-    color: $wood-bark;
+    background: #ffffff;
+    border-top: 1px solid rgba(215, 232, 242, 0.96);
+    color: $stone-text-2;
     font-size: 12px;
     font-weight: 800;
 
     strong {
-        color: $wood-walnut;
+        color: $stone-text;
         font-weight: 950;
     }
 }
 
 // Legacy
 .o_stone_toggle_btn {
-    color: $wood-cedar !important;
+    color: $stone-blue-deep !important;
 
     &:hover {
-        color: $wood-walnut !important;
+        color: $stone-blue-dark !important;
     }
 }
 
 .o_stone_details_row_tr td {
-    background-color: $wood-cream-alt;
+    background-color: $stone-panel-soft;
     padding: 0 !important;
 }
 
@@ -1683,8 +1656,8 @@ select.stone-filter-input {
             .stone-photo-thumb,
             .stone-photo-placeholder-has {
                 transform: translateY(-1px);
-                box-shadow: 0 8px 18px rgba($wood-walnut-dark, 0.18);
-                border-color: rgba($wood-copper, 0.42);
+                box-shadow: 0 8px 18px rgba(15, 23, 42, 0.18);
+                border-color: rgba(92, 185, 242, 0.52);
             }
         }
     }
@@ -1693,7 +1666,7 @@ select.stone-filter-input {
         opacity: 0.55;
 
         i {
-            color: $wood-muted !important;
+            color: $stone-muted !important;
             font-size: 14px;
         }
     }
@@ -1704,9 +1677,9 @@ select.stone-filter-input {
     height: 38px;
     object-fit: cover;
     border-radius: 13px;
-    border: 1px solid rgba($wood-cedar, 0.18);
-    background: $wood-parchment;
-    box-shadow: 0 4px 10px rgba($wood-walnut-dark, 0.08);
+    border: 1px solid rgba(92, 185, 242, 0.26);
+    background: $stone-blue-ice;
+    box-shadow: $shadow-xs;
     transition: transform $transition-soft, box-shadow $transition-soft, border-color $transition-soft;
 }
 
@@ -1719,27 +1692,27 @@ select.stone-filter-input {
     height: 16px;
     padding: 0 4px;
     border-radius: $stone-pill;
-    border: 2px solid $wood-cream;
-    background: linear-gradient(135deg, $wood-copper, $wood-cedar);
-    color: #fff;
+    border: 2px solid #ffffff;
+    background: linear-gradient(135deg, $stone-blue, $stone-blue-2);
+    color: #ffffff;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 8px;
     font-weight: 950;
     line-height: 1;
-    box-shadow: 0 5px 12px rgba($wood-cedar, 0.24);
+    box-shadow: 0 5px 12px rgba(75, 164, 242, 0.24);
 }
 
 .stone-photo-placeholder-has {
     width: 38px;
     height: 38px;
-    border: 1px dashed rgba($wood-copper, 0.38);
+    border: 1px dashed rgba(92, 185, 242, 0.42);
     border-radius: 13px;
     background:
-        radial-gradient(circle at 35% 22%, rgba(#fff, 0.64), transparent 38%),
-        linear-gradient(135deg, rgba($wood-honey, 0.30), rgba($wood-oak-light, 0.74));
-    color: $wood-cedar;
+        radial-gradient(circle at 35% 22%, rgba(255, 255, 255, 0.64), transparent 38%),
+        linear-gradient(135deg, rgba(92, 185, 242, 0.22), rgba(220, 234, 242, 0.74));
+    color: $stone-blue-deep;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -1760,7 +1733,6 @@ select.stone-filter-input {
 
 // ═══════════════════════════════════════════════════════════════════════════
 // LIGHTBOX — VISOR DE FOTOS FULLSCREEN
-// El visor puede ser oscuro; se conserva cálido, sin azul/morado dominante.
 // ═══════════════════════════════════════════════════════════════════════════
 .stone-lightbox-root {
     position: fixed;
@@ -1776,8 +1748,8 @@ select.stone-filter-input {
     align-items: center;
     justify-content: center;
     background:
-        radial-gradient(circle at 20% 0%, rgba($wood-copper, 0.20), transparent 32%),
-        rgba($wood-walnut-dark, 0.88);
+        radial-gradient(circle at 20% 0%, rgba(92, 185, 242, 0.18), transparent 32%),
+        rgba(15, 23, 42, 0.88);
     backdrop-filter: blur(5px);
     animation: stoneLbIn 0.20s ease;
 }
@@ -1795,10 +1767,10 @@ select.stone-filter-input {
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    border: 1px solid rgba($wood-honey, 0.18);
+    border: 1px solid rgba(92, 185, 242, 0.20);
     border-radius: 24px;
-    background: $wood-walnut-dark;
-    box-shadow: 0 34px 100px rgba(#000, 0.62);
+    background: $stone-head;
+    box-shadow: 0 34px 100px rgba(0, 0, 0, 0.62);
 }
 
 .stone-lightbox-header {
@@ -1807,34 +1779,33 @@ select.stone-filter-input {
     align-items: center;
     justify-content: space-between;
     padding: 12px 16px;
-    background:
-        linear-gradient(180deg, rgba($wood-walnut, 0.98), rgba($wood-walnut-dark, 0.98));
-    color: $wood-cream;
-    border-bottom: 1px solid rgba($wood-honey, 0.16);
+    background: linear-gradient(180deg, $stone-head-2, $stone-head);
+    color: #ffffff;
+    border-bottom: 1px solid rgba(92, 185, 242, 0.20);
 }
 
 .stone-lightbox-title {
     display: flex;
     align-items: center;
     gap: 5px;
-    color: $wood-cream;
+    color: #ffffff;
     font-size: 13px;
     font-weight: 850;
 
     i {
-        color: $wood-honey;
-        opacity: 0.86;
+        color: $stone-blue;
+        opacity: 0.94;
     }
 
     strong {
-        color: $wood-honey;
+        color: $stone-blue;
         font-weight: 950;
     }
 }
 
 .stone-lightbox-counter {
     margin-left: 8px;
-    color: rgba($wood-cream, 0.72);
+    color: rgba(255, 255, 255, 0.72);
     font-size: 11px;
     font-weight: 700;
 }
@@ -1845,17 +1816,17 @@ select.stone-filter-input {
     display: flex;
     align-items: center;
     justify-content: center;
-    border: 1px solid rgba($wood-honey, 0.18);
+    border: 1px solid rgba(92, 185, 242, 0.20);
     border-radius: $stone-pill;
-    background: rgba($wood-cream, 0.08);
-    color: $wood-cream;
+    background: rgba(255, 255, 255, 0.08);
+    color: #ffffff;
     cursor: pointer;
     transition: all $transition-soft;
     font-size: 16px;
 
     &:hover {
-        background: rgba($wood-redwood, 0.34);
-        border-color: rgba($wood-redwood, 0.50);
+        background: rgba(220, 38, 38, 0.34);
+        border-color: rgba(220, 38, 38, 0.50);
         transform: translateY(-1px);
     }
 }
@@ -1870,8 +1841,8 @@ select.stone-filter-input {
     align-items: center;
     justify-content: center;
     background:
-        radial-gradient(circle at 50% 12%, rgba($wood-bark, 0.32), transparent 38%),
-        #130C08;
+        radial-gradient(circle at 50% 12%, rgba(75, 164, 242, 0.14), transparent 38%),
+        #07111f;
 }
 
 .stone-lightbox-img {
@@ -1880,7 +1851,7 @@ select.stone-filter-input {
     object-fit: contain;
     border-radius: 10px;
     user-select: none;
-    box-shadow: 0 20px 60px rgba(#000, 0.34);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.34);
     animation: stoneLbImgIn 0.20s ease;
 }
 
@@ -1906,13 +1877,12 @@ select.stone-filter-input {
     flex-wrap: wrap;
     gap: 5px;
     padding: 10px 16px;
-    background:
-        linear-gradient(transparent, rgba($wood-walnut-dark, 0.88));
-    color: $wood-cream;
+    background: linear-gradient(transparent, rgba(15, 23, 42, 0.88));
+    color: #ffffff;
     font-size: 11px;
 
     .text-muted {
-        color: rgba($wood-cream, 0.72) !important;
+        color: rgba(255, 255, 255, 0.72) !important;
     }
 }
 
@@ -1922,7 +1892,7 @@ select.stone-filter-input {
     align-items: center;
     justify-content: center;
     gap: 8px;
-    color: rgba($wood-cream, 0.72);
+    color: rgba(255, 255, 255, 0.72);
 }
 
 .stone-lightbox-nav {
@@ -1932,9 +1902,8 @@ select.stone-filter-input {
     gap: 8px;
     padding: 9px 12px;
     overflow: hidden;
-    background:
-        linear-gradient(180deg, rgba($wood-walnut, 0.98), rgba($wood-walnut-dark, 0.98));
-    border-top: 1px solid rgba($wood-honey, 0.16);
+    background: linear-gradient(180deg, $stone-head-2, $stone-head);
+    border-top: 1px solid rgba(92, 185, 242, 0.20);
 }
 
 .stone-lightbox-nav-btn {
@@ -1944,17 +1913,17 @@ select.stone-filter-input {
     display: flex;
     align-items: center;
     justify-content: center;
-    border: 1px solid rgba($wood-honey, 0.18);
+    border: 1px solid rgba(92, 185, 242, 0.20);
     border-radius: $stone-pill;
-    background: rgba($wood-cream, 0.08);
-    color: $wood-cream;
+    background: rgba(255, 255, 255, 0.08);
+    color: #ffffff;
     cursor: pointer;
     transition: all $transition-soft;
     font-size: 14px;
 
     &:hover {
-        background: rgba($wood-honey, 0.18);
-        border-color: rgba($wood-honey, 0.38);
+        background: rgba(92, 185, 242, 0.18);
+        border-color: rgba(92, 185, 242, 0.42);
         transform: translateY(-1px);
     }
 }
@@ -1965,10 +1934,10 @@ select.stone-filter-input {
     gap: 7px;
     overflow-x: auto;
     padding: 2px 0;
-    @include warm-scrollbar;
+    @include stone-scrollbar;
 
     &::-webkit-scrollbar-track {
-        background: rgba($wood-walnut-dark, 0.42);
+        background: rgba(15, 23, 42, 0.42);
     }
 }
 
@@ -1985,14 +1954,14 @@ select.stone-filter-input {
 
     &:hover {
         opacity: 0.84;
-        border-color: rgba($wood-honey, 0.42);
+        border-color: rgba(92, 185, 242, 0.42);
         transform: translateY(-1px);
     }
 
     &.active {
         opacity: 1;
-        border-color: $wood-honey;
-        box-shadow: 0 0 0 1px rgba($wood-honey, 0.38), 0 8px 18px rgba(#000, 0.28);
+        border-color: $stone-blue;
+        box-shadow: 0 0 0 1px rgba(92, 185, 242, 0.38), 0 8px 18px rgba(0, 0, 0, 0.28);
     }
 }
 
