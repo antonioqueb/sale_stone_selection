@@ -74,6 +74,52 @@ export class StoneExpandButton extends Component {
         return v % 1 === 0 ? v.toFixed(0) : v.toFixed(2);
     }
 
+    _fmtPct(num) {
+        if (num === null || num === undefined || isNaN(num)) return "0";
+        const v = parseFloat(num);
+        return v % 1 === 0 ? v.toFixed(0) : v.toFixed(1);
+    }
+
+    _parseFloatField(value) {
+        if (value === null || value === undefined || value === false) return 0;
+        if (typeof value === "number") return value;
+        if (typeof value === "string") return parseFloat(value.replace(",", ".")) || 0;
+        if (typeof value === "object") {
+            if ("value" in value) return this._parseFloatField(value.value);
+            if ("raw_value" in value) return this._parseFloatField(value.raw_value);
+        }
+        return 0;
+    }
+
+    _getRequestedQty() {
+        return this._parseFloatField(this.props?.record?.data?.product_uom_qty);
+    }
+
+    _getRequestedUnit() {
+        const data = this.props?.record?.data || {};
+        const uom = data.product_uom || data.product_uom_id || data.product_uom_name;
+
+        if (Array.isArray(uom)) return uom[1] || "m²";
+        if (typeof uom === "string" && uom.trim()) return uom.trim();
+        if (uom && typeof uom === "object") {
+            return uom.display_name || uom.name || "m²";
+        }
+
+        return "m²";
+    }
+
+    _isPieceUnit(unit) {
+        const txt = String(unit || "").toLowerCase();
+        return txt.includes("pza") || txt.includes("pieza") || txt.includes("unidad") || txt.includes("unit");
+    }
+
+    _getAllocationBaseFromTotals(totals, targetUnit) {
+        if (this._isPieceUnit(targetUnit)) {
+            return totals.totalPiezas || totals.totalM2 || 0;
+        }
+        return totals.totalM2 || totals.totalPiezas || 0;
+    }
+
     _updateCount(props = this.props) {
         const ids = this.extractLotIds(props?.record?.data?.lot_ids);
         this.state.selectedCount = ids.length;
@@ -823,6 +869,9 @@ export class StoneExpandButton extends Component {
             page: 0,
             pendingIds: new Set(this.getCurrentLotIds()),
             pendingBreakdown: { ...this.getBreakdown() },
+            requestedQty: this._getRequestedQty(),
+            requestedUnit: this._getRequestedUnit(),
+            qtyCache: {},
             filters: { lot_name: "", bloque: "", atado: "", alto_min: "", ancho_min: "", tipo: "" },
         };
 
@@ -839,6 +888,11 @@ export class StoneExpandButton extends Component {
                             <span class="stone-popup-subtitle">${this.getProductName() ? "— " + this.getProductName() : ""}</span>
                         </div>
                         <div class="stone-popup-header-actions">
+                            <span class="stone-badge-requested">
+                                <i class="fa fa-bullseye me-1"></i>
+                                Mandado <span id="sp-badge-target">${this._fmt(state.requestedQty)}</span>
+                                <span id="sp-badge-target-unit">${state.requestedUnit}</span>
+                            </span>
                             <span class="stone-badge-selected">
                                 <i class="fa fa-check-circle me-1"></i>
                                 <span id="sp-badge-count">${state.pendingIds.size}</span> selec.
@@ -854,6 +908,30 @@ export class StoneExpandButton extends Component {
                             <button class="stone-btn stone-btn-ghost" id="sp-close">
                                 <i class="fa fa-times"></i>
                             </button>
+                        </div>
+                    </div>
+
+                    <div class="stone-popup-allocation-summary" id="sp-allocation-summary">
+                        <div class="stone-allocation-card stone-allocation-target">
+                            <span class="stone-allocation-label">Mandado</span>
+                            <strong id="sp-allocation-target">${this._fmt(state.requestedQty)} ${state.requestedUnit}</strong>
+                        </div>
+                        <div class="stone-allocation-card stone-allocation-selected">
+                            <span class="stone-allocation-label">Seleccionado</span>
+                            <strong id="sp-allocation-selected">0.00 ${state.requestedUnit}</strong>
+                        </div>
+                        <div class="stone-allocation-card stone-allocation-remaining">
+                            <span class="stone-allocation-label">Pendiente</span>
+                            <strong id="sp-allocation-remaining">${this._fmt(state.requestedQty)} ${state.requestedUnit}</strong>
+                        </div>
+                        <div class="stone-allocation-progress-box">
+                            <div class="stone-allocation-progress-head">
+                                <span id="sp-allocation-progress-text">0.00 de ${this._fmt(state.requestedQty)} ${state.requestedUnit}</span>
+                                <strong id="sp-allocation-progress-label">0%</strong>
+                            </div>
+                            <div class="stone-allocation-progress-track">
+                                <div class="stone-allocation-progress-fill" id="sp-allocation-progress-fill"></div>
+                            </div>
                         </div>
                     </div>
 
@@ -934,6 +1012,78 @@ export class StoneExpandButton extends Component {
         const badgeQty = root.querySelector("#sp-badge-qty");
         const badgeUnit = root.querySelector("#sp-badge-unit");
         const footerQtyText = root.querySelector("#sp-footer-qty-text");
+        const allocationSummary = root.querySelector("#sp-allocation-summary");
+        const allocationTarget = root.querySelector("#sp-allocation-target");
+        const allocationSelected = root.querySelector("#sp-allocation-selected");
+        const allocationRemaining = root.querySelector("#sp-allocation-remaining");
+        const allocationProgressText = root.querySelector("#sp-allocation-progress-text");
+        const allocationProgressLabel = root.querySelector("#sp-allocation-progress-label");
+        const allocationProgressFill = root.querySelector("#sp-allocation-progress-fill");
+
+        const cacheQuantForTotals = (q) => {
+            const lotId = q && q.lot_id ? q.lot_id[0] : 0;
+            if (!lotId) return;
+            state.qtyCache[String(lotId)] = {
+                qty: q.quantity || 0,
+                tipo: (q.x_tipo || "placa").toLowerCase(),
+            };
+        };
+
+        const cacheQuantListForTotals = (items) => {
+            for (const q of (items || [])) {
+                cacheQuantForTotals(q);
+            }
+        };
+
+        const ensureQtyCacheForPending = async () => {
+            const missingIds = Array.from(state.pendingIds).filter((lotId) => !state.qtyCache[String(lotId)]);
+            if (!missingIds.length) return;
+
+            try {
+                const [lotsData, quants] = await Promise.all([
+                    self.orm.searchRead(
+                        "stock.lot",
+                        [["id", "in", missingIds]],
+                        ["id", "x_tipo"],
+                        { limit: missingIds.length }
+                    ),
+                    self.orm.searchRead(
+                        "stock.quant",
+                        [
+                            ["lot_id", "in", missingIds],
+                            ["location_id.usage", "=", "internal"],
+                            ["quantity", ">", 0],
+                        ],
+                        ["lot_id", "quantity"],
+                        { limit: missingIds.length * 5 }
+                    ),
+                ]);
+
+                const tipoMap = {};
+                for (const lot of (lotsData || [])) {
+                    tipoMap[lot.id] = (lot.x_tipo || "placa").toLowerCase();
+                }
+
+                for (const lotId of missingIds) {
+                    state.qtyCache[String(lotId)] = {
+                        qty: 0,
+                        tipo: tipoMap[lotId] || "placa",
+                    };
+                }
+
+                for (const q of (quants || [])) {
+                    const lotId = q.lot_id ? q.lot_id[0] : 0;
+                    if (!lotId) continue;
+                    const key = String(lotId);
+                    if (!state.qtyCache[key]) {
+                        state.qtyCache[key] = { qty: 0, tipo: tipoMap[lotId] || "placa" };
+                    }
+                    state.qtyCache[key].qty += q.quantity || 0;
+                }
+            } catch (error) {
+                console.warn("[STONE] No se pudo precargar cantidad de lotes seleccionados:", error);
+            }
+        };
 
         const computeSelectedTotals = () => {
             let totalM2 = 0;
@@ -942,13 +1092,16 @@ export class StoneExpandButton extends Component {
             let hasM2 = false;
 
             for (const lotId of state.pendingIds) {
-                const q = state.quants.find((qq) => qq.lot_id && qq.lot_id[0] === lotId);
-                const tipo = q ? (q.x_tipo || "placa").toLowerCase() : "placa";
                 const lotIdStr = String(lotId);
+                const cached = state.qtyCache[lotIdStr];
+                const q = state.quants.find((qq) => qq.lot_id && qq.lot_id[0] === lotId);
+                const tipo = (cached?.tipo || q?.x_tipo || "placa").toLowerCase();
 
                 let qty = 0;
                 if ((tipo === "formato" || tipo === "pieza") && state.pendingBreakdown[lotIdStr] !== undefined) {
                     qty = parseFloat(state.pendingBreakdown[lotIdStr]) || 0;
+                } else if (cached) {
+                    qty = cached.qty || 0;
                 } else if (q) {
                     qty = q.quantity || 0;
                 }
@@ -966,7 +1119,8 @@ export class StoneExpandButton extends Component {
         };
 
         const updateQtyDisplay = () => {
-            const { totalM2, totalPiezas, hasM2, hasPiezas } = computeSelectedTotals();
+            const totals = computeSelectedTotals();
+            const { totalM2, totalPiezas, hasM2, hasPiezas } = totals;
 
             if (hasM2 && hasPiezas) {
                 badgeQty.textContent = self._fmt(totalM2);
@@ -983,6 +1137,38 @@ export class StoneExpandButton extends Component {
             if (hasM2) parts.push(`${self._fmt(totalM2)} m²`);
             if (hasPiezas) parts.push(`${self._fmt(totalPiezas)} pzas`);
             footerQtyText.textContent = parts.length > 0 ? parts.join(" + ") : "0.00 m²";
+
+            const selectedForTarget = self._getAllocationBaseFromTotals(totals, state.requestedUnit);
+            const requestedQty = state.requestedQty || 0;
+            const requestedUnit = state.requestedUnit || "m²";
+            const rawPercent = requestedQty > 0 ? (selectedForTarget / requestedQty) * 100 : 0;
+            const barPercent = Math.max(0, Math.min(rawPercent, 100));
+            const diff = requestedQty - selectedForTarget;
+
+            if (allocationTarget) {
+                allocationTarget.textContent = `${self._fmt(requestedQty)} ${requestedUnit}`;
+            }
+            if (allocationSelected) {
+                allocationSelected.textContent = `${self._fmt(selectedForTarget)} ${requestedUnit}`;
+            }
+            if (allocationRemaining) {
+                allocationRemaining.textContent = `${diff >= 0 ? self._fmt(diff) : "+" + self._fmt(Math.abs(diff))} ${requestedUnit}`;
+            }
+            if (allocationProgressText) {
+                allocationProgressText.textContent = `${self._fmt(selectedForTarget)} de ${self._fmt(requestedQty)} ${requestedUnit}`;
+            }
+            if (allocationProgressLabel) {
+                allocationProgressLabel.textContent = `${self._fmtPct(rawPercent)}%`;
+            }
+            if (allocationProgressFill) {
+                allocationProgressFill.style.width = `${barPercent}%`;
+            }
+            if (allocationSummary) {
+                allocationSummary.classList.toggle("is-empty-target", requestedQty <= 0);
+                allocationSummary.classList.toggle("is-under", requestedQty > 0 && rawPercent < 99.995);
+                allocationSummary.classList.toggle("is-ok", requestedQty > 0 && rawPercent >= 99.995 && rawPercent <= 100.005);
+                allocationSummary.classList.toggle("is-over", requestedQty > 0 && rawPercent > 100.005);
+            }
         };
 
         const updateBadge = () => {
@@ -998,6 +1184,7 @@ export class StoneExpandButton extends Component {
 
         const doSelectAll = () => {
             for (const q of state.quants) {
+                cacheQuantForTotals(q);
                 const lotId = q.lot_id ? q.lot_id[0] : 0;
                 if (!lotId) continue;
                 state.pendingIds.add(lotId);
@@ -1030,6 +1217,7 @@ export class StoneExpandButton extends Component {
 
             let rows = "";
             for (const q of state.quants) {
+                cacheQuantForTotals(q);
                 const lotId = q.lot_id ? q.lot_id[0] : 0;
                 const lotName = q.lot_id ? q.lot_id[1] : "-";
                 const loc = q.location_id ? q.location_id[1].split("/").pop() : "-";
@@ -1248,6 +1436,8 @@ export class StoneExpandButton extends Component {
                 }
 
                 const items = result.items || [];
+                cacheQuantListForTotals(items);
+
                 if (reset || page === 0) {
                     state.quants = items;
                 } else {
@@ -1256,6 +1446,8 @@ export class StoneExpandButton extends Component {
                 state.totalCount = result.total || 0;
                 state.page = page;
                 state.hasMore = state.quants.length < state.totalCount;
+
+                await ensureQtyCacheForPending();
             } catch (err) {
                 console.error("[STONE POPUP] Error:", err);
                 body.innerHTML = `

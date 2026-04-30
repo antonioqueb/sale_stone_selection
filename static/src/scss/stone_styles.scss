@@ -1,3 +1,4 @@
+```scss
 // ═══════════════════════════════════════════════════════════════════════════
 // SALE STONE SELECTION — Theme homologado con To Be Allocated / To Be Purchased
 // Odoo 19 / OWL / SCSS
@@ -2031,5 +2032,199 @@ select.stone-filter-input {
     .stone-btn-select-all,
     .stone-btn-clear-all {
         flex: 1 1 auto;
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// POPUP — RESUMEN DE ASIGNACIÓN VS CANTIDAD MANDADA
+// ═══════════════════════════════════════════════════════════════════════════
+.stone-badge-requested {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 30px;
+    padding: 6px 11px;
+    border-radius: $stone-pill;
+    border: 1px solid rgba(242, 183, 5, 0.32);
+    background: $stone-amber-soft;
+    color: $stone-amber-dark;
+    font-size: 11px;
+    font-weight: 950;
+    white-space: nowrap;
+
+    i {
+        color: $stone-amber-dark;
+    }
+}
+
+.stone-popup-allocation-summary {
+    flex: 0 0 auto;
+    display: grid;
+    grid-template-columns: minmax(138px, 0.72fr) minmax(150px, 0.82fr) minmax(138px, 0.72fr) minmax(280px, 1.8fr);
+    gap: 10px;
+    align-items: stretch;
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(215, 232, 242, 0.96);
+    background:
+        linear-gradient(180deg, rgba(248, 252, 255, 0.98), rgba(237, 247, 253, 0.78)),
+        radial-gradient(circle at 4% 20%, rgba(92, 185, 242, 0.16), transparent 34%);
+}
+
+.stone-allocation-card,
+.stone-allocation-progress-box {
+    min-height: 58px;
+    padding: 10px 12px;
+    border-radius: 18px;
+    border: 1px solid rgba(215, 232, 242, 0.96);
+    background: rgba(255, 255, 255, 0.92);
+    box-shadow: $shadow-xs;
+}
+
+.stone-allocation-card {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 5px;
+
+    strong {
+        color: $stone-text;
+        font-size: 15px;
+        font-weight: 950;
+        letter-spacing: -0.025em;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+    }
+}
+
+.stone-allocation-label {
+    color: $stone-muted;
+    font-size: 9px;
+    font-weight: 950;
+    text-transform: uppercase;
+    letter-spacing: 0.10em;
+}
+
+.stone-allocation-target {
+    border-color: rgba(242, 183, 5, 0.30);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(242, 183, 5, 0.10));
+
+    strong {
+        color: $stone-amber-dark;
+    }
+}
+
+.stone-allocation-selected {
+    border-color: rgba(92, 185, 242, 0.30);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(92, 185, 242, 0.10));
+
+    strong {
+        color: $stone-blue-deep;
+    }
+}
+
+.stone-allocation-remaining {
+    border-color: rgba(4, 217, 79, 0.22);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(4, 217, 79, 0.08));
+
+    strong {
+        color: $stone-green-dark;
+    }
+}
+
+.stone-allocation-progress-box {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 9px;
+}
+
+.stone-allocation-progress-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    color: $stone-muted;
+    font-size: 11px;
+    font-weight: 850;
+
+    span,
+    strong {
+        font-variant-numeric: tabular-nums;
+    }
+
+    strong {
+        color: $stone-blue-deep;
+        font-size: 14px;
+        font-weight: 950;
+    }
+}
+
+.stone-allocation-progress-track {
+    position: relative;
+    height: 11px;
+    overflow: hidden;
+    border-radius: $stone-pill;
+    border: 1px solid rgba(215, 232, 242, 0.96);
+    background: rgba(220, 234, 242, 0.70);
+}
+
+.stone-allocation-progress-fill {
+    width: 0%;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, $stone-blue, $stone-blue-2);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.22) inset;
+    transition: width 0.22s ease, background 0.16s ease;
+}
+
+.stone-popup-allocation-summary.is-ok {
+    .stone-allocation-progress-fill {
+        background: linear-gradient(90deg, $stone-green, $stone-green-dark);
+    }
+
+    .stone-allocation-progress-head strong,
+    .stone-allocation-selected strong,
+    .stone-allocation-remaining strong {
+        color: $stone-green-dark;
+    }
+}
+
+.stone-popup-allocation-summary.is-over {
+    .stone-allocation-progress-fill {
+        background: linear-gradient(90deg, $stone-amber, $stone-red);
+    }
+
+    .stone-allocation-remaining {
+        border-color: rgba(220, 38, 38, 0.24);
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(220, 38, 38, 0.08));
+    }
+
+    .stone-allocation-progress-head strong,
+    .stone-allocation-remaining strong {
+        color: $stone-red-dark;
+    }
+}
+
+.stone-popup-allocation-summary.is-empty-target {
+    .stone-allocation-target,
+    .stone-allocation-remaining,
+    .stone-allocation-progress-box {
+        opacity: 0.72;
+    }
+}
+
+@media (max-width: 1180px) {
+    .stone-popup-allocation-summary {
+        grid-template-columns: repeat(3, minmax(130px, 1fr));
+    }
+
+    .stone-allocation-progress-box {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 640px) {
+    .stone-popup-allocation-summary {
+        grid-template-columns: 1fr;
     }
 }
