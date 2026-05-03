@@ -2227,3 +2227,159 @@ select.stone-filter-input {
         grid-template-columns: 1fr;
     }
 }
+
+
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STATUS BADGES — Estatus de entrega/devolución/swap por lote
+// ═══════════════════════════════════════════════════════════════════════════
+
+.col-status {
+    min-width: 220px;
+    max-width: 340px;
+}
+
+.stone-status-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin: 1px 3px 1px 0;
+    padding: 4px 9px;
+    border-radius: $stone-pill;
+    font-size: 9.5px;
+    font-weight: 950;
+    line-height: 1.15;
+    border: 1px solid;
+    white-space: nowrap;
+
+    i { font-size: 9px; }
+    span { line-height: 1; }
+
+    &.stone-tag-delivered {
+        background: linear-gradient(180deg, #d6f7e3, #b6efcf);
+        color: $stone-green-dark;
+        border-color: rgba(4, 217, 79, 0.42);
+    }
+
+    &.stone-tag-returned {
+        background: rgba(220, 38, 38, 0.10);
+        color: $stone-red-dark;
+        border-color: rgba(220, 38, 38, 0.36);
+    }
+
+    &.stone-tag-redelivered {
+        background: rgba(75, 164, 242, 0.18);
+        color: $stone-blue-deep;
+        border-color: rgba(75, 164, 242, 0.45);
+    }
+
+    &.stone-tag-redelivery-pending {
+        background: $stone-amber-soft;
+        color: $stone-amber-dark;
+        border-color: rgba(242, 183, 5, 0.36);
+    }
+
+    &.stone-tag-pickticket {
+        background: linear-gradient(180deg, rgba(124, 58, 237, 0.14), rgba(124, 58, 237, 0.20));
+        color: #5b21b6;
+        border-color: rgba(124, 58, 237, 0.36);
+    }
+
+    &.stone-tag-swap-old {
+        background: rgba(100, 116, 139, 0.18);
+        color: #475569;
+        border-color: rgba(100, 116, 139, 0.42);
+
+        span {
+            text-decoration: line-through;
+        }
+    }
+
+    &.stone-tag-swap-new {
+        background: linear-gradient(180deg, #cffafe, #a5f3fc);
+        color: #155e75;
+        border-color: rgba(6, 182, 212, 0.46);
+    }
+
+    &.stone-tag-pending {
+        background: rgba(220, 234, 242, 0.78);
+        color: $stone-muted;
+        border-color: rgba(215, 232, 242, 0.96);
+    }
+}
+
+// Filas especiales en lista inline
+.stone-row-ghost {
+    opacity: 0.62;
+    background: rgba(248, 252, 255, 0.6) !important;
+
+    .cell-lot {
+        text-decoration: line-through;
+        color: #64748b !important;
+    }
+
+    &:hover {
+        background: rgba(220, 234, 242, 0.7) !important;
+    }
+}
+
+.stone-row-locked {
+    background: rgba(220, 234, 242, 0.30) !important;
+    box-shadow: inset 4px 0 0 rgba(75, 164, 242, 0.42);
+
+    .stone-qty-input {
+        background: rgba(241, 245, 249, 0.72) !important;
+        cursor: not-allowed;
+    }
+
+    &:hover {
+        background: rgba(220, 234, 242, 0.42) !important;
+    }
+}
+
+.stone-remove-btn-disabled,
+.stone-remove-btn[disabled] {
+    background: rgba(100, 116, 139, 0.10) !important;
+    border-color: rgba(100, 116, 139, 0.22) !important;
+    color: #64748b !important;
+    cursor: not-allowed !important;
+    opacity: 0.7;
+
+    &:hover {
+        background: rgba(100, 116, 139, 0.10) !important;
+        color: #64748b !important;
+        transform: none !important;
+        box-shadow: none !important;
+    }
+}
+
+// Filas locked en popup
+.stone-popup-table tbody tr.stone-popup-row-locked {
+    background: rgba(220, 234, 242, 0.30) !important;
+    box-shadow: inset 4px 0 0 rgba(75, 164, 242, 0.42);
+    cursor: not-allowed !important;
+
+    .stone-chkbox {
+        opacity: 0.55;
+        cursor: not-allowed;
+    }
+
+    &:hover {
+        background: rgba(220, 234, 242, 0.40) !important;
+    }
+}
+
+.stone-popup-status-cell {
+    min-width: 200px;
+    max-width: 320px;
+    white-space: normal !important;
+}
+
+// La columna Estatus en la tabla inline también debe permitir wrap suave
+.stone-sel-table-with-status {
+    .col-status {
+        white-space: normal;
+        line-height: 1.4;
+    }
+}

@@ -1,0 +1,3 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_sale_stone_swap_history_user,sale.stone.swap.history.user,model_sale_stone_swap_history,sales_team.group_sale_salesman,1,0,1,0
+access_sale_stone_swap_history_manager,sale.stone.swap.history.manager,model_sale_stone_swap_history,sales_team.group_sale_manager,1,1,1,1

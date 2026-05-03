@@ -1,33 +1,36 @@
 # ./__manifest__.py
 {
     'name': 'Stone Selection & Visual Sale Grid',
-    'version': '19.0.1.2.0',
+    'version': '19.0.1.3.0',
     'category': 'Sales/Sales',
-    'summary': 'Selección visual de placas con reserva estricta',
+    'summary': 'Selección visual de placas con reserva estricta y estatus de entrega',
     'description': """
-        Módulo profesional para la gestión de ventas de piedra natural.
         - Selección visual (Grid) en líneas de venta.
         - Reserva estricta de lotes seleccionados (Bypass FIFO).
         - Integración con stock_lot_dimensions para limpieza de asignaciones automáticas.
+        - Estatus de entrega/devolución/swap por lote, visible en lista inline y popup.
     """,
     'author': 'Alphaqueb Consulting SAS',
     'website': 'https://alphaqueb.com',
-    # IMPORTANTE: Se agrega stock_lot_dimensions para garantizar el orden de ejecución correcto
-    'depends': ['sale_management', 'stock', 'stock_lot_dimensions', 'inventory_shopping_cart'],
+    'depends': [
+        'sale_management',
+        'stock',
+        'stock_lot_dimensions',
+        'inventory_shopping_cart',
+        'sale_delivery_wizard',
+    ],
     'data': [
+        'security/ir.model.access.csv',
         'views/sale_views.xml',
         'views/stock_views.xml',
     ],
     'assets': {
         'web.assets_backend': [
             'sale_stone_selection/static/src/scss/stone_styles.scss',
-            # stone_grid
             'sale_stone_selection/static/src/components/stone_grid/stone_grid.xml',
             'sale_stone_selection/static/src/components/stone_grid/stone_grid.js',
-            # stone_line_list
             'sale_stone_selection/static/src/components/stone_line_list/stone_line_list.xml',
             'sale_stone_selection/static/src/components/stone_line_list/stone_line_list.js',
-            # stone_move_grid
             'sale_stone_selection/static/src/components/stone_move_grid/stone_move_grid.xml',
             'sale_stone_selection/static/src/components/stone_move_grid/stone_move_grid.js',
         ],

@@ -14,6 +14,17 @@ import { useService } from "@web/core/utils/hooks";
 
 const AUTO_OPEN_STONE_SELECTOR_KEY = "stock_transit_allocation.auto_open_stone_selector";
 
+const STATUS_CLASS_MAP = {
+    delivered: "stone-tag-delivered",
+    returned: "stone-tag-returned",
+    redelivered: "stone-tag-redelivered",
+    redelivery_pending: "stone-tag-redelivery-pending",
+    pick_ticket: "stone-tag-pickticket",
+    swap_replaced: "stone-tag-swap-old",
+    swap_replacement: "stone-tag-swap-new",
+    pending: "stone-tag-pending",
+};
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // COMPONENTE PRINCIPAL: BOTÓN STONE
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -42,8 +53,6 @@ export class StoneExpandButton extends Component {
         });
 
         onMounted(() => {
-            // Cuando venimos desde To Be Allocated, el pedido debe abrirse
-            // directamente con el selector de placas abierto en la línea correcta.
             window.setTimeout(() => {
                 this._autoOpenStoneSelectorFromAllocationHub();
             }, 350);
@@ -78,6 +87,16 @@ export class StoneExpandButton extends Component {
         if (num === null || num === undefined || isNaN(num)) return "0";
         const v = parseFloat(num);
         return v % 1 === 0 ? v.toFixed(0) : v.toFixed(1);
+    }
+
+    _escapeHtml(text) {
+        if (text === null || text === undefined) return "";
+        return String(text)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#39;");
     }
 
     _parseFloatField(value) {
@@ -200,6 +219,43 @@ export class StoneExpandButton extends Component {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // FULL STATUS — backend call
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    async _loadFullStatus() {
+        const recordId = this._getRecordId();
+        if (!recordId || typeof recordId !== "number" || recordId <= 0) {
+            return null;
+        }
+        try {
+            const result = await this.orm.call(
+                "sale.order.line",
+                "get_stone_lots_full_status",
+                [[recordId]],
+            );
+            return Array.isArray(result) ? result : null;
+        } catch (e) {
+            console.warn("[STONE] No se pudo cargar full status:", e);
+            return null;
+        }
+    }
+
+    _renderStatusBadges(badges, opts = {}) {
+        if (!badges || badges.length === 0) return "";
+        const compact = opts.compact || false;
+
+        return badges.map((b) => {
+            const cls = STATUS_CLASS_MAP[b.type] || "stone-tag-pending";
+            const icon = b.icon || "fa-tag";
+            const labelEsc = this._escapeHtml(b.label);
+            const labelText = compact ? labelEsc.split(" · ")[0] : labelEsc;
+            return `<span class="stone-tag stone-status-tag ${cls}" title="${labelEsc}">
+                        <i class="fa ${icon}"></i><span>${labelText}</span>
+                    </span>`;
+        }).join("");
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // AUTO OPEN DESDE TO BE ALLOCATED
     // ═══════════════════════════════════════════════════════════════════════════
 
@@ -227,7 +283,6 @@ export class StoneExpandButton extends Component {
             return;
         }
 
-        // Evita que una instrucción vieja abra popups por accidente.
         const maxAgeMs = 5 * 60 * 1000;
         if (!payload.ts || Date.now() - payload.ts > maxAgeMs) {
             window.sessionStorage.removeItem(AUTO_OPEN_STONE_SELECTOR_KEY);
@@ -243,24 +298,15 @@ export class StoneExpandButton extends Component {
 
         window.sessionStorage.removeItem(AUTO_OPEN_STONE_SELECTOR_KEY);
 
-        // Abrimos directamente el popup real de selección, sin exigir:
-        // 1. clic en botón de línea
-        // 2. clic en "Agregar lotes"
         window.setTimeout(() => {
             this.openPopup();
         }, 150);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // LIGHTBOX — Preview de fotos a pantalla completa
+    // LIGHTBOX
     // ═══════════════════════════════════════════════════════════════════════════
 
-    /**
-     * Abre un lightbox con todas las fotos de un lote.
-     * @param {number} lotId - ID del lote
-     * @param {string} lotName - Nombre del lote (para título)
-     * @param {string|false} mainPhoto - Base64 de la foto principal (para mostrar rápido)
-     */
     async openLightbox(lotId, lotName, mainPhoto) {
         this._destroyLightbox();
 
@@ -268,7 +314,6 @@ export class StoneExpandButton extends Component {
         this._lightboxRoot.className = "stone-lightbox-root";
         document.body.appendChild(this._lightboxRoot);
 
-        // Mostrar inmediatamente la foto principal si la tenemos
         const initialSrc = mainPhoto ? `data:image/jpeg;base64,${mainPhoto}` : null;
 
         this._lightboxRoot.innerHTML = `
@@ -277,7 +322,7 @@ export class StoneExpandButton extends Component {
                     <div class="stone-lightbox-header">
                         <span class="stone-lightbox-title">
                             <i class="fa fa-camera me-2"></i>
-                            Fotos del lote <strong>${lotName || lotId}</strong>
+                            Fotos del lote <strong>${this._escapeHtml(lotName || lotId)}</strong>
                             <span class="stone-lightbox-counter" id="slb-counter"></span>
                         </span>
                         <button class="stone-lightbox-close" id="slb-close">
@@ -321,7 +366,6 @@ export class StoneExpandButton extends Component {
         document.addEventListener("keydown", keyHandler);
         this._lightboxKeyHandler = keyHandler;
 
-        // Cargar todas las fotos del lote
         try {
             const photos = await this.orm.searchRead(
                 "stock.lot.image",
@@ -332,7 +376,6 @@ export class StoneExpandButton extends Component {
 
             if (!photos || photos.length === 0) {
                 if (initialSrc) {
-                    // Solo tenemos la principal, ya se muestra
                     counterEl.textContent = "(1 foto)";
                 } else {
                     bodyEl.innerHTML = `
@@ -344,7 +387,6 @@ export class StoneExpandButton extends Component {
                 return;
             }
 
-            // Render con navegación
             let currentIdx = 0;
 
             const showPhoto = (idx) => {
@@ -354,19 +396,17 @@ export class StoneExpandButton extends Component {
                 bodyEl.innerHTML = `
                     <img src="${src}" class="stone-lightbox-img" id="slb-main-img"/>
                     <div class="stone-lightbox-info" id="slb-info">
-                        <strong>${photo.name || ""}</strong>
-                        ${photo.notas ? `<span class="ms-3 text-muted">${photo.notas}</span>` : ""}
-                        ${photo.fecha_captura ? `<span class="ms-3 text-muted small"><i class="fa fa-clock-o me-1"></i>${photo.fecha_captura}</span>` : ""}
+                        <strong>${this._escapeHtml(photo.name || "")}</strong>
+                        ${photo.notas ? `<span class="ms-3 text-muted">${this._escapeHtml(photo.notas)}</span>` : ""}
+                        ${photo.fecha_captura ? `<span class="ms-3 text-muted small"><i class="fa fa-clock-o me-1"></i>${this._escapeHtml(photo.fecha_captura)}</span>` : ""}
                     </div>`;
                 counterEl.textContent = `(${idx + 1} / ${photos.length})`;
 
-                // Actualizar thumbs activo
                 thumbsEl.querySelectorAll(".stone-lightbox-thumb").forEach((th, i) => {
                     th.classList.toggle("active", i === idx);
                 });
             };
 
-            // Generar thumbnails
             if (photos.length > 1) {
                 navEl.style.display = "flex";
                 let thumbsHtml = "";
@@ -395,7 +435,7 @@ export class StoneExpandButton extends Component {
             bodyEl.innerHTML = `
                 <div class="stone-lightbox-loading">
                     <i class="fa fa-exclamation-triangle fa-2x text-danger"></i>
-                    <div class="mt-2 text-danger">Error cargando fotos: ${e.message}</div>
+                    <div class="mt-2 text-danger">Error cargando fotos: ${this._escapeHtml(e.message)}</div>
                 </div>`;
         }
     }
@@ -411,35 +451,23 @@ export class StoneExpandButton extends Component {
         }
     }
 
-    // ─── Render de celda de foto (reutilizable) ──────────────────────────────
-
-    /**
-     * Genera HTML para una celda de foto thumbnail
-     * @param {string|false} photoBase64 - Foto principal en base64
-     * @param {number} photoCount - Cantidad de fotos
-     * @param {number} lotId - ID del lote
-     * @param {string} lotName - Nombre del lote
-     * @returns {string} HTML
-     */
     _renderPhotoCell(photoBase64, photoCount, lotId, lotName) {
+        const safeName = this._escapeHtml(lotName);
         if (photoBase64) {
             const badge = photoCount > 1 ? `<span class="stone-photo-count">${photoCount}</span>` : "";
-            return `<div class="stone-photo-cell" data-lot-id="${lotId}" data-lot-name="${lotName}" data-has-photo="1">
+            return `<div class="stone-photo-cell" data-lot-id="${lotId}" data-lot-name="${safeName}" data-has-photo="1">
                         <img src="data:image/jpeg;base64,${photoBase64}" class="stone-photo-thumb" alt="Foto"/>
                         ${badge}
                     </div>`;
         }
         if (photoCount > 0) {
-            return `<div class="stone-photo-cell" data-lot-id="${lotId}" data-lot-name="${lotName}" data-has-photo="1">
+            return `<div class="stone-photo-cell" data-lot-id="${lotId}" data-lot-name="${safeName}" data-has-photo="1">
                         <div class="stone-photo-placeholder-has"><i class="fa fa-camera"></i><span>${photoCount}</span></div>
                     </div>`;
         }
         return `<div class="stone-photo-cell stone-photo-empty"><i class="fa fa-picture-o text-muted"></i></div>`;
     }
 
-    /**
-     * Vincula click handlers a las celdas de fotos dentro de un contenedor
-     */
     _bindPhotoClicks(container) {
         container.querySelectorAll(".stone-photo-cell[data-has-photo]").forEach((cell) => {
             cell.style.cursor = "pointer";
@@ -447,7 +475,6 @@ export class StoneExpandButton extends Component {
                 e.stopPropagation();
                 const lotId = parseInt(cell.dataset.lotId);
                 const lotName = cell.dataset.lotName || "";
-                // Intentar extraer la base64 del thumb si existe
                 const img = cell.querySelector(".stone-photo-thumb");
                 let mainPhoto = false;
                 if (img && img.src.startsWith("data:")) {
@@ -526,6 +553,175 @@ export class StoneExpandButton extends Component {
     }
 
     async renderSelectedTable(container, lotIds) {
+        container.innerHTML = `<div class="stone-table-loading"><i class="fa fa-circle-o-notch fa-spin me-1"></i> Cargando...</div>`;
+
+        try {
+            const fullStatus = await this._loadFullStatus();
+
+            if (fullStatus !== null) {
+                this._renderSelectedTableFromFullStatus(container, fullStatus);
+                return;
+            }
+
+            // Fallback (línea no guardada): método viejo sin estatus
+            await this._renderSelectedTableLegacy(container, lotIds);
+        } catch (err) {
+            console.error("[STONE] Error renderizando seleccionadas:", err);
+            container.innerHTML = `<div class="text-danger p-2">Error: ${this._escapeHtml(err.message)}</div>`;
+        }
+    }
+
+    _renderSelectedTableFromFullStatus(container, items) {
+        if (!items || items.length === 0) {
+            container.innerHTML = `
+                <div class="stone-no-selection">
+                    <i class="fa fa-info-circle me-1 text-muted"></i>
+                    <span class="text-muted">Sin lotes. Usa <strong>Agregar</strong> para comenzar.</span>
+                </div>`;
+            return;
+        }
+
+        let totalQty = 0;
+        let html = `
+            <table class="stone-sel-table stone-sel-table-with-status">
+                <thead>
+                    <tr>
+                        <th class="col-photo">Foto</th>
+                        <th>Lote</th>
+                        <th class="col-status">Estatus</th>
+                        <th>Bloque</th>
+                        <th>Atado</th>
+                        <th class="col-num">Alto</th>
+                        <th class="col-num">Ancho</th>
+                        <th class="col-num">Esp.</th>
+                        <th>Tipo</th>
+                        <th class="col-num">Disp.</th>
+                        <th class="col-num col-qty-input">Cant.</th>
+                        <th>Color</th>
+                        <th class="col-act"></th>
+                    </tr>
+                </thead>
+                <tbody>`;
+
+        for (const item of items) {
+            const tipo = item.tipo || "placa";
+            const isPartial = (tipo === "formato" || tipo === "pieza");
+            const isGhost = !!item.is_ghost;
+            const isLocked = !!item.is_locked;
+
+            if (!isGhost) {
+                totalQty += item.displayed_qty || 0;
+            }
+
+            const rowClasses = [];
+            if (isGhost) rowClasses.push("stone-row-ghost");
+            if (isLocked && !isGhost) rowClasses.push("stone-row-locked");
+
+            const qtyLabel = tipo === "pieza" ? "pzas" : "m²";
+            const inputStep = tipo === "pieza" ? "1" : "0.01";
+
+            const photoCell = this._renderPhotoCell(
+                item.x_fotografia_principal,
+                item.x_cantidad_fotos || 0,
+                item.lot_id,
+                item.lot_name
+            );
+
+            const badgesHtml = this._renderStatusBadges(item.status_badges, { compact: false });
+
+            // Cantidad mostrada
+            let qtyCell;
+            if (isGhost) {
+                qtyCell = `<span class="text-muted"><s>0.00</s> ${qtyLabel}</span>`;
+            } else if (isPartial && !isLocked) {
+                qtyCell = `<input type="number" class="stone-qty-input"
+                                  data-lot-id="${item.lot_id}" data-max="${item.available_qty}"
+                                  step="${inputStep}" min="0" max="${item.available_qty}"
+                                  value="${item.displayed_qty || 0}" />`;
+            } else {
+                qtyCell = `<span class="fw-semibold">${this._fmt(item.displayed_qty)} ${qtyLabel}</span>`;
+            }
+
+            // Botón quitar (locked = disabled)
+            const lockMsg = isLocked
+                ? this._escapeHtml(item.status_badges?.[0]?.label || "Bloqueado")
+                : "Quitar";
+
+            const removeBtn = isLocked
+                ? `<button class="stone-remove-btn stone-remove-btn-disabled" disabled title="${lockMsg}">
+                       <i class="fa fa-lock"></i>
+                   </button>`
+                : `<button class="stone-remove-btn" data-lot-id="${item.lot_id}" title="Quitar">
+                       <i class="fa fa-times"></i>
+                   </button>`;
+
+            // Lote name (si ghost, tachado)
+            const lotNameHtml = isGhost
+                ? `<s>${this._escapeHtml(item.lot_name)}</s>`
+                : this._escapeHtml(item.lot_name);
+
+            const tipoLabel = tipo.charAt(0).toUpperCase() + tipo.slice(1);
+
+            html += `
+                <tr class="${rowClasses.join(" ")}">
+                    <td class="col-photo">${photoCell}</td>
+                    <td class="cell-lot">${lotNameHtml}</td>
+                    <td class="col-status">${badgesHtml}</td>
+                    <td>${this._escapeHtml(item.x_bloque) || "-"}</td>
+                    <td>${this._escapeHtml(item.x_atado) || "-"}</td>
+                    <td class="col-num">${this._fmtDim(item.x_alto)}</td>
+                    <td class="col-num">${this._fmtDim(item.x_ancho)}</td>
+                    <td class="col-num">${this._fmtDim(item.x_grosor)}</td>
+                    <td>
+                        <span class="stone-tag stone-tag-tipo-${tipo}">${tipoLabel}</span>
+                    </td>
+                    <td class="col-num text-muted">${this._fmt(item.available_qty)} ${qtyLabel}</td>
+                    <td class="col-num col-qty-input">${qtyCell}</td>
+                    <td>${this._escapeHtml(item.x_color) || "-"}</td>
+                    <td class="col-act">${removeBtn}</td>
+                </tr>`;
+        }
+
+        html += `
+                </tbody>
+                <tfoot>
+                    <tr class="stone-total-row">
+                        <td colspan="10" class="text-end fw-bold text-muted">Total:</td>
+                        <td class="col-num fw-bold" id="stone-sel-total">${this._fmt(totalQty)}</td>
+                        <td colspan="2"></td>
+                    </tr>
+                </tfoot>
+            </table>`;
+
+        container.innerHTML = html;
+
+        // Bind remove (solo para no-disabled)
+        container.querySelectorAll(".stone-remove-btn:not([disabled])").forEach((btn) => {
+            btn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                this.removeLot(parseInt(btn.dataset.lotId));
+            });
+        });
+
+        // Bind qty inputs
+        container.querySelectorAll(".stone-qty-input").forEach((input) => {
+            let debounceTimer = null;
+            input.addEventListener("input", (e) => {
+                if (debounceTimer) clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(() => {
+                    this._onQtyInputChange(e.target);
+                }, 500);
+            });
+            input.addEventListener("blur", (e) => {
+                if (debounceTimer) clearTimeout(debounceTimer);
+                this._onQtyInputChange(e.target);
+            });
+        });
+
+        this._bindPhotoClicks(container);
+    }
+
+    async _renderSelectedTableLegacy(container, lotIds) {
         if (!lotIds || lotIds.length === 0) {
             container.innerHTML = `
                 <div class="stone-no-selection">
@@ -535,157 +731,74 @@ export class StoneExpandButton extends Component {
             return;
         }
 
-        container.innerHTML = `<div class="stone-table-loading"><i class="fa fa-circle-o-notch fa-spin me-1"></i> Cargando...</div>`;
+        const [lotsData, quants] = await Promise.all([
+            this.orm.searchRead(
+                "stock.lot",
+                [["id", "in", lotIds]],
+                ["name", "x_bloque", "x_atado", "x_alto", "x_ancho", "x_grosor", "x_tipo", "x_color",
+                 "x_fotografia_principal", "x_cantidad_fotos"],
+                { limit: lotIds.length }
+            ),
+            this.orm.searchRead(
+                "stock.quant",
+                [
+                    ["lot_id", "in", lotIds],
+                    ["location_id.usage", "=", "internal"],
+                    ["quantity", ">", 0],
+                ],
+                ["lot_id", "quantity"]
+            ),
+        ]);
 
-        try {
-            const [lotsData, quants] = await Promise.all([
-                this.orm.searchRead(
-                    "stock.lot",
-                    [["id", "in", lotIds]],
-                    ["name", "x_bloque", "x_atado", "x_alto", "x_ancho", "x_grosor", "x_tipo", "x_color",
-                     "x_fotografia_principal", "x_cantidad_fotos"],
-                    { limit: lotIds.length }
-                ),
-                this.orm.searchRead(
-                    "stock.quant",
-                    [
-                        ["lot_id", "in", lotIds],
-                        ["location_id.usage", "=", "internal"],
-                        ["quantity", ">", 0],
-                    ],
-                    ["lot_id", "quantity"]
-                ),
-            ]);
-
-            const qtyMap = {};
-            for (const q of quants) {
-                const lid = q.lot_id[0];
-                qtyMap[lid] = (qtyMap[lid] || 0) + q.quantity;
-            }
-
-            const lotMap = {};
-            for (const l of lotsData) lotMap[l.id] = l;
-
-            const breakdown = this.getBreakdown();
-
-            let totalQty = 0;
-            let html = `
-                <table class="stone-sel-table">
-                    <thead>
-                        <tr>
-                            <th class="col-photo">Foto</th>
-                            <th>Lote</th>
-                            <th>Bloque</th>
-                            <th>Atado</th>
-                            <th class="col-num">Alto</th>
-                            <th class="col-num">Ancho</th>
-                            <th class="col-num">Esp.</th>
-                            <th>Tipo</th>
-                            <th class="col-num">Disp.</th>
-                            <th class="col-num col-qty-input">Cant.</th>
-                            <th>Color</th>
-                            <th class="col-act"></th>
-                        </tr>
-                    </thead>
-                    <tbody>`;
-
-            for (const lid of lotIds) {
-                const lot = lotMap[lid];
-                if (!lot) continue;
-                const availQty = qtyMap[lid] || 0;
-                const tipo = (lot.x_tipo || "placa").toLowerCase();
-                const isPartial = (tipo === "formato" || tipo === "pieza");
-                const lotIdStr = String(lid);
-
-                let displayQty;
-                if (isPartial && breakdown[lotIdStr] !== undefined) {
-                    displayQty = parseFloat(breakdown[lotIdStr]);
-                } else {
-                    displayQty = availQty;
-                }
-                totalQty += displayQty;
-
-                const qtyLabel = tipo === "pieza" ? "pzas" : "m²";
-                const inputStep = tipo === "pieza" ? "1" : "0.01";
-
-                const photoCell = this._renderPhotoCell(
-                    lot.x_fotografia_principal, lot.x_cantidad_fotos || 0, lid, lot.name
-                );
-
-                html += `
-                    <tr>
-                        <td class="col-photo">${photoCell}</td>
-                        <td class="cell-lot">${lot.name}</td>
-                        <td>${lot.x_bloque || "-"}</td>
-                        <td>${lot.x_atado || "-"}</td>
-                        <td class="col-num">${this._fmtDim(lot.x_alto)}</td>
-                        <td class="col-num">${this._fmtDim(lot.x_ancho)}</td>
-                        <td class="col-num">${this._fmtDim(lot.x_grosor)}</td>
-                        <td>
-                            <span class="stone-tag stone-tag-tipo-${tipo}">${tipo.charAt(0).toUpperCase() + tipo.slice(1)}</span>
-                        </td>
-                        <td class="col-num text-muted">${this._fmt(availQty)} ${qtyLabel}</td>
-                        <td class="col-num col-qty-input">
-                            ${isPartial
-                                ? `<input type="number" class="stone-qty-input" 
-                                          data-lot-id="${lid}" data-max="${availQty}" 
-                                          step="${inputStep}" min="0" max="${availQty}"
-                                          value="${displayQty}" />`
-                                : `<span class="fw-semibold">${this._fmt(displayQty)} m²</span>`
-                            }
-                        </td>
-                        <td>${lot.x_color || "-"}</td>
-                        <td class="col-act">
-                            <button class="stone-remove-btn" data-lot-id="${lid}" title="Quitar">
-                                <i class="fa fa-times"></i>
-                            </button>
-                        </td>
-                    </tr>`;
-            }
-
-            html += `
-                    </tbody>
-                    <tfoot>
-                        <tr class="stone-total-row">
-                            <td colspan="9" class="text-end fw-bold text-muted">Total:</td>
-                            <td class="col-num fw-bold" id="stone-sel-total">${this._fmt(totalQty)}</td>
-                            <td colspan="2"></td>
-                        </tr>
-                    </tfoot>
-                </table>`;
-
-            container.innerHTML = html;
-
-            // Bind remove buttons
-            container.querySelectorAll(".stone-remove-btn").forEach((btn) => {
-                btn.addEventListener("click", (e) => {
-                    e.stopPropagation();
-                    this.removeLot(parseInt(btn.dataset.lotId));
-                });
-            });
-
-            // Bind qty inputs
-            container.querySelectorAll(".stone-qty-input").forEach((input) => {
-                let debounceTimer = null;
-                input.addEventListener("input", (e) => {
-                    if (debounceTimer) clearTimeout(debounceTimer);
-                    debounceTimer = setTimeout(() => {
-                        this._onQtyInputChange(e.target);
-                    }, 500);
-                });
-                input.addEventListener("blur", (e) => {
-                    if (debounceTimer) clearTimeout(debounceTimer);
-                    this._onQtyInputChange(e.target);
-                });
-            });
-
-            // Bind photo clicks
-            this._bindPhotoClicks(container);
-
-        } catch (err) {
-            console.error("[STONE] Error renderizando seleccionadas:", err);
-            container.innerHTML = `<div class="text-danger p-2">Error: ${err.message}</div>`;
+        const qtyMap = {};
+        for (const q of quants) {
+            const lid = q.lot_id[0];
+            qtyMap[lid] = (qtyMap[lid] || 0) + q.quantity;
         }
+
+        const lotMap = {};
+        for (const l of lotsData) lotMap[l.id] = l;
+
+        const breakdown = this.getBreakdown();
+
+        const items = [];
+        for (const lid of lotIds) {
+            const lot = lotMap[lid];
+            if (!lot) continue;
+            const availQty = qtyMap[lid] || 0;
+            const tipo = (lot.x_tipo || "placa").toLowerCase();
+            const isPartial = (tipo === "formato" || tipo === "pieza");
+            const lotIdStr = String(lid);
+
+            let displayQty;
+            if (isPartial && breakdown[lotIdStr] !== undefined) {
+                displayQty = parseFloat(breakdown[lotIdStr]);
+            } else {
+                displayQty = availQty;
+            }
+
+            items.push({
+                lot_id: lid,
+                lot_name: lot.name || "",
+                product_id: this.getProductId(),
+                available_qty: availQty,
+                displayed_qty: displayQty,
+                tipo,
+                x_bloque: lot.x_bloque || "",
+                x_atado: lot.x_atado || "",
+                x_alto: lot.x_alto || 0,
+                x_ancho: lot.x_ancho || 0,
+                x_grosor: lot.x_grosor || 0,
+                x_color: lot.x_color || "",
+                x_fotografia_principal: lot.x_fotografia_principal || false,
+                x_cantidad_fotos: lot.x_cantidad_fotos || 0,
+                status_badges: [{ type: "pending", label: "Pendiente", icon: "fa-clock-o" }],
+                is_locked: false,
+                is_ghost: false,
+            });
+        }
+
+        this._renderSelectedTableFromFullStatus(container, items);
     }
 
     async _onQtyInputChange(input) {
@@ -714,10 +827,10 @@ export class StoneExpandButton extends Component {
         if (!totalEl) return;
 
         let total = 0;
-        this._detailsRow.querySelectorAll(".stone-qty-input").forEach((inp) => {
+        this._detailsRow.querySelectorAll("tbody tr:not(.stone-row-ghost) .stone-qty-input").forEach((inp) => {
             total += parseFloat(inp.value) || 0;
         });
-        this._detailsRow.querySelectorAll("td.col-qty-input .fw-semibold").forEach((span) => {
+        this._detailsRow.querySelectorAll("tbody tr:not(.stone-row-ghost) td.col-qty-input .fw-semibold").forEach((span) => {
             const m = span.textContent.match(/([\d.]+)/);
             if (m) total += parseFloat(m[1]) || 0;
         });
@@ -840,7 +953,7 @@ export class StoneExpandButton extends Component {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // POPUP (DOM puro en document.body)
+    // POPUP
     // ═══════════════════════════════════════════════════════════════════════════
 
     openPopup() {
@@ -855,10 +968,22 @@ export class StoneExpandButton extends Component {
         this._renderPopupDOM(productId);
     }
 
-    _renderPopupDOM(productId) {
+    async _loadPopupStatusMap() {
+        const fullStatus = await this._loadFullStatus();
+        if (!fullStatus) return new Map();
+        const m = new Map();
+        for (const item of fullStatus) {
+            m.set(item.lot_id, item);
+        }
+        return m;
+    }
+
+    async _renderPopupDOM(productId) {
         const root = this._popupRoot;
         const PAGE_SIZE = 35;
         const self = this;
+
+        const statusMap = await this._loadPopupStatusMap();
 
         const state = {
             quants: [],
@@ -872,6 +997,7 @@ export class StoneExpandButton extends Component {
             requestedQty: this._getRequestedQty(),
             requestedUnit: this._getRequestedUnit(),
             qtyCache: {},
+            statusMap,
             filters: { lot_name: "", bloque: "", atado: "", alto_min: "", ancho_min: "", tipo: "" },
         };
 
@@ -885,13 +1011,13 @@ export class StoneExpandButton extends Component {
                         <div class="stone-popup-title">
                             <i class="fa fa-th me-2"></i>
                             Seleccionar Lotes
-                            <span class="stone-popup-subtitle">${this.getProductName() ? "— " + this.getProductName() : ""}</span>
+                            <span class="stone-popup-subtitle">${this.getProductName() ? "— " + this._escapeHtml(this.getProductName()) : ""}</span>
                         </div>
                         <div class="stone-popup-header-actions">
                             <span class="stone-badge-requested">
                                 <i class="fa fa-bullseye me-1"></i>
                                 Mandado <span id="sp-badge-target">${this._fmt(state.requestedQty)}</span>
-                                <span id="sp-badge-target-unit">${state.requestedUnit}</span>
+                                <span id="sp-badge-target-unit">${this._escapeHtml(state.requestedUnit)}</span>
                             </span>
                             <span class="stone-badge-selected">
                                 <i class="fa fa-check-circle me-1"></i>
@@ -914,19 +1040,19 @@ export class StoneExpandButton extends Component {
                     <div class="stone-popup-allocation-summary" id="sp-allocation-summary">
                         <div class="stone-allocation-card stone-allocation-target">
                             <span class="stone-allocation-label">Mandado</span>
-                            <strong id="sp-allocation-target">${this._fmt(state.requestedQty)} ${state.requestedUnit}</strong>
+                            <strong id="sp-allocation-target">${this._fmt(state.requestedQty)} ${this._escapeHtml(state.requestedUnit)}</strong>
                         </div>
                         <div class="stone-allocation-card stone-allocation-selected">
                             <span class="stone-allocation-label">Seleccionado</span>
-                            <strong id="sp-allocation-selected">0.00 ${state.requestedUnit}</strong>
+                            <strong id="sp-allocation-selected">0.00 ${this._escapeHtml(state.requestedUnit)}</strong>
                         </div>
                         <div class="stone-allocation-card stone-allocation-remaining">
                             <span class="stone-allocation-label">Pendiente</span>
-                            <strong id="sp-allocation-remaining">${this._fmt(state.requestedQty)} ${state.requestedUnit}</strong>
+                            <strong id="sp-allocation-remaining">${this._fmt(state.requestedQty)} ${this._escapeHtml(state.requestedUnit)}</strong>
                         </div>
                         <div class="stone-allocation-progress-box">
                             <div class="stone-allocation-progress-head">
-                                <span id="sp-allocation-progress-text">0.00 de ${this._fmt(state.requestedQty)} ${state.requestedUnit}</span>
+                                <span id="sp-allocation-progress-text">0.00 de ${this._fmt(state.requestedQty)} ${this._escapeHtml(state.requestedUnit)}</span>
                                 <strong id="sp-allocation-progress-label">0%</strong>
                             </div>
                             <div class="stone-allocation-progress-track">
@@ -1182,6 +1308,11 @@ export class StoneExpandButton extends Component {
             footerInfo.innerHTML = `<strong>${state.quants.length}</strong> de <strong>${state.totalCount}</strong>`;
         };
 
+        const isLotLocked = (lotId) => {
+            const info = state.statusMap.get(lotId);
+            return info && info.is_locked;
+        };
+
         const doSelectAll = () => {
             for (const q of state.quants) {
                 cacheQuantForTotals(q);
@@ -1198,8 +1329,19 @@ export class StoneExpandButton extends Component {
         };
 
         const doClearAll = () => {
-            state.pendingIds.clear();
-            state.pendingBreakdown = {};
+            // No quitar lotes locked
+            const newIds = new Set();
+            const newBreakdown = {};
+            for (const lotId of state.pendingIds) {
+                if (isLotLocked(lotId)) {
+                    newIds.add(lotId);
+                    if (state.pendingBreakdown[String(lotId)] !== undefined) {
+                        newBreakdown[String(lotId)] = state.pendingBreakdown[String(lotId)];
+                    }
+                }
+            }
+            state.pendingIds = newIds;
+            state.pendingBreakdown = newBreakdown;
             updateBadge();
             renderTable();
         };
@@ -1229,8 +1371,13 @@ export class StoneExpandButton extends Component {
                 const qtyLabel = tipo === "pieza" ? "pzas" : "m²";
                 const inputStep = tipo === "pieza" ? "1" : "0.01";
 
+                const statusInfo = state.statusMap.get(lotId);
+                const lockedByStatus = statusInfo && statusInfo.is_locked;
+
                 let statusBadge;
-                if (sel) {
+                if (statusInfo && statusInfo.status_badges && statusInfo.status_badges.length > 0) {
+                    statusBadge = self._renderStatusBadges(statusInfo.status_badges, { compact: true });
+                } else if (sel) {
                     statusBadge = `<span class="stone-tag stone-tag-ok">Selec.</span>`;
                 } else if (reserved) {
                     statusBadge = `<span class="stone-tag stone-tag-warn">Reserv.</span>`;
@@ -1241,11 +1388,14 @@ export class StoneExpandButton extends Component {
                 const tipoLabel = tipo.charAt(0).toUpperCase() + tipo.slice(1);
 
                 let qtyCell;
-                if (isPartial && sel) {
+                if (lockedByStatus && sel) {
+                    const lockedQty = statusInfo.displayed_qty || 0;
+                    qtyCell = `<span class="text-muted"><i class="fa fa-lock me-1"></i>${self._fmt(lockedQty)} ${qtyLabel}</span>`;
+                } else if (isPartial && sel) {
                     const currentVal = state.pendingBreakdown[lotIdStr] !== undefined
                         ? state.pendingBreakdown[lotIdStr]
                         : q.quantity;
-                    qtyCell = `<input type="number" class="stone-popup-qty-input" 
+                    qtyCell = `<input type="number" class="stone-popup-qty-input"
                                      data-lot-id="${lotId}" data-max="${q.quantity}"
                                      step="${inputStep}" min="0" max="${q.quantity}"
                                      value="${currentVal}" />`;
@@ -1255,7 +1405,6 @@ export class StoneExpandButton extends Component {
                     qtyCell = `<span>${self._fmt(q.quantity)} ${qtyLabel}</span>`;
                 }
 
-                // Foto
                 const photoCell = self._renderPhotoCell(
                     q.x_fotografia_principal || false,
                     q.x_cantidad_fotos || 0,
@@ -1263,26 +1412,30 @@ export class StoneExpandButton extends Component {
                     lotName
                 );
 
+                const rowClasses = [];
+                if (sel) rowClasses.push("row-sel");
+                if (lockedByStatus) rowClasses.push("stone-popup-row-locked");
+
                 rows += `
-                    <tr class="${sel ? "row-sel" : ""}" data-lot-id="${lotId}" data-reserved="${reserved ? "1" : "0"}" data-tipo="${tipo}">
+                    <tr class="${rowClasses.join(" ")}" data-lot-id="${lotId}" data-reserved="${reserved ? "1" : "0"}" data-tipo="${tipo}" data-locked="${lockedByStatus ? "1" : "0"}">
                         <td class="col-chk">
                             <div class="stone-chkbox ${sel ? "checked" : ""}">
                                 ${sel ? '<i class="fa fa-check"></i>' : ""}
                             </div>
                         </td>
                         <td class="col-photo">${photoCell}</td>
-                        <td class="cell-lot">${lotName}</td>
-                        <td>${q.x_bloque || "-"}</td>
-                        <td>${q.x_atado || "-"}</td>
+                        <td class="cell-lot">${self._escapeHtml(lotName)}</td>
+                        <td>${self._escapeHtml(q.x_bloque) || "-"}</td>
+                        <td>${self._escapeHtml(q.x_atado) || "-"}</td>
                         <td class="col-num">${self._fmtDim(q.x_alto)}</td>
                         <td class="col-num">${self._fmtDim(q.x_ancho)}</td>
                         <td class="col-num">${self._fmtDim(q.x_grosor)}</td>
                         <td class="col-num fw-semibold">${self._fmt(q.quantity)}</td>
                         <td><span class="stone-tag stone-tag-tipo-${tipo}">${tipoLabel}</span></td>
                         <td class="col-num col-popup-qty">${qtyCell}</td>
-                        <td>${q.x_color || "-"}</td>
-                        <td class="cell-loc">${loc}</td>
-                        <td>${statusBadge}</td>
+                        <td>${self._escapeHtml(q.x_color) || "-"}</td>
+                        <td class="cell-loc">${self._escapeHtml(loc)}</td>
+                        <td class="stone-popup-status-cell">${statusBadge}</td>
                     </tr>`;
             }
 
@@ -1319,12 +1472,16 @@ export class StoneExpandButton extends Component {
             updateStats();
             updateQtyDisplay();
 
-            // Click en filas (evitar click en foto y en input)
             body.querySelectorAll("tr[data-lot-id]").forEach((tr) => {
-                tr.style.cursor = "pointer";
+                const lockedRow = tr.dataset.locked === "1";
+                tr.style.cursor = lockedRow ? "not-allowed" : "pointer";
                 tr.addEventListener("click", (ev) => {
                     if (ev.target.closest(".stone-popup-qty-input")) return;
                     if (ev.target.closest(".stone-photo-cell[data-has-photo]")) return;
+
+                    if (lockedRow) {
+                        return;
+                    }
 
                     const lotId = parseInt(tr.dataset.lotId);
                     if (!lotId) return;
@@ -1348,7 +1505,6 @@ export class StoneExpandButton extends Component {
                 });
             });
 
-            // Inputs de cantidad parcial
             body.querySelectorAll(".stone-popup-qty-input").forEach((input) => {
                 input.addEventListener("click", (e) => e.stopPropagation());
                 input.addEventListener("input", (e) => {
@@ -1365,10 +1521,8 @@ export class StoneExpandButton extends Component {
                 });
             });
 
-            // Bind photo clicks
             self._bindPhotoClicks(body);
 
-            // Infinite scroll
             if (self._popupObserver) {
                 self._popupObserver.disconnect();
                 self._popupObserver = null;
@@ -1387,7 +1541,6 @@ export class StoneExpandButton extends Component {
             }
         };
 
-        // ─── loadPage ────────────────────────────────────────────────────────
         const loadPage = async (page, reset) => {
             if (reset) {
                 state.isLoading = true;
@@ -1453,7 +1606,7 @@ export class StoneExpandButton extends Component {
                 body.innerHTML = `
                     <div class="stone-empty-state">
                         <i class="fa fa-exclamation-triangle fa-2x text-danger"></i>
-                        <div class="stone-empty-text mt-2 text-danger">Error: ${err.message}</div>
+                        <div class="stone-empty-text mt-2 text-danger">Error: ${self._escapeHtml(err.message)}</div>
                     </div>`;
                 return;
             } finally {
@@ -1464,7 +1617,6 @@ export class StoneExpandButton extends Component {
             renderTable();
         };
 
-        // ─── Confirm / Close ─────────────────────────────────────────────────
         const doConfirm = async () => {
             const newIds = Array.from(state.pendingIds);
 
@@ -1492,7 +1644,6 @@ export class StoneExpandButton extends Component {
 
         const doClose = () => self.destroyPopup();
 
-        // ─── Event listeners ─────────────────────────────────────────────────
         root.querySelector("#sp-close").addEventListener("click", doClose);
         root.querySelector("#sp-cancel").addEventListener("click", doClose);
         root.querySelector("#sp-confirm-top").addEventListener("click", doConfirm);
