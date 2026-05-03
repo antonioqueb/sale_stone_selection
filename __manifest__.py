@@ -1,7 +1,7 @@
-# ./__manifest__.py
+# -*- coding: utf-8 -*-
 {
     'name': 'Stone Selection & Visual Sale Grid',
-    'version': '19.0.1.3.0',
+    'version': '19.0.1.3.1',
     'category': 'Sales/Sales',
     'summary': 'Selección visual de placas con reserva estricta y estatus de entrega',
     'description': """
@@ -9,6 +9,10 @@
         - Reserva estricta de lotes seleccionados (Bypass FIFO).
         - Integración con stock_lot_dimensions para limpieza de asignaciones automáticas.
         - Estatus de entrega/devolución/swap por lote, visible en lista inline y popup.
+
+        Importante:
+        Este módulo NO depende de sale_delivery_wizard para evitar dependencia circular.
+        La integración específica con entregas/swap se conecta desde sale_delivery_wizard.
     """,
     'author': 'Alphaqueb Consulting SAS',
     'website': 'https://alphaqueb.com',
@@ -17,7 +21,6 @@
         'stock',
         'stock_lot_dimensions',
         'inventory_shopping_cart',
-        'sale_delivery_wizard',
     ],
     'data': [
         'security/ir.model.access.csv',
