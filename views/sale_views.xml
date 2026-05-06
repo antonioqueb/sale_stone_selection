@@ -5,7 +5,7 @@
         <field name="model">sale.order</field>
         <field name="inherit_id" ref="sale.view_order_form"/>
         <field name="arch" type="xml">
-            
+
             <!-- js_class para cargar assets -->
             <xpath expr="//field[@name='order_line']/list" position="attributes">
                 <attribute name="js_class">stone_order_line_list</attribute>
@@ -13,16 +13,21 @@
 
             <!-- Botón Stone ANTES del producto (izquierda) -->
             <xpath expr="//field[@name='order_line']/list/field[@name='product_id']" position="before">
-                <field name="is_stone_expanded" 
-                       widget="stone_expand_button" 
-                       string=" " 
-                       width="30px" 
+                <field name="is_stone_expanded"
+                       widget="stone_expand_button"
+                       string=" "
+                       width="30px"
                        nolabel="1"
                        class="p-0 text-center"/>
             </xpath>
 
-            <!-- Campos OCULTOS: column_invisible=True los quita del header y de la tabla -->
+            <!--
+                Campos ocultos necesarios para el widget:
+                - state: permite saber si la línea ya pertenece a una OV confirmada.
+                - lot_ids / x_lot_breakdown_json: selección real de stock.
+            -->
             <xpath expr="//field[@name='order_line']/list/field[@name='product_id']" position="after">
+                <field name="state" column_invisible="True"/>
                 <field name="lot_ids" column_invisible="True"/>
                 <field name="x_lot_breakdown_json" column_invisible="True"/>
             </xpath>

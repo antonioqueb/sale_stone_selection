@@ -25,15 +25,14 @@ const STATUS_CLASS_MAP = {
     pending: "stone-tag-pending",
 };
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// COMPONENTE PRINCIPAL: BOTÓN STONE
-// ═══════════════════════════════════════════════════════════════════════════════
 export class StoneExpandButton extends Component {
     static template = "sale_stone_selection.StoneExpandButton";
     static props = { ...standardFieldProps };
 
     setup() {
         this.orm = useService("orm");
+        this.notification = useService("notification");
+
         this._detailsRow = null;
         this._popupRoot = null;
         this._popupKeyHandler = null;
@@ -69,7 +68,42 @@ export class StoneExpandButton extends Component {
         });
     }
 
-    // ─── Helpers ──────────────────────────────────────────────────────────────
+    _getStateValue(props = this.props) {
+        const value = props?.record?.data?.state;
+
+        if (!value) {
+            return "";
+        }
+
+        if (typeof value === "string") {
+            return value;
+        }
+
+        if (typeof value === "object") {
+            return value.value || value.raw_value || value.name || value.display_name || "";
+        }
+
+        return String(value || "");
+    }
+
+    _isSaleOrderConfirmed(props = this.props) {
+        const state = this._getStateValue(props);
+        return state === "sale" || state === "done";
+    }
+
+    isSelectionLocked(props = this.props) {
+        return !this._isSaleOrderConfirmed(props);
+    }
+
+    _warnQuoteSelectionBlocked() {
+        this.notification.add(
+            "La selección de stock solo está permitida cuando la cotización ya fue confirmada como orden de venta. En cotización captura únicamente la cantidad.",
+            {
+                type: "warning",
+                sticky: false,
+            }
+        );
+    }
 
     _fmt(num) {
         if (num === null || num === undefined || isNaN(num)) return "0.00";
@@ -140,6 +174,11 @@ export class StoneExpandButton extends Component {
     }
 
     _updateCount(props = this.props) {
+        if (this.isSelectionLocked(props)) {
+            this.state.selectedCount = 0;
+            return;
+        }
+
         const ids = this.extractLotIds(props?.record?.data?.lot_ids);
         this.state.selectedCount = ids.length;
     }
@@ -171,10 +210,18 @@ export class StoneExpandButton extends Component {
     }
 
     getCurrentLotIds() {
+        if (this.isSelectionLocked()) {
+            return [];
+        }
         return this.extractLotIds(this.props.record.data.lot_ids);
     }
 
     _loadBreakdownFromRecord() {
+        if (this.isSelectionLocked()) {
+            this._localBreakdown = {};
+            return;
+        }
+
         const raw = this.props.record.data.x_lot_breakdown_json;
         if (!raw) {
             this._localBreakdown = {};
@@ -205,6 +252,11 @@ export class StoneExpandButton extends Component {
     }
 
     async _saveBreakdownToServer(breakdown) {
+        if (this.isSelectionLocked()) {
+            this._warnQuoteSelectionBlocked();
+            return;
+        }
+
         this._localBreakdown = { ...breakdown };
         const recordId = this._getRecordId();
         if (recordId && typeof recordId === "number" && recordId > 0) {
@@ -218,11 +270,11 @@ export class StoneExpandButton extends Component {
         }
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // FULL STATUS — backend call
-    // ═══════════════════════════════════════════════════════════════════════════
-
     async _loadFullStatus() {
+        if (this.isSelectionLocked()) {
+            return [];
+        }
+
         const recordId = this._getRecordId();
         if (!recordId || typeof recordId !== "number" || recordId <= 0) {
             return null;
@@ -255,11 +307,11 @@ export class StoneExpandButton extends Component {
         }).join("");
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // AUTO OPEN DESDE TO BE ALLOCATED
-    // ═══════════════════════════════════════════════════════════════════════════
-
     _autoOpenStoneSelectorFromAllocationHub() {
+        if (this.isSelectionLocked()) {
+            return;
+        }
+
         if (typeof window === "undefined" || !window.sessionStorage) {
             return;
         }
@@ -302,10 +354,6 @@ export class StoneExpandButton extends Component {
             this.openPopup();
         }, 150);
     }
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // LIGHTBOX
-    // ═══════════════════════════════════════════════════════════════════════════
 
     async openLightbox(lotId, lotName, mainPhoto) {
         this._destroyLightbox();
@@ -485,10 +533,15 @@ export class StoneExpandButton extends Component {
         });
     }
 
-    // ─── Toggle principal ─────────────────────────────────────────────────────
-
     async handleToggle(ev) {
         ev.stopPropagation();
+
+        if (this.isSelectionLocked()) {
+            this.removeDetailsRow();
+            this.state.isExpanded = false;
+            this._warnQuoteSelectionBlocked();
+            return;
+        }
 
         if (this.state.isExpanded) {
             this.removeDetailsRow();
@@ -506,8 +559,6 @@ export class StoneExpandButton extends Component {
         this.state.isExpanded = true;
         await this.injectSelectedTable(tr);
     }
-
-    // ─── Tabla de seleccionadas (inline bajo la fila) ─────────────────────────
 
     async injectSelectedTable(currentRow) {
         const newTr = document.createElement("tr");
@@ -563,7 +614,6 @@ export class StoneExpandButton extends Component {
                 return;
             }
 
-            // Fallback (línea no guardada): método viejo sin estatus
             await this._renderSelectedTableLegacy(container, lotIds);
         } catch (err) {
             console.error("[STONE] Error renderizando seleccionadas:", err);
@@ -629,7 +679,6 @@ export class StoneExpandButton extends Component {
 
             const badgesHtml = this._renderStatusBadges(item.status_badges, { compact: false });
 
-            // Cantidad mostrada
             let qtyCell;
             if (isGhost) {
                 qtyCell = `<span class="text-muted"><s>0.00</s> ${qtyLabel}</span>`;
@@ -642,7 +691,6 @@ export class StoneExpandButton extends Component {
                 qtyCell = `<span class="fw-semibold">${this._fmt(item.displayed_qty)} ${qtyLabel}</span>`;
             }
 
-            // Botón quitar (locked = disabled)
             const lockMsg = isLocked
                 ? this._escapeHtml(item.status_badges?.[0]?.label || "Bloqueado")
                 : "Quitar";
@@ -655,7 +703,6 @@ export class StoneExpandButton extends Component {
                        <i class="fa fa-times"></i>
                    </button>`;
 
-            // Lote name (si ghost, tachado)
             const lotNameHtml = isGhost
                 ? `<s>${this._escapeHtml(item.lot_name)}</s>`
                 : this._escapeHtml(item.lot_name);
@@ -695,7 +742,6 @@ export class StoneExpandButton extends Component {
 
         container.innerHTML = html;
 
-        // Bind remove (solo para no-disabled)
         container.querySelectorAll(".stone-remove-btn:not([disabled])").forEach((btn) => {
             btn.addEventListener("click", (e) => {
                 e.stopPropagation();
@@ -703,7 +749,6 @@ export class StoneExpandButton extends Component {
             });
         });
 
-        // Bind qty inputs
         container.querySelectorAll(".stone-qty-input").forEach((input) => {
             let debounceTimer = null;
             input.addEventListener("input", (e) => {
@@ -802,6 +847,11 @@ export class StoneExpandButton extends Component {
     }
 
     async _onQtyInputChange(input) {
+        if (this.isSelectionLocked()) {
+            this._warnQuoteSelectionBlocked();
+            return;
+        }
+
         const lotId = parseInt(input.dataset.lotId);
         const maxQty = parseFloat(input.dataset.max) || 0;
         let val = parseFloat(input.value) || 0;
@@ -838,6 +888,11 @@ export class StoneExpandButton extends Component {
     }
 
     async removeLot(lotId) {
+        if (this.isSelectionLocked()) {
+            this._warnQuoteSelectionBlocked();
+            return;
+        }
+
         const newIds = this.getCurrentLotIds().filter((id) => id !== lotId);
 
         const breakdown = this.getBreakdown();
@@ -870,8 +925,6 @@ export class StoneExpandButton extends Component {
             this._detailsRow = null;
         }
     }
-
-    // ─── Cálculo de cantidad total ────────────────────────────────────────────
 
     async _computeTotalQty(lotIds, breakdown, quantsCache = null) {
         if (!lotIds || lotIds.length === 0) return 0;
@@ -952,11 +1005,12 @@ export class StoneExpandButton extends Component {
         return total;
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // POPUP
-    // ═══════════════════════════════════════════════════════════════════════════
-
     openPopup() {
+        if (this.isSelectionLocked()) {
+            this._warnQuoteSelectionBlocked();
+            return;
+        }
+
         this.destroyPopup();
         const productId = this.getProductId();
         if (!productId) return;
@@ -1329,7 +1383,6 @@ export class StoneExpandButton extends Component {
         };
 
         const doClearAll = () => {
-            // No quitar lotes locked
             const newIds = new Set();
             const newBreakdown = {};
             for (const lotId of state.pendingIds) {
@@ -1618,6 +1671,11 @@ export class StoneExpandButton extends Component {
         };
 
         const doConfirm = async () => {
+            if (this.isSelectionLocked()) {
+                this._warnQuoteSelectionBlocked();
+                return;
+            }
+
             const newIds = Array.from(state.pendingIds);
 
             const cleanBreakdown = {};

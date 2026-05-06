@@ -17,11 +17,49 @@ class SaleOrder(models.Model):
         help="Indica que esta orden es una copia de respaldo de la cotización original.",
     )
 
+    def _stone_clear_quote_stock_selections_before_confirm(self):
+        """
+        Regla funcional crítica:
+        En cotización NO debe existir selección de stock.
+
+        Si por datos históricos, caché de navegador, API externa o una versión
+        anterior del módulo una cotización trae lot_ids / breakdown, se eliminan
+        antes de confirmar para que la orden confirmada nazca limpia.
+
+        Después de confirmar, el usuario debe seleccionar lotes/cantidades desde
+        la orden de venta ya confirmada.
+        """
+        for order in self.filtered(lambda o: o.state in ('draft', 'sent')):
+            lines = order.order_line.filtered(
+                lambda l: bool(l.lot_ids) or bool(l.x_lot_breakdown_json)
+            )
+
+            if not lines:
+                continue
+
+            _logger.warning(
+                "[STONE] Cotización %s tenía selección de stock antes de confirmar. "
+                "Se limpiarán %s línea(s) para evitar cantidades/lotes corruptos.",
+                order.name,
+                len(lines),
+            )
+
+            lines.with_context(
+                skip_stone_sync_so=True,
+                skip_stone_sync_picking=True,
+                skip_picking_clean=True,
+                allow_quote_lot_cleanup=True,
+            ).write({
+                'lot_ids': [(5, 0, 0)],
+                'x_lot_breakdown_json': False,
+            })
+
     def action_confirm(self):
         """
         Confirmación con:
-        1. Duplicación de cotización (backup) + cambio de folio a V (SIEMPRE)
-        2. Asignación estricta de lotes seleccionados (solo si hay lotes)
+        1. Bloqueo funcional: una cotización NO puede confirmar selección de stock.
+        2. Duplicación de cotización (backup) + cambio de folio a V.
+        3. Asignación estricta de lotes SOLO si la orden ya venía en estado válido.
         """
         _logger.info("=" * 80)
         _logger.info("[STONE] ACTION_CONFIRM INICIO - Orden: %s", self.name)
@@ -70,7 +108,13 @@ class SaleOrder(models.Model):
                 }
 
         # =====================================================================
+        # 0. REGLA NUEVA: limpiar selección de stock en cotizaciones
+        # =====================================================================
+        self._stone_clear_quote_stock_selections_before_confirm()
+
+        # =====================================================================
         # 1. GUARDAR los lotes ANTES de cualquier operación
+        #    Nota: después de limpiar cotizaciones, esto normalmente estará vacío.
         # =====================================================================
         lines_lots_map = {}
         all_protected_lot_ids = []
@@ -79,7 +123,6 @@ class SaleOrder(models.Model):
             for line in order.order_line.filtered(lambda l: l.lot_ids):
                 lot_ids = line.lot_ids.ids.copy()
 
-                # Leer breakdown de cantidades parciales
                 breakdown = {}
                 if line.x_lot_breakdown_json:
                     try:
@@ -96,8 +139,12 @@ class SaleOrder(models.Model):
                     'breakdown': breakdown,
                 }
                 all_protected_lot_ids.extend(lot_ids)
-                _logger.info("[STONE] Protegiendo para línea %s: %s lotes, breakdown: %s",
-                             line.id, len(lot_ids), breakdown)
+                _logger.info(
+                    "[STONE] Protegiendo para línea %s: %s lotes, breakdown: %s",
+                    line.id,
+                    len(lot_ids),
+                    breakdown,
+                )
 
         has_stone_lots = bool(lines_lots_map)
 
@@ -118,7 +165,8 @@ class SaleOrder(models.Model):
 
                 _logger.info(
                     "[STONE] Duplicando cotización %s → backup, renombrando a %s",
-                    current_cot_name, new_ov_name
+                    current_cot_name,
+                    new_ov_name,
                 )
 
                 copy_defaults = {
@@ -145,7 +193,8 @@ class SaleOrder(models.Model):
 
                 _logger.info(
                     "[STONE] Backup creado: %s (ID: %s, x_is_quote_backup=True)",
-                    backup_quote.name, backup_quote.id
+                    backup_quote.name,
+                    backup_quote.id,
                 )
 
                 order.name = new_ov_name
@@ -187,10 +236,6 @@ class SaleOrder(models.Model):
 
             for picking in pickings:
                 for move in picking.move_ids.filtered(lambda m: m.state not in ['done', 'cancel']):
-                    # CRÍTICO: Eliminar TODAS las move_lines con lote, no solo las "no protegidas".
-                    # Odoo en action_assign pudo haberlas creado con location_id = ubicación padre
-                    # en lugar de la sub-ubicación real donde vive el quant, lo que causa
-                    # quants fantasma negativos en el padre al validar el picking.
                     all_lot_lines = move.move_line_ids.filtered(lambda ml: ml.lot_id)
                     if all_lot_lines:
                         _logger.info(
@@ -207,7 +252,10 @@ class SaleOrder(models.Model):
                 lots = self.env['stock.lot'].browse(line_data['lot_ids'])
                 if lots:
                     self.with_context(ctx)._assign_stone_lots_to_picking(
-                        pickings, line, lots, line_data.get('breakdown', {})
+                        pickings,
+                        line,
+                        lots,
+                        line_data.get('breakdown', {}),
                     )
 
         # 5. Restaurar visualización en Sale Order
@@ -236,7 +284,8 @@ class SaleOrder(models.Model):
                         })
                         _logger.info(
                             "[STONE] ✓ Limpiado lot_ids de línea %s en cotización %s",
-                            source_line.id, source_orders.name,
+                            source_line.id,
+                            source_orders.name,
                         )
 
         _logger.info("[STONE] ACTION_CONFIRM FIN")
@@ -244,16 +293,6 @@ class SaleOrder(models.Model):
         return res
 
     def _get_lot_qty_for_line(self, sale_line, lot, breakdown=None):
-        """
-        Determina la cantidad correcta a asignar para un lote en un picking.
-
-        LÓGICA:
-        - PLACA: Siempre lote completo (quant.quantity)
-        - FORMATO: Usa breakdown (m² parciales) si existe
-        - PIEZA: Usa breakdown (piezas parciales) si existe
-
-        Retorna: (qty, source) donde source es 'breakdown', 'sale_qty_split', o 'full_quant'
-        """
         tipo = 'placa'
         if hasattr(lot, 'x_tipo') and lot.x_tipo:
             tipo = str(lot.x_tipo).lower()
@@ -263,7 +302,6 @@ class SaleOrder(models.Model):
         if not is_partial_type:
             return None, 'full_quant'
 
-        # === FORMATO / PIEZA: buscar cantidad parcial en breakdown ===
         if not breakdown:
             breakdown = {}
             if sale_line.x_lot_breakdown_json:
@@ -275,45 +313,44 @@ class SaleOrder(models.Model):
                 except (json.JSONDecodeError, TypeError):
                     breakdown = {}
 
-        # Buscar por lot_id como string
         lot_id_str = str(lot.id)
         if lot_id_str in breakdown:
             qty = float(breakdown[lot_id_str])
             _logger.info(
                 "[STONE] Lote %s tipo=%s: usando breakdown → qty=%s",
-                lot.name, tipo, qty,
+                lot.name,
+                tipo,
+                qty,
             )
             return qty, 'breakdown'
 
-        # También intentar buscar por quant_id en x_selected_lots
         if hasattr(sale_line, 'x_selected_lots') and sale_line.x_selected_lots:
             for quant in sale_line.x_selected_lots:
                 if quant.lot_id.id == lot.id and str(quant.id) in breakdown:
                     qty = float(breakdown[str(quant.id)])
                     _logger.info(
                         "[STONE] Lote %s tipo=%s: usando breakdown quant_id=%s → qty=%s",
-                        lot.name, tipo, quant.id, qty,
+                        lot.name,
+                        tipo,
+                        quant.id,
+                        qty,
                     )
                     return qty, 'breakdown'
 
-        # Fallback: dividir product_uom_qty entre el número de lotes
         num_lots = len(sale_line.lot_ids) if sale_line.lot_ids else 1
         if num_lots > 0 and sale_line.product_uom_qty > 0:
             _logger.info(
                 "[STONE] Lote %s tipo=%s: sin breakdown, usando sale_line qty=%s / %s lotes",
-                lot.name, tipo, sale_line.product_uom_qty, num_lots,
+                lot.name,
+                tipo,
+                sale_line.product_uom_qty,
+                num_lots,
             )
             return None, 'sale_qty_split'
 
         return None, 'full_quant'
 
     def _stone_move_line_qty_vals(self, qty):
-        """Devuelve el campo de cantidad correcto para stock.move.line.
-
-        En Odoo 19 el campo operativo es `quantity`. Se dejan fallbacks para
-        no romper ambientes heredados donde aún existan `reserved_uom_qty` o
-        `qty_done`.
-        """
         StockMoveLine = self.env['stock.move.line']
         if 'quantity' in StockMoveLine._fields:
             return {'quantity': qty}
@@ -324,14 +361,6 @@ class SaleOrder(models.Model):
         return {}
 
     def _stone_get_lot_quants_for_assignment(self, product, lot, source_location=None):
-        """Obtiene TODOS los quants físicos positivos de un lote.
-
-        Corrección clave:
-        Antes se usaba `limit=1`. En lotes parciales eso puede tomar solo una
-        fracción física del lote —por ejemplo 19.75— y después capar contra esa
-        fracción aunque la venta haya solicitado 20.00 y el lote completo tenga
-        más existencia distribuida en otros quants/ubicaciones.
-        """
         Quant = self.env['stock.quant']
 
         base_domain = [
@@ -357,15 +386,9 @@ class SaleOrder(models.Model):
         return quants
 
     def _stone_get_lot_physical_qty(self, quants):
-        """Suma la cantidad física total del lote en todos sus quants positivos."""
         return sum((q.quantity or 0.0) for q in quants)
 
     def _stone_build_quant_splits(self, quants, qty):
-        """Parte una cantidad exacta contra los quants disponibles del lote.
-
-        Si un solo quant cubre la cantidad exacta, usa una sola línea. Si no,
-        divide la cantidad en varias líneas conservando el total exacto.
-        """
         qty = float(qty or 0.0)
         if qty <= 0 or not quants:
             return []
@@ -393,7 +416,6 @@ class SaleOrder(models.Model):
         return splits
 
     def _stone_unlink_existing_lot_move_lines(self, move, lot, ctx):
-        """Elimina líneas previas del mismo lote para recrearlas con cantidad exacta."""
         existing_lines = move.move_line_ids.filtered(lambda ml: ml.lot_id == lot)
         if existing_lines:
             _logger.info(
@@ -405,7 +427,6 @@ class SaleOrder(models.Model):
             existing_lines.with_context(ctx).unlink()
 
     def _stone_create_lot_move_lines(self, move, lot, qty, product, quants, ctx):
-        """Crea una o varias stock.move.line respetando la cantidad exacta seleccionada."""
         StockMoveLine = self.env['stock.move.line']
         created_lines = StockMoveLine.browse()
         splits = self._stone_build_quant_splits(quants, qty)
@@ -440,16 +461,6 @@ class SaleOrder(models.Model):
         return created_lines
 
     def _assign_stone_lots_to_picking(self, pickings, sale_line, lots, breakdown=None):
-        """
-        Asigna los lotes seleccionados al picking.
-
-        Corrección aplicada:
-        - Para placas se sigue tomando el lote completo.
-        - Para formatos/piezas se respeta `x_lot_breakdown_json`.
-        - La cantidad parcial ya no se capa contra el primer quant encontrado.
-          Se capa contra la existencia física total del lote y, si hace falta,
-          se divide en varias `stock.move.line` conservando el total exacto.
-        """
         product = sale_line.product_id
         if not lots:
             return
@@ -477,7 +488,9 @@ class SaleOrder(models.Model):
 
                 for lot in lots:
                     partial_qty, qty_source = self._get_lot_qty_for_line(
-                        sale_line, lot, breakdown
+                        sale_line,
+                        lot,
+                        breakdown,
                     )
 
                     quants = self._stone_get_lot_quants_for_assignment(
