@@ -43,6 +43,122 @@ class SaleOrderLine(models.Model):
                 return {}
         return {}
 
+    def _stone_line_get_lot_quants(self, lot, move=None):
+        """Obtiene todos los quants positivos del lote, no solo el primero."""
+        source_location = move.location_id if move and move.location_id else False
+
+        if self.order_id and hasattr(self.order_id, '_stone_get_lot_quants_for_assignment'):
+            return self.order_id._stone_get_lot_quants_for_assignment(
+                product=self.product_id,
+                lot=lot,
+                source_location=source_location,
+            )
+
+        Quant = self.env['stock.quant']
+        base_domain = [
+            ('lot_id', '=', lot.id),
+            ('product_id', '=', self.product_id.id),
+            ('quantity', '>', 0),
+        ]
+
+        quants = Quant.browse()
+        if source_location:
+            quants = Quant.search(
+                base_domain + [('location_id', 'child_of', source_location.id)],
+                order='quantity desc, location_id, id',
+            )
+        if not quants:
+            quants = Quant.search(
+                base_domain + [('location_id.usage', '=', 'internal')],
+                order='quantity desc, location_id, id',
+            )
+        return quants
+
+    def _stone_line_get_lot_physical_qty(self, lot, move=None):
+        """Cantidad física total del lote sumando todos sus quants."""
+        quants = self._stone_line_get_lot_quants(lot, move=move)
+        if self.order_id and hasattr(self.order_id, '_stone_get_lot_physical_qty'):
+            return self.order_id._stone_get_lot_physical_qty(quants)
+        return sum((q.quantity or 0.0) for q in quants)
+
+    def _stone_line_move_line_qty(self, move_line):
+        """Cantidad operativa de una stock.move.line compatible con Odoo 19 y anteriores."""
+        if not move_line:
+            return 0.0
+        if 'quantity' in move_line._fields:
+            return move_line.quantity or 0.0
+        if 'reserved_uom_qty' in move_line._fields:
+            return move_line.reserved_uom_qty or 0.0
+        if 'qty_done' in move_line._fields:
+            return move_line.qty_done or 0.0
+        return 0.0
+
+    def _stone_line_expected_qty_for_lot(self, lot, breakdown, move=None):
+        """Calcula la cantidad exacta esperada para un lote seleccionado."""
+        tipo = str(lot.x_tipo).lower() if lot.x_tipo else 'placa'
+        lot_id_str = str(lot.id)
+        quants = self._stone_line_get_lot_quants(lot, move=move)
+        physical_qty = sum((q.quantity or 0.0) for q in quants)
+
+        if tipo in ('formato', 'pieza') and lot_id_str in breakdown:
+            expected_qty = float(breakdown[lot_id_str] or 0.0)
+        else:
+            expected_qty = physical_qty
+
+        if expected_qty > physical_qty > 0:
+            _logger.warning(
+                "[STONE SYNC] Lote %s solicitado %.6f pero físico total %.6f. Se usará físico total.",
+                lot.name,
+                expected_qty,
+                physical_qty,
+            )
+            expected_qty = physical_qty
+
+        return expected_qty, physical_qty, tipo, quants
+
+    def _stone_line_create_exact_move_lines(self, move, lot, qty, quants, ctx):
+        """Crea líneas de movimiento con cantidad exacta usando helpers de sale.order."""
+        if qty <= 0:
+            return self.env['stock.move.line'].browse()
+
+        if self.order_id and hasattr(self.order_id, '_stone_create_lot_move_lines'):
+            return self.order_id._stone_create_lot_move_lines(
+                move=move,
+                lot=lot,
+                qty=qty,
+                product=self.product_id,
+                quants=quants,
+                ctx=ctx,
+            )
+
+        StockMoveLine = self.env['stock.move.line']
+        created = StockMoveLine.browse()
+        remaining = qty
+
+        for quant in quants.filtered(lambda q: (q.quantity or 0.0) > 0):
+            if remaining <= 0:
+                break
+            take_qty = min(remaining, quant.quantity or 0.0)
+            vals = {
+                'move_id': move.id,
+                'picking_id': move.picking_id.id if move.picking_id else False,
+                'product_id': self.product_id.id,
+                'product_uom_id': move.product_uom.id,
+                'lot_id': lot.id,
+                'location_id': quant.location_id.id,
+                'location_dest_id': move.location_dest_id.id,
+            }
+            if 'quantity' in StockMoveLine._fields:
+                vals['quantity'] = take_qty
+            elif 'reserved_uom_qty' in StockMoveLine._fields:
+                vals['reserved_uom_qty'] = take_qty
+            elif 'qty_done' in StockMoveLine._fields:
+                vals['qty_done'] = take_qty
+            created |= StockMoveLine.with_context(ctx).create(vals)
+            remaining -= take_qty
+
+        return created
+
     # =========================================================================
     # DIAGNÓSTICO
     # =========================================================================
@@ -88,7 +204,10 @@ class SaleOrderLine(models.Model):
         ctx = dict(self.env.context, skip_stone_sync_so=True)
         result = super(SaleOrderLine, self.with_context(ctx)).write(vals)
 
-        if 'lot_ids' in vals and not self.env.context.get('skip_stone_sync_picking'):
+        if (
+            any(k in vals for k in ('lot_ids', 'x_lot_breakdown_json', 'product_uom_qty'))
+            and not self.env.context.get('skip_stone_sync_picking')
+        ):
             for line in self:
                 if line.state in ['sale', 'done'] and line.move_ids:
                     _logger.info("[STONE SYNC] Detectado cambio en lotes SO para línea %s. Sincronizando Picking...", line.id)
@@ -97,10 +216,21 @@ class SaleOrderLine(models.Model):
         return result
 
     def _sync_lots_to_picking_moves(self):
-        ctx = dict(self.env.context,
-                   skip_stone_sync_so=True,
-                   skip_picking_clean=True,
-                   skip_hold_validation=True)
+        """
+        Sincroniza la selección de lotes de la SO hacia pickings abiertos.
+
+        Corrección aplicada:
+        - No se usa `limit=1` para decidir la cantidad disponible del lote.
+        - Para formatos/piezas se respeta exactamente `x_lot_breakdown_json`.
+        - Si el lote está distribuido en varios quants, se crean varias
+          `stock.move.line`, pero la suma queda igual a la cantidad indicada.
+        """
+        ctx = dict(
+            self.env.context,
+            skip_stone_sync_so=True,
+            skip_picking_clean=True,
+            skip_hold_validation=True,
+        )
 
         target_lots = self.lot_ids
         breakdown = self._parse_breakdown_dict()
@@ -108,113 +238,103 @@ class SaleOrderLine(models.Model):
         moves = self.move_ids.filtered(lambda m: m.state not in ['cancel', 'done'])
 
         for move in moves:
+            picking = move.picking_id
+            expected_by_lot = {}
             total_qty = 0.0
-            for lot in target_lots:
-                tipo = str(lot.x_tipo).lower() if lot.x_tipo else 'placa'
-                lot_id_str = str(lot.id)
-                if tipo in ('formato', 'pieza') and lot_id_str in breakdown:
-                    total_qty += float(breakdown[lot_id_str])
-                else:
-                    quant = self.env['stock.quant'].search([
-                        ('lot_id', '=', lot.id),
-                        ('location_id.usage', '=', 'internal'),
-                        ('quantity', '>', 0)
-                    ], limit=1)
-                    total_qty += quant.quantity if quant else 0.0
 
-            if total_qty > 0 and move.product_uom_qty != total_qty:
-                _logger.info("[STONE SYNC] Ajustando demanda Move %s de %s a %s",
-                             move.id, move.product_uom_qty, total_qty)
+            for lot in target_lots:
+                expected_qty, physical_qty, tipo, quants = self._stone_line_expected_qty_for_lot(
+                    lot, breakdown, move=move
+                )
+                expected_by_lot[lot.id] = {
+                    'qty': expected_qty,
+                    'physical_qty': physical_qty,
+                    'tipo': tipo,
+                    'quants': quants,
+                }
+                total_qty += expected_qty
+
+            if total_qty > 0 and abs((move.product_uom_qty or 0.0) - total_qty) > 0.0001:
+                _logger.info(
+                    "[STONE SYNC] Ajustando demanda Move %s de %s a %s",
+                    move.id,
+                    move.product_uom_qty,
+                    total_qty,
+                )
                 move.with_context(ctx).write({'product_uom_qty': total_qty})
 
-            picking = move.picking_id
             existing_move_lines = move.move_line_ids
             existing_lots = existing_move_lines.mapped('lot_id')
 
             lots_to_remove = existing_lots - target_lots
             if lots_to_remove:
                 lines_to_unlink = existing_move_lines.filtered(lambda ml: ml.lot_id in lots_to_remove)
-                _logger.info("[STONE SYNC] Eliminando %s lotes del picking %s", len(lines_to_unlink), picking.name)
+                _logger.info(
+                    "[STONE SYNC] Eliminando %s lote(s) del picking %s",
+                    len(lines_to_unlink),
+                    picking.name if picking else 'N/A',
+                )
                 lines_to_unlink.with_context(ctx).unlink()
 
             lots_to_add = target_lots - existing_lots
             if lots_to_add:
-                _logger.info("[STONE SYNC] Agregando %s lotes al picking %s", len(lots_to_add), picking.name)
+                _logger.info(
+                    "[STONE SYNC] Agregando %s lote(s) al picking %s",
+                    len(lots_to_add),
+                    picking.name if picking else 'N/A',
+                )
                 for lot in lots_to_add:
-                    quant = self.env['stock.quant'].search([
-                        ('lot_id', '=', lot.id),
-                        ('product_id', '=', self.product_id.id),
-                        ('location_id', 'child_of', move.location_id.id),
-                        ('quantity', '>', 0)
-                    ], limit=1)
+                    data = expected_by_lot.get(lot.id) or {}
+                    qty = data.get('qty') or 0.0
+                    quants = data.get('quants') or self._stone_line_get_lot_quants(lot, move=move)
 
-                    if not quant:
-                        quant = self.env['stock.quant'].search([
-                            ('lot_id', '=', lot.id),
-                            ('product_id', '=', self.product_id.id),
-                            ('location_id.usage', '=', 'internal'),
-                            ('quantity', '>', 0)
-                        ], limit=1)
+                    if not quants:
+                        _logger.warning(
+                            "[STONE SYNC] No se pudo sincronizar lote %s: no hay stock físico encontrado.",
+                            lot.name,
+                        )
+                        continue
 
-                    if quant:
-                        tipo = str(lot.x_tipo).lower() if lot.x_tipo else 'placa'
-                        lot_id_str = str(lot.id)
-                        if tipo in ('formato', 'pieza') and lot_id_str in breakdown:
-                            qty = min(float(breakdown[lot_id_str]), quant.quantity)
-                        else:
-                            qty = quant.quantity
+                    if qty <= 0:
+                        continue
 
-                        move_line_vals = {
-                            'move_id': move.id,
-                            'picking_id': picking.id,
-                            'product_id': self.product_id.id,
-                            'product_uom_id': move.product_uom.id,
-                            'lot_id': lot.id,
-                            'location_id': quant.location_id.id,
-                            'location_dest_id': move.location_dest_id.id,
-                            'quantity': qty,
-                        }
-                        try:
-                            self.env['stock.move.line'].with_context(ctx).create(move_line_vals)
-                        except Exception as e:
-                            _logger.error("[STONE SYNC] Error creando move line para lote %s: %s", lot.name, str(e))
-                    else:
-                        _logger.warning("[STONE SYNC] No se pudo sincronizar lote %s: No stock físico encontrado", lot.name)
+                    self._stone_line_create_exact_move_lines(move, lot, qty, quants, ctx)
 
             for lot in (target_lots & existing_lots):
-                existing_line = existing_move_lines.filtered(lambda ml: ml.lot_id.id == lot.id)
-                if not existing_line:
+                existing_lines = move.move_line_ids.filtered(lambda ml: ml.lot_id.id == lot.id)
+                data = expected_by_lot.get(lot.id) or {}
+                expected_qty = data.get('qty') or 0.0
+                quants = data.get('quants') or self._stone_line_get_lot_quants(lot, move=move)
+
+                if not existing_lines:
+                    if expected_qty > 0 and quants:
+                        self._stone_line_create_exact_move_lines(move, lot, expected_qty, quants, ctx)
                     continue
 
-                real_quant = self.env['stock.quant'].search([
-                    ('lot_id', '=', lot.id),
-                    ('product_id', '=', self.product_id.id),
-                    ('location_id', 'child_of', move.location_id.id),
-                    ('quantity', '>', 0),
-                ], limit=1)
+                current_qty = sum(self._stone_line_move_line_qty(ml) for ml in existing_lines)
+                valid_location_ids = set(quants.mapped('location_id').ids) if quants else set()
+                current_location_ids = set(existing_lines.mapped('location_id').ids)
 
-                update_vals = {}
-                if real_quant and existing_line[0].location_id.id != real_quant.location_id.id:
-                    _logger.warning(
-                        "[STONE SYNC] Corrigiendo location_id de %s → %s en move_line %s (lote %s)",
-                        existing_line[0].location_id.display_name,
-                        real_quant.location_id.display_name,
-                        existing_line[0].id,
-                        lot.name,
+                needs_rebuild = abs(current_qty - expected_qty) > 0.0001
+                if valid_location_ids and (current_location_ids - valid_location_ids):
+                    needs_rebuild = True
+
+                if not needs_rebuild:
+                    continue
+
+                _logger.info(
+                    "[STONE SYNC] Reconstruyendo lote %s en move %s: actual %.6f → esperado %.6f",
+                    lot.name,
+                    move.id,
+                    current_qty,
+                    expected_qty,
+                )
+                existing_lines.with_context(ctx).unlink()
+
+                if expected_qty > 0 and quants:
+                    self._stone_line_create_exact_move_lines(
+                        move, lot, expected_qty, quants, ctx
                     )
-                    update_vals['location_id'] = real_quant.location_id.id
-
-                tipo = str(lot.x_tipo).lower() if lot.x_tipo else 'placa'
-                lot_id_str = str(lot.id)
-                if tipo in ('formato', 'pieza') and lot_id_str in breakdown:
-                    expected_qty = float(breakdown[lot_id_str])
-                    if existing_line[0].quantity != expected_qty:
-                        _logger.info("[STONE SYNC] Corrigiendo qty lote %s de %s a %s",
-                                     lot.name, existing_line[0].quantity, expected_qty)
-                        update_vals['quantity'] = expected_qty
-
-                if update_vals:
-                    existing_line[0].with_context(ctx).write(update_vals)
 
     def read(self, fields=None, load='_classic_read'):
         result = super(SaleOrderLine, self).read(fields, load)
@@ -237,12 +357,7 @@ class SaleOrderLine(models.Model):
             if tipo in ('formato', 'pieza') and lot_id_str in breakdown:
                 total_qty += float(breakdown[lot_id_str])
             else:
-                quant = self.env['stock.quant'].search([
-                    ('lot_id', '=', lot.id),
-                    ('location_id.usage', '=', 'internal'),
-                    ('quantity', '>', 0)
-                ], limit=1)
-                total_qty += quant.quantity if quant else 0.0
+                total_qty += self._stone_line_get_lot_physical_qty(lot)
 
         if total_qty > 0:
             self.product_uom_qty = total_qty
@@ -262,7 +377,7 @@ class SaleOrderLine(models.Model):
                 lot = ml.lot_id
                 if lot.id not in lot_data:
                     lot_data[lot.id] = {'lot': lot, 'quantity': 0.0}
-                lot_data[lot.id]['quantity'] += ml.quantity or ml.reserved_uom_qty or 0.0
+                lot_data[lot.id]['quantity'] += self._stone_line_move_line_qty(ml)
             return list(lot_data.values())
 
         if self.lot_ids:
@@ -276,13 +391,8 @@ class SaleOrderLine(models.Model):
                 if tipo in ('formato', 'pieza') and lot_id_str in breakdown:
                     qty = float(breakdown[lot_id_str])
                 else:
-                    quant = self.env['stock.quant'].search([
-                        ('lot_id', '=', lot.id),
-                        ('product_id', '=', self.product_id.id),
-                        ('location_id.usage', '=', 'internal'),
-                        ('quantity', '>', 0)
-                    ], limit=1)
-                    qty = quant.quantity if quant else (lot.x_alto * lot.x_ancho if lot.x_alto and lot.x_ancho else 0.0)
+                    physical_qty = self._stone_line_get_lot_physical_qty(lot)
+                    qty = physical_qty if physical_qty else (lot.x_alto * lot.x_ancho if lot.x_alto and lot.x_ancho else 0.0)
 
                 result.append({
                     'lot': lot,
