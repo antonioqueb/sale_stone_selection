@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from odoo import models, fields, api, _
+from odoo.tools import float_compare
 import json
 import logging
 
@@ -306,10 +307,148 @@ class SaleOrder(models.Model):
 
         return None, 'full_quant'
 
+    def _stone_move_line_qty_vals(self, qty):
+        """Devuelve el campo de cantidad correcto para stock.move.line.
+
+        En Odoo 19 el campo operativo es `quantity`. Se dejan fallbacks para
+        no romper ambientes heredados donde aún existan `reserved_uom_qty` o
+        `qty_done`.
+        """
+        StockMoveLine = self.env['stock.move.line']
+        if 'quantity' in StockMoveLine._fields:
+            return {'quantity': qty}
+        if 'reserved_uom_qty' in StockMoveLine._fields:
+            return {'reserved_uom_qty': qty}
+        if 'qty_done' in StockMoveLine._fields:
+            return {'qty_done': qty}
+        return {}
+
+    def _stone_get_lot_quants_for_assignment(self, product, lot, source_location=None):
+        """Obtiene TODOS los quants físicos positivos de un lote.
+
+        Corrección clave:
+        Antes se usaba `limit=1`. En lotes parciales eso puede tomar solo una
+        fracción física del lote —por ejemplo 19.75— y después capar contra esa
+        fracción aunque la venta haya solicitado 20.00 y el lote completo tenga
+        más existencia distribuida en otros quants/ubicaciones.
+        """
+        Quant = self.env['stock.quant']
+
+        base_domain = [
+            ('lot_id', '=', lot.id),
+            ('product_id', '=', product.id),
+            ('quantity', '>', 0),
+        ]
+
+        quants = Quant.browse()
+
+        if source_location:
+            quants = Quant.search(
+                base_domain + [('location_id', 'child_of', source_location.id)],
+                order='quantity desc, location_id, id',
+            )
+
+        if not quants:
+            quants = Quant.search(
+                base_domain + [('location_id.usage', '=', 'internal')],
+                order='quantity desc, location_id, id',
+            )
+
+        return quants
+
+    def _stone_get_lot_physical_qty(self, quants):
+        """Suma la cantidad física total del lote en todos sus quants positivos."""
+        return sum((q.quantity or 0.0) for q in quants)
+
+    def _stone_build_quant_splits(self, quants, qty):
+        """Parte una cantidad exacta contra los quants disponibles del lote.
+
+        Si un solo quant cubre la cantidad exacta, usa una sola línea. Si no,
+        divide la cantidad en varias líneas conservando el total exacto.
+        """
+        qty = float(qty or 0.0)
+        if qty <= 0 or not quants:
+            return []
+
+        positive_quants = quants.filtered(lambda q: (q.quantity or 0.0) > 0)
+
+        for quant in positive_quants:
+            if (quant.quantity or 0.0) >= qty:
+                return [(quant, qty)]
+
+        remaining = qty
+        splits = []
+
+        for quant in positive_quants:
+            if remaining <= 0:
+                break
+
+            take_qty = min(remaining, quant.quantity or 0.0)
+            if take_qty <= 0:
+                continue
+
+            splits.append((quant, take_qty))
+            remaining -= take_qty
+
+        return splits
+
+    def _stone_unlink_existing_lot_move_lines(self, move, lot, ctx):
+        """Elimina líneas previas del mismo lote para recrearlas con cantidad exacta."""
+        existing_lines = move.move_line_ids.filtered(lambda ml: ml.lot_id == lot)
+        if existing_lines:
+            _logger.info(
+                "[STONE] Eliminando %s move_line(s) previas del lote %s en move %s para recrear cantidad exacta.",
+                len(existing_lines),
+                lot.name,
+                move.id,
+            )
+            existing_lines.with_context(ctx).unlink()
+
+    def _stone_create_lot_move_lines(self, move, lot, qty, product, quants, ctx):
+        """Crea una o varias stock.move.line respetando la cantidad exacta seleccionada."""
+        StockMoveLine = self.env['stock.move.line']
+        created_lines = StockMoveLine.browse()
+        splits = self._stone_build_quant_splits(quants, qty)
+
+        for quant, split_qty in splits:
+            vals = {
+                'move_id': move.id,
+                'picking_id': move.picking_id.id if move.picking_id else False,
+                'product_id': product.id,
+                'product_uom_id': move.product_uom.id,
+                'lot_id': lot.id,
+                'location_id': quant.location_id.id,
+                'location_dest_id': move.location_dest_id.id,
+            }
+            vals.update(self._stone_move_line_qty_vals(split_qty))
+
+            if quant.package_id and 'package_id' in StockMoveLine._fields:
+                vals['package_id'] = quant.package_id.id
+            if quant.owner_id and 'owner_id' in StockMoveLine._fields:
+                vals['owner_id'] = quant.owner_id.id
+
+            created_lines |= StockMoveLine.with_context(ctx).create(vals)
+
+            _logger.info(
+                "[STONE] ✓ Move line creada lote=%s qty=%.6f ubicación=%s picking=%s",
+                lot.name,
+                split_qty,
+                quant.location_id.display_name,
+                move.picking_id.name if move.picking_id else 'N/A',
+            )
+
+        return created_lines
+
     def _assign_stone_lots_to_picking(self, pickings, sale_line, lots, breakdown=None):
         """
         Asigna los lotes seleccionados al picking.
-        Para formato/pieza, respeta las cantidades parciales del breakdown.
+
+        Corrección aplicada:
+        - Para placas se sigue tomando el lote completo.
+        - Para formatos/piezas se respeta `x_lot_breakdown_json`.
+        - La cantidad parcial ya no se capa contra el primer quant encontrado.
+          Se capa contra la existencia física total del lote y, si hace falta,
+          se divide en varias `stock.move.line` conservando el total exacto.
         """
         product = sale_line.product_id
         if not lots:
@@ -326,98 +465,98 @@ class SaleOrder(models.Model):
             skip_stone_sync_so=True,
         )
 
+        rounding = product.uom_id.rounding or 0.00001
+
         for picking in pickings:
             moves = picking.move_ids.filtered(
                 lambda m: m.product_id.id == product.id and m.state not in ['done', 'cancel']
             )
 
             for move in moves:
-                existing_lot_ids = move.move_line_ids.mapped('lot_id').ids
+                total_for_move = 0.0
 
                 for lot in lots:
-                    partial_qty, qty_source = self._get_lot_qty_for_line(sale_line, lot, breakdown)
+                    partial_qty, qty_source = self._get_lot_qty_for_line(
+                        sale_line, lot, breakdown
+                    )
 
-                    quant = self.env['stock.quant'].search([
-                        ('lot_id', '=', lot.id),
-                        ('product_id', '=', product.id),
-                        ('location_id', 'child_of', move.location_id.id),
-                        ('quantity', '>', 0),
-                    ], limit=1)
+                    quants = self._stone_get_lot_quants_for_assignment(
+                        product=product,
+                        lot=lot,
+                        source_location=move.location_id,
+                    )
 
-                    if not quant:
-                        quant = self.env['stock.quant'].search([
-                            ('lot_id', '=', lot.id),
-                            ('product_id', '=', product.id),
-                            ('location_id.usage', '=', 'internal'),
-                            ('quantity', '>', 0),
-                        ], limit=1)
-
-                    if not quant:
-                        _logger.warning("[STONE] Lote %s no encontrado físicamente", lot.name)
+                    if not quants:
+                        _logger.warning(
+                            "[STONE] Lote %s no encontrado físicamente para producto %s.",
+                            lot.name,
+                            product.display_name,
+                        )
                         continue
 
+                    physical_qty = self._stone_get_lot_physical_qty(quants)
+
                     if qty_source == 'full_quant':
-                        qty_to_assign = quant.quantity
+                        qty_to_assign = physical_qty
                     elif qty_source == 'breakdown' and partial_qty is not None:
                         qty_to_assign = partial_qty
                     elif qty_source == 'sale_qty_split':
                         num_lots = len(lots)
-                        qty_to_assign = sale_line.product_uom_qty / num_lots if num_lots > 0 else quant.quantity
+                        qty_to_assign = (
+                            sale_line.product_uom_qty / num_lots
+                            if num_lots > 0 else physical_qty
+                        )
                     else:
-                        qty_to_assign = quant.quantity
+                        qty_to_assign = physical_qty
 
-                    # Nunca asignar más de lo que hay físicamente
-                    qty_to_assign = min(qty_to_assign, quant.quantity)
+                    if float_compare(qty_to_assign, physical_qty, precision_rounding=rounding) > 0:
+                        _logger.warning(
+                            "[STONE] Lote %s solicitado %.6f pero solo existe físicamente %.6f. Se usará %.6f.",
+                            lot.name,
+                            qty_to_assign,
+                            physical_qty,
+                            physical_qty,
+                        )
+                        qty_to_assign = physical_qty
 
-                    if lot.id in existing_lot_ids:
-                        _logger.info("[STONE] Lote %s ya existe en move %s, verificando cantidad y ubicación...", lot.name, move.id)
-                        existing_line = move.move_line_ids.filtered(lambda ml: ml.lot_id.id == lot.id)
-                        if existing_line:
-                            update_vals = {}
-                            # Validar ubicación: debe coincidir con la sub-ubicación real del quant
-                            if existing_line.location_id.id != quant.location_id.id:
-                                _logger.warning(
-                                    "[STONE] Corrigiendo location_id de move_line %s: %s → %s",
-                                    existing_line.id,
-                                    existing_line.location_id.display_name,
-                                    quant.location_id.display_name,
-                                )
-                                update_vals['location_id'] = quant.location_id.id
-                            if existing_line.quantity != qty_to_assign:
-                                _logger.info(
-                                    "[STONE] Corrigiendo cantidad de %s a %s (source=%s, tipo=%s)",
-                                    existing_line.quantity, qty_to_assign, qty_source,
-                                    lot.x_tipo if hasattr(lot, 'x_tipo') else 'placa',
-                                )
-                                update_vals['quantity'] = qty_to_assign
-                            if update_vals:
-                                existing_line.with_context(ctx).write(update_vals)
-                            else:
-                                _logger.info("[STONE] Lote %s ya correcto (qty=%s, loc=%s)", lot.name, qty_to_assign, quant.location_id.display_name)
+                    if float_compare(qty_to_assign, 0, precision_rounding=rounding) <= 0:
                         continue
 
+                    self._stone_unlink_existing_lot_move_lines(move, lot, ctx)
+
                     _logger.info(
-                        "[STONE] Asignando lote %s qty=%s (source=%s, tipo=%s)",
-                        lot.name, qty_to_assign, qty_source,
+                        "[STONE] Asignando lote %s qty=%.6f (source=%s, tipo=%s, físico_total=%.6f, quants=%s)",
+                        lot.name,
+                        qty_to_assign,
+                        qty_source,
                         lot.x_tipo if hasattr(lot, 'x_tipo') else 'placa',
+                        physical_qty,
+                        len(quants),
                     )
 
-                    move_line_vals = {
-                        'move_id': move.id,
-                        'picking_id': picking.id,
-                        'product_id': product.id,
-                        'product_uom_id': move.product_uom.id,
-                        'lot_id': lot.id,
-                        'location_id': quant.location_id.id,
-                        'location_dest_id': move.location_dest_id.id,
-                        'quantity': qty_to_assign,
-                    }
+                    self._stone_create_lot_move_lines(
+                        move=move,
+                        lot=lot,
+                        qty=qty_to_assign,
+                        product=product,
+                        quants=quants,
+                        ctx=ctx,
+                    )
+                    total_for_move += qty_to_assign
 
-                    try:
-                        self.env['stock.move.line'].with_context(ctx).create(move_line_vals)
-                        _logger.info("[STONE] ✓ Asignado Lote %s (Qty: %s) a Picking %s", lot.name, qty_to_assign, picking.name)
-                    except Exception as e:
-                        _logger.error("[STONE] Error asignando lote %s: %s", lot.name, str(e))
+                if float_compare(total_for_move, 0, precision_rounding=rounding) > 0:
+                    if float_compare(
+                        move.product_uom_qty,
+                        total_for_move,
+                        precision_rounding=rounding,
+                    ) != 0:
+                        _logger.info(
+                            "[STONE] Ajustando demanda del move %s de %.6f a %.6f para respetar selección exacta.",
+                            move.id,
+                            move.product_uom_qty,
+                            total_for_move,
+                        )
+                        move.with_context(ctx).write({'product_uom_qty': total_for_move})
 
     def copy_data(self, default=None):
         return super().copy_data(default)
