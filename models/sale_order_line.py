@@ -270,6 +270,8 @@ class SaleOrderLine(models.Model):
         return super(SaleOrderLine, self).create(clean_vals_list)
 
     def write(self, vals):
+        vals = dict(vals or {})
+
         has_selection_vals = any(
             key in vals for key in ('lot_ids', 'x_lot_breakdown_json')
         )
@@ -280,6 +282,20 @@ class SaleOrderLine(models.Model):
                 _logger.info("[STONE LINE WRITE] lot_ids EN vals: %s", vals['lot_ids'])
             if 'x_lot_breakdown_json' in vals:
                 _logger.info("[STONE LINE WRITE] breakdown EN vals: %s", vals['x_lot_breakdown_json'])
+
+            # REGLA CENTRAL:
+            # Seleccionar/desasignar placas NO debe cambiar product_uom_qty.
+            # product_uom_qty representa lo solicitado por el cliente.
+            if (
+                'product_uom_qty' in vals
+                and not self.env.context.get('allow_stone_selection_update_qty')
+            ):
+                _logger.info(
+                    "[STONE LINE WRITE] Ignorando product_uom_qty=%s porque vino junto con selección de lotes. "
+                    "La cantidad solicitada se conserva.",
+                    vals.get('product_uom_qty'),
+                )
+                vals.pop('product_uom_qty', None)
 
         ctx = dict(self.env.context, skip_stone_sync_so=True)
 
@@ -311,7 +327,7 @@ class SaleOrderLine(models.Model):
             result = super(SaleOrderLine, self.with_context(ctx)).write(vals)
 
         if (
-            any(k in vals for k in ('lot_ids', 'x_lot_breakdown_json', 'product_uom_qty'))
+            any(k in vals for k in ('lot_ids', 'x_lot_breakdown_json'))
             and not self.env.context.get('skip_stone_sync_picking')
         ):
             for line in self:
@@ -468,31 +484,17 @@ class SaleOrderLine(models.Model):
                         'message': _(
                             'Solo puedes seleccionar lotes/placas cuando la cotización '
                             'ya fue confirmada como orden de venta. En cotización captura '
-                            'únicamente la cantidad.'
+                            'únicamente la cantidad solicitada.'
                         ),
                     }
                 }
             return
 
-        if not self.lot_ids:
-            return
-
-        breakdown = self._parse_breakdown_dict()
-
-        total_qty = 0.0
-        for lot in self.lot_ids:
-            tipo = str(lot.x_tipo).lower() if lot.x_tipo else 'placa'
-            lot_id_str = str(lot.id)
-
-            if tipo in ('formato', 'pieza') and lot_id_str in breakdown:
-                total_qty += float(breakdown[lot_id_str])
-            else:
-                total_qty += self._stone_line_get_lot_physical_qty(lot)
-
-        if total_qty > 0:
-            self.product_uom_qty = total_qty
-            _logger.info("[STONE ONCHANGE] product_uom_qty actualizado a: %s", total_qty)
-
+        # REGLA CENTRAL:
+        # La selección de placas no recalcula product_uom_qty.
+        # product_uom_qty queda como cantidad solicitada / demanda comercial.
+        return
+    
     def _get_all_sale_lots_with_qty(self):
         self.ensure_one()
 

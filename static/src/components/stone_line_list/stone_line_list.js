@@ -899,12 +899,10 @@ export class StoneExpandButton extends Component {
         delete breakdown[String(lotId)];
         await this._saveBreakdownToServer(breakdown);
 
-        const totalQty = await this._computeTotalQty(newIds, breakdown);
-
         await this.props.record.update({
             lot_ids: [[6, 0, newIds]],
-            product_uom_qty: totalQty,
         });
+
         this._updateCount();
         await this.refreshSelectedTable();
     }
@@ -1070,7 +1068,7 @@ export class StoneExpandButton extends Component {
                         <div class="stone-popup-header-actions">
                             <span class="stone-badge-requested">
                                 <i class="fa fa-bullseye me-1"></i>
-                                Mandado <span id="sp-badge-target">${this._fmt(state.requestedQty)}</span>
+                                Solicitado <span id="sp-badge-target">${this._fmt(state.requestedQty)}</span>
                                 <span id="sp-badge-target-unit">${this._escapeHtml(state.requestedUnit)}</span>
                             </span>
                             <span class="stone-badge-selected">
@@ -1093,11 +1091,11 @@ export class StoneExpandButton extends Component {
 
                     <div class="stone-popup-allocation-summary" id="sp-allocation-summary">
                         <div class="stone-allocation-card stone-allocation-target">
-                            <span class="stone-allocation-label">Mandado</span>
+                            <span class="stone-allocation-label">Solicitado</span>
                             <strong id="sp-allocation-target">${this._fmt(state.requestedQty)} ${this._escapeHtml(state.requestedUnit)}</strong>
                         </div>
                         <div class="stone-allocation-card stone-allocation-selected">
-                            <span class="stone-allocation-label">Seleccionado</span>
+                            <span class="stone-allocation-label">Asignado</span>
                             <strong id="sp-allocation-selected">0.00 ${this._escapeHtml(state.requestedUnit)}</strong>
                         </div>
                         <div class="stone-allocation-card stone-allocation-remaining">
@@ -1685,15 +1683,12 @@ export class StoneExpandButton extends Component {
                 }
             }
 
-            const totalQty = await self._computeTotalQty(newIds, cleanBreakdown, state.quants);
-
             self.destroyPopup();
 
             await self._saveBreakdownToServer(cleanBreakdown);
 
             await self.props.record.update({
                 lot_ids: [[6, 0, newIds]],
-                product_uom_qty: totalQty,
             });
 
             self._updateCount();
