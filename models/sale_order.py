@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from odoo import models, fields, api, _
+from odoo.exceptions import UserError
 from odoo.tools import float_compare
 import json
 import logging
@@ -53,6 +54,63 @@ class SaleOrder(models.Model):
                 'lot_ids': [(5, 0, 0)],
                 'x_lot_breakdown_json': False,
             })
+
+    def _stone_assert_no_transient_auto_lots_left(self):
+        """
+        Postcondición de seguridad para la confirmación sin selección manual.
+
+        Durante action_confirm Odoo puede crear move lines con lote por reserva
+        nativa. En este flujo se permiten solo como estado transitorio porque
+        stock_lot_dimensions debe limpiarlas inmediatamente después de super().
+        Si una línea con lote queda viva, se detiene la confirmación para no
+        dejar una reserva física que el usuario no seleccionó.
+        """
+        StockMoveLine = self.env['stock.move.line'].sudo()
+        qty_field = 'quantity' if 'quantity' in StockMoveLine._fields else 'qty_done'
+
+        for order in self:
+            pickings = order.picking_ids.filtered(
+                lambda p: p.state not in ('done', 'cancel')
+            )
+            if not pickings:
+                continue
+
+            residual_lines = pickings.move_ids.move_line_ids.filtered(
+                lambda ml:
+                    ml.lot_id
+                    and ml.move_id.state not in ('done', 'cancel')
+                    and float(getattr(ml, qty_field, 0.0) or 0.0) > 0.0
+            )
+
+            if not residual_lines:
+                continue
+
+            details = []
+            for line in residual_lines[:10]:
+                details.append(
+                    '%s / %s / %s / qty=%s' % (
+                        line.picking_id.name if line.picking_id else 'Sin picking',
+                        line.product_id.display_name if line.product_id else 'Sin producto',
+                        line.lot_id.name if line.lot_id else 'Sin lote',
+                        getattr(line, qty_field, 0.0) or 0.0,
+                    )
+                )
+
+            _logger.error(
+                "[STONE] La limpieza posterior a confirmación dejó %s move_line(s) "
+                "con lote automático en la orden %s: %s",
+                len(residual_lines),
+                order.name,
+                residual_lines.ids,
+            )
+
+            raise UserError(_(
+                "La venta se confirmó en modo de autoasignación transitoria, "
+                "pero quedaron lotes asignados automáticamente.\n\n"
+                "La operación fue detenida para evitar una reserva física no seleccionada.\n\n"
+                "Líneas detectadas:\n%s\n\n"
+                "Revise la limpieza de pickings automáticos antes de reintentar."
+            ) % '\n'.join(details))
 
     def action_confirm(self):
         """
@@ -206,8 +264,24 @@ class SaleOrder(models.Model):
         # 3. CONFIRMAR: Llamar a super() con o sin protección de lotes
         # =====================================================================
         if not has_stone_lots:
-            _logger.info("[STONE] Sin lotes seleccionados. Confirmando normalmente.")
-            res = super(SaleOrder, self).action_confirm()
+            transient_ctx = dict(
+                self.env.context,
+                # Odoo puede autoasignar lotes durante super().action_confirm().
+                # En este flujo esos lotes son basura transitoria: stock_lot_dimensions
+                # los limpia inmediatamente después de confirmar. Por eso se evita
+                # que las validaciones funcionales bloqueen antes de la limpieza.
+                stone_transient_auto_assign=True,
+                skip_duplicate_lot_validation=True,
+                skip_hold_validation=True,
+                skip_picking_clean=False,
+            )
+
+            _logger.info(
+                "[STONE] Sin lotes seleccionados. Confirmando con autoasignación "
+                "transitoria tolerada y limpieza posterior obligatoria."
+            )
+            res = super(SaleOrder, self.with_context(transient_ctx)).action_confirm()
+            self.with_context(transient_ctx)._stone_assert_no_transient_auto_lots_left()
             _logger.info("[STONE] ACTION_CONFIRM FIN")
             _logger.info("=" * 80)
             return res
