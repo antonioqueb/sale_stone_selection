@@ -64,6 +64,12 @@ class SaleOrder(models.Model):
         stock_lot_dimensions debe limpiarlas inmediatamente después de super().
         Si una línea con lote queda viva, se detiene la confirmación para no
         dejar una reserva física que el usuario no seleccionó.
+
+        Excepción crítica: el flujo del carrito (inventory_shopping_cart) asigna
+        lotes de forma intencional desde x_selected_lots DESPUÉS de la limpieza.
+        Esos lotes SON la selección real del usuario, no autoasignación basura,
+        por lo que no deben disparar el aborto. Por eso se ignoran del chequeo
+        las move lines cuyo lote pertenece a x_selected_lots de la orden.
         """
         StockMoveLine = self.env['stock.move.line'].sudo()
         qty_field = 'quantity' if 'quantity' in StockMoveLine._fields else 'qty_done'
@@ -75,9 +81,19 @@ class SaleOrder(models.Model):
             if not pickings:
                 continue
 
+            # Lotes seleccionados explícitamente desde el carrito en esta orden.
+            # Son selección legítima y NO se consideran basura transitoria.
+            cart_selected_lot_ids = set()
+            for sale_line in order.order_line:
+                if 'x_selected_lots' in sale_line._fields and sale_line.x_selected_lots:
+                    cart_selected_lot_ids.update(
+                        sale_line.x_selected_lots.mapped('lot_id').ids
+                    )
+
             residual_lines = pickings.move_ids.move_line_ids.filtered(
                 lambda ml:
                     ml.lot_id
+                    and ml.lot_id.id not in cart_selected_lot_ids
                     and ml.move_id.state not in ('done', 'cancel')
                     and float(getattr(ml, qty_field, 0.0) or 0.0) > 0.0
             )
