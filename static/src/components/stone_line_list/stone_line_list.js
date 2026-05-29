@@ -40,6 +40,7 @@ export class StoneExpandButton extends Component {
         this._lightboxRoot = null;
         this._lightboxKeyHandler = null;
         this._localBreakdown = {};
+        this._removingLot = false;
 
         this.state = useState({
             isExpanded: false,
@@ -267,6 +268,34 @@ export class StoneExpandButton extends Component {
             } catch (e) {
                 console.warn("[STONE] Error guardando breakdown al server:", e);
             }
+        }
+    }
+
+    /**
+     * Persiste lot_ids + breakdown de inmediato al backend SIN recargar la página.
+     * 1. Actualiza el record en memoria para mantener coherente la orden y el popup.
+     * 2. Escribe directo por ORM, lo que dispara el write de Python
+     *    (=> _sync_lots_to_picking_moves) sin necesidad de pulsar Guardar.
+     */
+    async _commitSelectionToServer(newIds, breakdown) {
+        if (this.isSelectionLocked()) {
+            this._warnQuoteSelectionBlocked();
+            return;
+        }
+
+        this._localBreakdown = { ...breakdown };
+
+        await this.props.record.update({
+            lot_ids: [[6, 0, newIds]],
+            x_lot_breakdown_json: breakdown,
+        });
+
+        const recordId = this._getRecordId();
+        if (recordId && typeof recordId === "number" && recordId > 0) {
+            await this.orm.write("sale.order.line", [recordId], {
+                lot_ids: [[6, 0, newIds]],
+                x_lot_breakdown_json: breakdown,
+            });
         }
     }
 
@@ -745,7 +774,7 @@ export class StoneExpandButton extends Component {
         container.querySelectorAll(".stone-remove-btn:not([disabled])").forEach((btn) => {
             btn.addEventListener("click", (e) => {
                 e.stopPropagation();
-                this.removeLot(parseInt(btn.dataset.lotId));
+                this.removeLot(parseInt(btn.dataset.lotId), btn);
             });
         });
 
@@ -887,24 +916,64 @@ export class StoneExpandButton extends Component {
         totalEl.textContent = this._fmt(total);
     }
 
-    async removeLot(lotId) {
+    /**
+     * Quita un lote de la selección.
+     * - Animación de salida + eliminación optimista en el DOM (sensación instantánea).
+     * - Persiste de inmediato al backend SIN recargar la página.
+     * - Si algo falla, restaura la tabla al estado real.
+     */
+    async removeLot(lotId, btnEl = null) {
         if (this.isSelectionLocked()) {
             this._warnQuoteSelectionBlocked();
             return;
         }
 
-        const newIds = this.getCurrentLotIds().filter((id) => id !== lotId);
+        if (this._removingLot) return;
+        this._removingLot = true;
 
+        const toggleableBtns = () =>
+            this._detailsRow
+                ? this._detailsRow.querySelectorAll(".stone-remove-btn:not(.stone-remove-btn-disabled)")
+                : [];
+
+        const rowEl = btnEl ? btnEl.closest("tr") : null;
+        if (rowEl) rowEl.classList.add("stone-row-removing");
+        toggleableBtns().forEach((b) => (b.disabled = true));
+
+        const newIds = this.getCurrentLotIds().filter((id) => id !== lotId);
         const breakdown = this.getBreakdown();
         delete breakdown[String(lotId)];
-        await this._saveBreakdownToServer(breakdown);
 
-        await this.props.record.update({
-            lot_ids: [[6, 0, newIds]],
-        });
+        try {
+            // Eliminación optimista en pantalla
+            if (rowEl) {
+                await new Promise((r) => setTimeout(r, 170));
+                rowEl.remove();
+            }
 
-        this._updateCount();
-        await this.refreshSelectedTable();
+            // Refresca contadores de la UI al instante
+            this._recalcInlineTotal();
+            if (this._detailsRow) {
+                const badge = this._detailsRow.querySelector(".stone-sel-badge");
+                if (badge) badge.textContent = newIds.length;
+            }
+
+            // Persiste al backend (dispara la sync del picking)
+            await this._commitSelectionToServer(newIds, breakdown);
+            this._updateCount();
+
+            // Si ya no quedan lotes, mostrar estado vacío
+            if (newIds.length === 0) {
+                await this.refreshSelectedTable();
+            }
+        } catch (e) {
+            console.error("[STONE] Error eliminando lote:", e);
+            this.notification.add("No se pudo eliminar el lote. Reintenta.", { type: "danger" });
+            await this.refreshSelectedTable();
+        } finally {
+            this._removingLot = false;
+            toggleableBtns().forEach((b) => (b.disabled = false));
+        }
     }
 
     async refreshSelectedTable() {
@@ -1669,8 +1738,8 @@ export class StoneExpandButton extends Component {
         };
 
         const doConfirm = async () => {
-            if (this.isSelectionLocked()) {
-                this._warnQuoteSelectionBlocked();
+            if (self.isSelectionLocked()) {
+                self._warnQuoteSelectionBlocked();
                 return;
             }
 
@@ -1685,11 +1754,8 @@ export class StoneExpandButton extends Component {
 
             self.destroyPopup();
 
-            await self._saveBreakdownToServer(cleanBreakdown);
-
-            await self.props.record.update({
-                lot_ids: [[6, 0, newIds]],
-            });
+            // Persiste de inmediato al backend (memoria + ORM write) sin recargar la página.
+            await self._commitSelectionToServer(newIds, cleanBreakdown);
 
             self._updateCount();
             await self.refreshSelectedTable();

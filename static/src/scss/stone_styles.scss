@@ -2383,3 +2383,35 @@ select.stone-filter-input {
         line-height: 1.4;
     }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ELIMINACIÓN OPTIMISTA DE FILA — feedback instantáneo al pulsar la X
+// ═══════════════════════════════════════════════════════════════════════════
+.stone-sel-table tbody tr.stone-row-removing {
+    pointer-events: none;
+    animation: stoneRowOut 0.17s ease forwards;
+
+    td {
+        border-bottom-color: transparent !important;
+    }
+}
+
+@keyframes stoneRowOut {
+    from {
+        opacity: 1;
+        transform: translateX(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateX(16px);
+        background: rgba(220, 38, 38, 0.12) !important;
+    }
+}
+
+// Botón X deshabilitado temporalmente mientras persiste el borrado
+.stone-remove-btn:disabled:not(.stone-remove-btn-disabled) {
+    opacity: 0.6;
+    cursor: progress;
+    transform: none !important;
+    box-shadow: none !important;
+}
