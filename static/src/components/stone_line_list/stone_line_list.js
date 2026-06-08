@@ -640,6 +640,58 @@ export class StoneExpandButton extends Component {
         btn.textContent = this._addBtnLabel(n);
     }
 
+    /**
+     * Busca el contenedor con scroll horizontal de la lista de Odoo para conocer
+     * el ancho realmente visible (el del viewport de la lista, no el de la tabla
+     * estirada con muchas columnas).
+     */
+    _getListScroller(fromEl) {
+        let node = fromEl ? fromEl.parentElement : null;
+        while (node && node !== document.body) {
+            const st = window.getComputedStyle(node);
+            if (/(auto|scroll)/.test(st.overflowX)) {
+                return node;
+            }
+            node = node.parentElement;
+        }
+        if (fromEl && fromEl.closest) {
+            return fromEl.closest(".o_list_renderer") || fromEl.closest(".o_content");
+        }
+        return null;
+    }
+
+    /**
+     * Limita el ancho del panel de seleccionadas al ancho visible de la lista,
+     * de modo que quepa en pantalla sin scroll horizontal propio.
+     */
+    _fitDetailsToViewport(fromEl) {
+        if (!this._detailsRow) return;
+        const container = this._detailsRow.querySelector(".stone-selected-container");
+        if (!container) return;
+
+        const scroller = this._getListScroller(fromEl || this._detailsRow);
+        const visibleWidth = scroller ? scroller.clientWidth : (window.innerWidth || 0);
+        if (visibleWidth > 0) {
+            // Resta los márgenes laterales del contenedor (16 izq + 10 der).
+            const w = Math.max(320, visibleWidth - 26);
+            container.style.width = `${w}px`;
+            container.style.maxWidth = `${w}px`;
+        }
+    }
+
+    _bindDetailsResize(fromEl) {
+        this._unbindDetailsResize();
+        this._selResizeHandler = () => this._fitDetailsToViewport(fromEl);
+        window.addEventListener("resize", this._selResizeHandler);
+    }
+
+    _unbindDetailsResize() {
+        if (this._selResizeHandler) {
+            window.removeEventListener("resize", this._selResizeHandler);
+            this._selResizeHandler = null;
+        }
+    }
+
     async injectSelectedTable(currentRow) {
         const newTr = document.createElement("tr");
         newTr.className = "stone-selected-row";
@@ -1045,6 +1097,7 @@ export class StoneExpandButton extends Component {
     }
 
     removeDetailsRow() {
+        this._unbindDetailsResize();
         if (this._detailsRow) {
             this._detailsRow.remove();
             this._detailsRow = null;
