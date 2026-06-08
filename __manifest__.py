@@ -29,6 +29,7 @@
     ],
     'assets': {
         'web.assets_backend': [
+            'sale_stone_selection/static/src/js/sale_autosave.js',
             'sale_stone_selection/static/src/scss/stone_styles.scss',
             'sale_stone_selection/static/src/components/stone_grid/stone_grid.xml',
             'sale_stone_selection/static/src/components/stone_grid/stone_grid.js',

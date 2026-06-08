@@ -6,6 +6,11 @@
         <field name="inherit_id" ref="sale.view_order_form"/>
         <field name="arch" type="xml">
 
+            <!-- Autosave del formulario de la orden de venta -->
+            <xpath expr="//form" position="attributes">
+                <attribute name="js_class">stone_autosave_form</attribute>
+            </xpath>
+
             <!-- js_class para cargar assets -->
             <xpath expr="//field[@name='order_line']/list" position="attributes">
                 <attribute name="js_class">stone_order_line_list</attribute>
