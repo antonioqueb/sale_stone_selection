@@ -675,6 +675,11 @@ export class StoneExpandButton extends Component {
         currentRow.after(newTr);
         this._detailsRow = newTr;
 
+        // Ancla el panel al ancho VISIBLE de la lista para no requerir scroll
+        // horizontal aunque la línea tenga muchísimas columnas.
+        this._fitDetailsToViewport(currentRow);
+        this._bindDetailsResize(currentRow);
+
         await this.renderSelectedTable(body, this.getCurrentLotIds());
 
         header.querySelector(".stone-add-btn-trigger").addEventListener("click", (e) => {

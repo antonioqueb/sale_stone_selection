@@ -357,9 +357,15 @@ $transition-soft: 0.16s ease;
 
 .stone-selected-container {
     @include stone-surface(20px);
-    position: relative;
+    // Se ancla al borde izquierdo del área visible de la lista y su ancho se
+    // limita al viewport (refinado por JS con el ancho real del scroller), de
+    // modo que el panel SIEMPRE quepa en pantalla sin scroll horizontal propio,
+    // aunque la línea de venta tenga muchísimas columnas.
+    position: sticky;
+    left: 0;
     z-index: 100;
     margin: 8px 10px 10px 16px;
+    max-width: calc(100vw - 26px);
     overflow: hidden;
 }
 
@@ -463,7 +469,9 @@ $transition-soft: 0.16s ease;
 // ═══════════════════════════════════════════════════════════════════════════
 .stone-sel-table {
     width: 100%;
-    min-width: 980px;
+    // Antes min-width: 980px forzaba el estiramiento y obligaba a scroll.
+    // Ahora la tabla encoge para caber en el ancho visible del panel.
+    min-width: 0;
     border-collapse: separate;
     border-spacing: 0;
     overflow: hidden;
