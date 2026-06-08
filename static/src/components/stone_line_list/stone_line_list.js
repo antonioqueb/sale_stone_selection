@@ -1202,9 +1202,6 @@ export class StoneExpandButton extends Component {
                                 <span id="sp-badge-qty">0.00</span>
                                 <span id="sp-badge-unit">m²</span>
                             </span>
-                            <button class="stone-btn stone-btn-accent" id="sp-confirm-top">
-                                <i class="fa fa-check me-1"></i> Confirmar
-                            </button>
                             <button class="stone-btn stone-btn-ghost" id="sp-close">
                                 <i class="fa fa-times"></i>
                             </button>
@@ -1818,7 +1815,6 @@ export class StoneExpandButton extends Component {
 
         root.querySelector("#sp-close").addEventListener("click", doClose);
         root.querySelector("#sp-cancel").addEventListener("click", doClose);
-        root.querySelector("#sp-confirm-top").addEventListener("click", doConfirm);
         root.querySelector("#sp-confirm-bottom").addEventListener("click", doConfirm);
         root.querySelector("#sp-select-all").addEventListener("click", doSelectAll);
         root.querySelector("#sp-clear-all").addEventListener("click", doClearAll);
