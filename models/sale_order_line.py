@@ -493,6 +493,7 @@ class SaleOrderLine(models.Model):
         # REGLA CENTRAL:
         # La selección de placas no recalcula product_uom_qty.
         # product_uom_qty queda como cantidad solicitada / demanda comercial.
+        #
         return
     
     def _get_all_sale_lots_with_qty(self):
