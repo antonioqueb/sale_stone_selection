@@ -626,6 +626,20 @@ export class StoneExpandButton extends Component {
         await this.injectSelectedTable(tr);
     }
 
+    _addBtnLabel(count) {
+        // Sin selección: "Añadir Materiales". Con al menos una placa: "Editar".
+        // En ambos casos sin el signo "+".
+        return (count > 0) ? "Editar" : "Añadir Materiales";
+    }
+
+    _updateAddButtonLabel(count = null) {
+        if (!this._detailsRow) return;
+        const btn = this._detailsRow.querySelector(".stone-add-btn-trigger");
+        if (!btn) return;
+        const n = (count === null) ? this.getCurrentLotIds().length : count;
+        btn.textContent = this._addBtnLabel(n);
+    }
+
     async injectSelectedTable(currentRow) {
         const newTr = document.createElement("tr");
         newTr.className = "stone-selected-row";
@@ -642,7 +656,7 @@ export class StoneExpandButton extends Component {
         header.className = "stone-selected-header";
         header.innerHTML = `
             <button class="stone-add-btn stone-add-btn-trigger stone-add-btn-prominent">
-                <i class="fa fa-plus me-1"></i> Agregar lotes
+                ${this._addBtnLabel(this.getCurrentLotIds().length)}
             </button>
             <span class="stone-selected-title">
                 <i class="fa fa-check-circle me-2"></i>
@@ -993,6 +1007,7 @@ export class StoneExpandButton extends Component {
             if (this._detailsRow) {
                 const badge = this._detailsRow.querySelector(".stone-sel-badge");
                 if (badge) badge.textContent = newIds.length;
+                this._updateAddButtonLabel(newIds.length);
             }
 
             // Persiste al backend (dispara la sync del picking)
@@ -1020,6 +1035,7 @@ export class StoneExpandButton extends Component {
         const lots = this.getCurrentLotIds();
         const badge = this._detailsRow.querySelector(".stone-sel-badge");
         if (badge) badge.textContent = lots.length;
+        this._updateAddButtonLabel();
         await this.renderSelectedTable(body, lots);
     }
 
