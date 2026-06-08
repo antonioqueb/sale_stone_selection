@@ -265,9 +265,44 @@ export class StoneExpandButton extends Component {
                 await this.orm.write("sale.order.line", [recordId], {
                     x_lot_breakdown_json: breakdown,
                 });
+                // Sin 'Mandar a pedir', el backend iguala Solicitado a la suma de placas.
+                await this._refreshRequestedQtyFromServer();
             } catch (e) {
                 console.warn("[STONE] Error guardando breakdown al server:", e);
             }
+        }
+    }
+
+    /**
+     * Refresca product_uom_qty (Solicitado) desde el servidor hacia el record en
+     * memoria.
+     *
+     * Sin 'Mandar a pedir', la cantidad vendible la fija el backend igualándola a
+     * la suma de placas asignadas. Hay que reflejar ese valor en el record para
+     * que la línea lo muestre al instante y para que un guardado posterior del
+     * formulario no reescriba el valor viejo encima del derivado.
+     */
+    async _refreshRequestedQtyFromServer() {
+        const recordId = this._getRecordId();
+        if (!recordId || typeof recordId !== "number" || recordId <= 0) {
+            return;
+        }
+        try {
+            const rows = await this.orm.read(
+                "sale.order.line",
+                [recordId],
+                ["product_uom_qty"],
+            );
+            if (!rows || !rows.length) {
+                return;
+            }
+            const serverQty = rows[0].product_uom_qty || 0;
+            const currentQty = this._getRequestedQty();
+            if (Math.abs(serverQty - currentQty) > 0.000001) {
+                await this.props.record.update({ product_uom_qty: serverQty });
+            }
+        } catch (e) {
+            console.warn("[STONE] No se pudo refrescar la cantidad solicitada:", e);
         }
     }
 
@@ -296,6 +331,8 @@ export class StoneExpandButton extends Component {
                 lot_ids: [[6, 0, newIds]],
                 x_lot_breakdown_json: breakdown,
             });
+            // Sin 'Mandar a pedir', el backend iguala Solicitado a la suma de placas.
+            await this._refreshRequestedQtyFromServer();
         }
     }
 
