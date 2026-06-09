@@ -16,6 +16,8 @@
  */
 import { registry } from "@web/core/registry";
 import { formView } from "@web/views/form/form_view";
+import { useService } from "@web/core/utils/hooks";
+import { _t } from "@web/core/l10n/translation";
 import { useEffect, onMounted, onWillUnmount } from "@odoo/owl";
 
 // Retraso base tras detectar cambios antes de intentar guardar (ms).
@@ -27,13 +29,24 @@ const QUIET_MS = 3000;
 export class StoneAutosaveFormController extends formView.Controller {
     setup() {
         super.setup();
+        this.notification = useService("notification");
         this._autosaveTimer = null;
         this._autosaving = false;
         this._lastEditTs = 0;
+        // Evita repetir el aviso de "cambio rechazado" en cada reintento; se
+        // rearma cuando el usuario vuelve a editar.
+        this._saveErrorNotified = false;
 
         // Registra actividad de tecleo para posponer el guardado.
         this._onUserActivity = () => {
             this._lastEditTs = Date.now();
+            // Nueva edición: permite volver a avisar y reprograma el guardado
+            // (tras una corrección de un valor rechazado, este es el disparador
+            // que reintenta el guardado).
+            this._saveErrorNotified = false;
+            if (this._isRootDirty()) {
+                this._scheduleAutosave(AUTOSAVE_DELAY_MS);
+            }
         };
 
         onMounted(() => {
@@ -125,19 +138,58 @@ export class StoneAutosaveFormController extends formView.Controller {
         }
 
         this._autosaving = true;
+        let saveFailed = false;
         try {
             await this.model.root.save();
         } catch (error) {
-            // No interrumpimos la edición si el autosave falla (p.ej. validación
-            // momentánea). El guardado manual sigue disponible.
+            // El autosave no debe interrumpir la edición, pero SÍ debe avisar
+            // cuando el SERVIDOR RECHAZA el cambio (p.ej. la regla de piso: la
+            // cantidad no puede ser menor que lo asignado en placas). Antes este
+            // error se tragaba en silencio y daba la falsa impresión de que el
+            // valor inválido se había guardado.
+            saveFailed = true;
             console.warn("[STONE AUTOSAVE] Guardado automático no aplicado:", error);
+            if (!this._saveErrorNotified) {
+                this._saveErrorNotified = true;
+                this._notifySaveError(error);
+            }
         } finally {
             this._autosaving = false;
-            // Si llegaron cambios nuevos durante el guardado, reprogramar.
-            if (!this._isRootNew() && this._isRootDirty()) {
+            // Solo reprograma tras un guardado EXITOSO con cambios nuevos. Si
+            // falló (p.ej. validación de piso), NO reintenta en bucle: espera a
+            // que el usuario corrija el valor, lo cual dispara _onUserActivity y
+            // reprograma el guardado.
+            if (!saveFailed && !this._isRootNew() && this._isRootDirty()) {
                 this._scheduleAutosave(AUTOSAVE_DELAY_MS);
             }
         }
+    }
+
+    /**
+     * Muestra al usuario el motivo por el que el servidor rechazó el guardado
+     * automático. Extrae el mensaje del servidor (UserError) de las formas
+     * conocidas entre versiones de Odoo y cae a un mensaje genérico.
+     */
+    _notifySaveError(error) {
+        let message =
+            (error && error.data && error.data.message) ||
+            (error && error.message && error.message.data && error.message.data.message) ||
+            (error && typeof error.message === "string" ? error.message : "") ||
+            "";
+
+        message = (message || "").toString().trim();
+
+        if (!message) {
+            message = _t(
+                "No se pudo guardar el cambio. Revisa la cantidad: no puede ser menor que lo asignado en placas."
+            );
+        }
+
+        this.notification.add(message, {
+            title: _t("Cambio no guardado"),
+            type: "warning",
+            sticky: false,
+        });
     }
 }
 
