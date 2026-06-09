@@ -283,16 +283,25 @@ class SaleOrderLine(models.Model):
             if 'x_lot_breakdown_json' in vals:
                 _logger.info("[STONE LINE WRITE] breakdown EN vals: %s", vals['x_lot_breakdown_json'])
 
-            # REGLA CENTRAL:
-            # Seleccionar/desasignar placas NO debe cambiar product_uom_qty.
-            # product_uom_qty representa lo solicitado por el cliente.
+            # REGLA CENTRAL (alcance LOCAL de este módulo):
+            # Dentro de ESTE write, seleccionar/desasignar placas NO aplica el
+            # product_uom_qty que venga en el mismo vals: la cantidad tecleada en
+            # paralelo a un cambio de lotes se descarta y se conserva la solicitada.
+            #
+            # OJO: esto NO significa que la cantidad nunca cambie por las placas.
+            # 'stock_transit_allocation' (que depende de este módulo, por lo que su
+            # write envuelve a este) aplica DESPUÉS la regla de PISO/RATCHET: si lo
+            # asignado supera lo solicitado, sube product_uom_qty a lo asignado
+            # ('la asignada manda cuando es más'), y nunca permite cobrar menos de
+            # lo asignado. Ese ajuste corre como un write anidado solo con
+            # product_uom_qty (sin lot_ids), así que este pop no lo afecta.
             if (
                 'product_uom_qty' in vals
                 and not self.env.context.get('allow_stone_selection_update_qty')
             ):
                 _logger.info(
                     "[STONE LINE WRITE] Ignorando product_uom_qty=%s porque vino junto con selección de lotes. "
-                    "La cantidad solicitada se conserva.",
+                    "La cantidad solicitada se conserva (el piso/ratchet de tránsito la ajustará si aplica).",
                     vals.get('product_uom_qty'),
                 )
                 vals.pop('product_uom_qty', None)
@@ -490,10 +499,14 @@ class SaleOrderLine(models.Model):
                 }
             return
 
-        # REGLA CENTRAL:
-        # La selección de placas no recalcula product_uom_qty.
-        # product_uom_qty queda como cantidad solicitada / demanda comercial.
+        # REGLA CENTRAL (alcance LOCAL de este módulo):
+        # En el onchange de este módulo la selección de placas no recalcula
+        # product_uom_qty; queda como cantidad solicitada / demanda comercial.
         #
+        # El ajuste real lo hace 'stock_transit_allocation' al guardar (write):
+        # piso/ratchet que sube la solicitada a lo asignado cuando es más y nunca
+        # deja cobrar menos de lo asignado. Aquí no se toca para no pelear con
+        # esa derivación.
         return
     
     def _get_all_sale_lots_with_qty(self):
