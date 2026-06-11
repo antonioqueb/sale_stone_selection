@@ -23,6 +23,7 @@
                        string=" "
                        width="30px"
                        nolabel="1"
+                       column_invisible="parent.state != 'sale'"
                        class="p-0 text-center"/>
             </xpath>
 
