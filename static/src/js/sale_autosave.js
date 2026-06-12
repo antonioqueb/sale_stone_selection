@@ -25,10 +25,18 @@ import { _t } from "@web/core/l10n/translation";
 import { useEffect, onMounted, onWillUnmount } from "@odoo/owl";
 
 // Retraso base tras detectar cambios antes de intentar guardar (ms).
-const AUTOSAVE_DELAY_MS = 1500;
+const AUTOSAVE_DELAY_MS = 3000;
 // Tiempo mínimo sin teclear (y sin input de texto enfocado) requerido para
 // guardar. Es lo que hace que "espere a que dejes de escribir".
-const QUIET_MS = 3000;
+const QUIET_MS = 6000;
+// Selectores del DOM inyectado por la selección de placas (stone_line_list).
+// Mientras exista alguno, el autosave se pospone: guardar recargaría el form
+// y cerraría/reiniciaría la selección en curso.
+const STONE_UI_OPEN_SELECTORS = [
+    ".stone-popup-root",     // selector de placas (popup)
+    ".stone-selected-row",   // panel expandido de lotes seleccionados
+    ".stone-lightbox-root",  // visor de fotos del lote
+];
 
 export class StoneAutosaveFormController extends formView.Controller {
     setup() {
@@ -118,6 +126,16 @@ export class StoneAutosaveFormController extends formView.Controller {
         return false;
     }
 
+    /**
+     * ¿Está abierta la UI de selección de placas (popup, panel expandido o
+     * lightbox)? Mientras lo esté no se guarda: el reload del guardado
+     * destruiría ese DOM y le cerraría la selección al usuario, p.ej. al ir
+     * borrando placas con la X.
+     */
+    _isStoneSelectionUiOpen() {
+        return STONE_UI_OPEN_SELECTORS.some((sel) => document.querySelector(sel));
+    }
+
     _scheduleAutosave(delay) {
         if (this._autosaveTimer) {
             clearTimeout(this._autosaveTimer);
@@ -135,8 +153,11 @@ export class StoneAutosaveFormController extends formView.Controller {
 
         // Espera a que el usuario deje de escribir y a que ningún campo de texto
         // esté enfocado (evita que el reload del guardado cierre el input).
+        // También espera a que se cierre la UI de selección de placas: las
+        // placas ya se persisten solas por ORM y guardar el form a media
+        // selección/borrado recargaría la vista y reiniciaría todo el ciclo.
         const sinceEdit = Date.now() - this._lastEditTs;
-        if (this._isTextEditingActive() || sinceEdit < QUIET_MS) {
+        if (this._isStoneSelectionUiOpen() || this._isTextEditingActive() || sinceEdit < QUIET_MS) {
             this._scheduleAutosave(QUIET_MS);
             return;
         }
