@@ -8,8 +8,12 @@
  *    última tecla).
  *  - NO guarda mientras hay un campo de texto enfocado (así el reload posterior
  *    al guardado no cierra el input en el que estás).
- *  - Los toggles/checkbox (p.ej. 'Mandar a pedir', 'Por Asignar') sí guardan
+ *  - Los toggles/checkbox (p.ej. 'Mandar a pedir', 'Asignar') sí guardan
  *    pronto: no pierden nada al recargar.
+ *  - NO guarda mientras la UI de selección de placas está abierta (panel
+ *    expandido, selector o visor de fotos): el guardado recarga el form y
+ *    destruye ese DOM inyectado, cerrándole la selección al usuario a media
+ *    edición/borrado. Las placas se persisten solas por ORM, no pierden nada.
  *
  * Se activa SOLO en el formulario de sale.order vía js_class="stone_autosave_form".
  * Usa únicamente API estable del record (.dirty / .resId / .save()).
