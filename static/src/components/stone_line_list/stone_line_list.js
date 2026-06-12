@@ -779,7 +779,7 @@ export class StoneExpandButton extends Component {
                         <th>Bloque</th>
                         <th>Atado</th>
                         <th class="col-num">Alto</th>
-                        <th class="col-num">Ancho</th>
+                        <th class="col-num">Largo</th>
                         <th class="col-num">Esp.</th>
                         <th>Tipo</th>
                         <th class="col-num">Disp.</th>
@@ -1308,7 +1308,7 @@ export class StoneExpandButton extends Component {
                             <input type="number" class="stone-filter-input stone-filter-sm" id="sf-alto" placeholder="0" step="0.01"/>
                         </div>
                         <div class="stone-filter-group">
-                            <label>Ancho mín.</label>
+                            <label>Largo mín.</label>
                             <input type="number" class="stone-filter-input stone-filter-sm" id="sf-ancho" placeholder="0" step="0.01"/>
                         </div>
                         <div class="stone-filter-group">
@@ -1683,7 +1683,7 @@ export class StoneExpandButton extends Component {
                             <th>Bloque</th>
                             <th>Atado</th>
                             <th class="col-num">Alto</th>
-                            <th class="col-num">Ancho</th>
+                            <th class="col-num">Largo</th>
                             <th class="col-num">Esp.</th>
                             <th class="col-num">Disp.</th>
                             <th>Tipo</th>
