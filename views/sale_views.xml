@@ -38,6 +38,15 @@
                 <field name="x_lot_breakdown_json" column_invisible="True"/>
             </xpath>
 
+            <!--
+                Columna Descripción (campo name): existe en la lista pero Odoo la entrega
+                como columna opcional oculta. La marcamos como opcional VISIBLE por defecto:
+                aparece de entrada y el usuario puede ocultarla desde el selector de columnas.
+            -->
+            <xpath expr="//field[@name='order_line']/list/field[@name='name']" position="attributes">
+                <attribute name="optional">show</attribute>
+            </xpath>
+
         </field>
     </record>
 </odoo>
