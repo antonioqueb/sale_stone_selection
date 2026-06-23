@@ -41,6 +41,7 @@ export class StoneExpandButton extends Component {
         this._lightboxKeyHandler = null;
         this._localBreakdown = {};
         this._removingLot = false;
+        this._packInfo = null;
 
         this.state = useState({
             isExpanded: false,
@@ -60,6 +61,9 @@ export class StoneExpandButton extends Component {
 
         onWillUpdateProps((nextProps) => {
             this._updateCount(nextProps);
+            // Invalida la caché del empaque: el usuario pudo cambiar el empaque
+            // de la línea; se recomputa de forma perezosa al abrir el selector.
+            this._packInfo = null;
         });
 
         onWillUnmount(() => {
@@ -190,11 +194,70 @@ export class StoneExpandButton extends Component {
     // (= empaques × qty_per_pack); solo la captura en pantalla cambia a empaques.
     // =========================================================================
 
+    _extractM2oId(val) {
+        if (!val) return 0;
+        if (Array.isArray(val)) return val[0] || 0;
+        if (typeof val === "number") return val;
+        if (typeof val === "object" && val.id) return val.id;
+        return 0;
+    }
+
+    /**
+     * Lee el empaque de la línea de forma síncrona desde la caché.
+     * Si la caché no está lista, intenta el camino directo (campos qty_per_pack /
+     * has_standard_pack expuestos por standard_pack_som en la lista). El camino
+     * fiable es _ensurePackInfo() (ORM), que se llama antes de cada render.
+     */
     _getPackInfo() {
+        if (this._packInfo) {
+            return this._packInfo;
+        }
         const data = this.props?.record?.data || {};
         const qtyPerPack = this._parseFloatField(data.qty_per_pack);
         const hasPack = !!data.has_standard_pack && qtyPerPack > 0;
-        return { hasPack, qtyPerPack };
+        return { hasPack, qtyPerPack, packId: this._extractM2oId(data.standard_pack_id) };
+    }
+
+    /**
+     * Resuelve el tamaño de empaque de la línea y lo cachea.
+     *
+     * Prioridad:
+     *   1. qty_per_pack en record.data (si standard_pack_som lo expone en la lista).
+     *   2. ORM read sobre standard.pack del empaque elegido en la línea
+     *      (standard_pack_id es columna visible => siempre cargada). Esto evita
+     *      depender de que la columna opcional qty_per_pack se haya leído.
+     *
+     * Si no hay empaque (o el módulo no está instalado), queda hasPack=false y
+     * el selector vuelve a cantidad libre.
+     */
+    async _ensurePackInfo() {
+        const data = this.props?.record?.data || {};
+        const packId = this._extractM2oId(data.standard_pack_id);
+        const directQpp = this._parseFloatField(data.qty_per_pack);
+
+        if (data.has_standard_pack && directQpp > 0) {
+            this._packInfo = { hasPack: true, qtyPerPack: directQpp, packId };
+            return this._packInfo;
+        }
+
+        if (this._packInfo && this._packInfo.packId === packId) {
+            return this._packInfo;
+        }
+
+        if (!packId) {
+            this._packInfo = { hasPack: false, qtyPerPack: 0, packId: 0 };
+            return this._packInfo;
+        }
+
+        try {
+            const rows = await this.orm.read("standard.pack", [packId], ["qty_per_pack"]);
+            const qpp = rows && rows.length ? this._parseFloatField(rows[0].qty_per_pack) : 0;
+            this._packInfo = { hasPack: qpp > 0, qtyPerPack: qpp, packId };
+        } catch (e) {
+            console.warn("[STONE] No se pudo leer el empaque de la línea:", e);
+            this._packInfo = { hasPack: false, qtyPerPack: 0, packId };
+        }
+        return this._packInfo;
     }
 
     /**
@@ -796,6 +859,7 @@ export class StoneExpandButton extends Component {
         container.innerHTML = `<div class="stone-table-loading"><i class="fa fa-circle-o-notch fa-spin me-1"></i> Cargando...</div>`;
 
         try {
+            await this._ensurePackInfo();
             const fullStatus = await this._loadFullStatus();
 
             if (fullStatus !== null) {
@@ -1353,6 +1417,7 @@ export class StoneExpandButton extends Component {
         const PAGE_SIZE = 35;
         const self = this;
 
+        await this._ensurePackInfo();
         const statusMap = await this._loadPopupStatusMap();
 
         const state = {
