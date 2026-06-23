@@ -174,6 +174,58 @@ export class StoneExpandButton extends Component {
         return totals.totalM2 || totals.totalPiezas || 0;
     }
 
+    // =========================================================================
+    // EMPAQUE ESTÁNDAR (integración con standard_pack_som)
+    //
+    // Cuando la línea vende por empaque, los lotes de tipo formato/pieza se
+    // seleccionan por NÚMERO DE EMPAQUES ENTEROS (no por cantidad libre). El
+    // tamaño del empaque sale del empaque elegido en la línea
+    // (standard_pack_id.qty_per_pack), expuesto como campos en la lista.
+    //
+    // Este módulo NO depende de standard_pack_som, así que se leen los campos
+    // de forma defensiva: si no existen (módulo no instalado) o no hay empaque,
+    // pack mode queda desactivado y se conserva el input de cantidad libre.
+    //
+    // El desglose persistido (x_lot_breakdown_json) SIGUE en m²/pzas
+    // (= empaques × qty_per_pack); solo la captura en pantalla cambia a empaques.
+    // =========================================================================
+
+    _getPackInfo() {
+        const data = this.props?.record?.data || {};
+        const qtyPerPack = this._parseFloatField(data.qty_per_pack);
+        const hasPack = !!data.has_standard_pack && qtyPerPack > 0;
+        return { hasPack, qtyPerPack };
+    }
+
+    /**
+     * Devuelve {qtyPerPack} si el lote (por su tipo) debe capturarse por empaques,
+     * o null si va por cantidad libre / placa completa.
+     * El empaque solo aplica a formato/pieza; la placa siempre se toma completa.
+     */
+    _lotPackMode(tipo) {
+        const t = String(tipo || "").toLowerCase();
+        if (t !== "formato" && t !== "pieza") {
+            return null;
+        }
+        const { hasPack, qtyPerPack } = this._getPackInfo();
+        if (!hasPack) {
+            return null;
+        }
+        return { qtyPerPack };
+    }
+
+    /** Empaques completos máximos que caben en la cantidad disponible. */
+    _maxPacks(availableQty, qtyPerPack) {
+        if (!qtyPerPack || qtyPerPack <= 0) {
+            return 0;
+        }
+        return Math.floor((availableQty || 0) / qtyPerPack + 1e-6);
+    }
+
+    _roundQty(value) {
+        return Math.round(((value || 0) + Number.EPSILON) * 1000) / 1000;
+    }
+
     _updateCount(props = this.props) {
         if (this.isSelectionLocked(props)) {
             this.state.selectedCount = 0;
@@ -793,6 +845,7 @@ export class StoneExpandButton extends Component {
         for (const item of items) {
             const tipo = item.tipo || "placa";
             const isPartial = (tipo === "formato" || tipo === "pieza");
+            const packMode = this._lotPackMode(tipo);
             const isGhost = !!item.is_ghost;
             const isLocked = !!item.is_locked;
 
@@ -819,6 +872,30 @@ export class StoneExpandButton extends Component {
             let qtyCell;
             if (isGhost) {
                 qtyCell = `<span class="text-muted"><s>0.00</s> ${qtyLabel}</span>`;
+            } else if (packMode && !isLocked) {
+                const maxPacks = this._maxPacks(item.available_qty, packMode.qtyPerPack);
+                if (maxPacks < 1) {
+                    qtyCell = `<span class="stone-pack-insufficient text-muted"
+                                     title="Stock insuficiente para un empaque completo (${this._fmt(packMode.qtyPerPack)} ${qtyLabel})">
+                                   <i class="fa fa-ban me-1"></i>&lt; 1 empaque
+                               </span>`;
+                } else {
+                    const curPacks = Math.max(
+                        1,
+                        Math.min(maxPacks, Math.round((item.displayed_qty || 0) / packMode.qtyPerPack)) || 1
+                    );
+                    qtyCell = `<div class="stone-pack-picker">
+                                   <input type="number" class="stone-pack-input"
+                                          data-lot-id="${item.lot_id}" data-qpp="${packMode.qtyPerPack}"
+                                          data-max="${maxPacks}" step="1" min="1" max="${maxPacks}"
+                                          value="${curPacks}" />
+                                   <span class="stone-pack-suffix">emp.
+                                       <button type="button" class="stone-pack-max-btn-inline"
+                                               data-lot-id="${item.lot_id}"
+                                               title="Tomar el lote completo (${maxPacks} empaques)">máx ${maxPacks}</button>
+                                   </span>
+                               </div>`;
+                }
             } else if (isPartial && !isLocked) {
                 qtyCell = `<input type="number" class="stone-qty-input"
                                   data-lot-id="${item.lot_id}" data-max="${item.available_qty}"
@@ -897,6 +974,32 @@ export class StoneExpandButton extends Component {
             input.addEventListener("blur", (e) => {
                 if (debounceTimer) clearTimeout(debounceTimer);
                 this._onQtyInputChange(e.target);
+            });
+        });
+
+        container.querySelectorAll(".stone-pack-input").forEach((input) => {
+            let debounceTimer = null;
+            input.addEventListener("input", (e) => {
+                if (debounceTimer) clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(() => {
+                    this._onPackInputChange(e.target);
+                }, 500);
+            });
+            input.addEventListener("blur", (e) => {
+                if (debounceTimer) clearTimeout(debounceTimer);
+                this._onPackInputChange(e.target);
+            });
+        });
+
+        container.querySelectorAll(".stone-pack-max-btn-inline").forEach((btn) => {
+            btn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                const input = container.querySelector(
+                    `.stone-pack-input[data-lot-id="${btn.dataset.lotId}"]`
+                );
+                if (!input) return;
+                input.value = input.dataset.max;
+                this._onPackInputChange(input);
             });
         });
 
@@ -1008,6 +1111,37 @@ export class StoneExpandButton extends Component {
         this._recalcInlineTotal();
     }
 
+    /**
+     * Editor inline en modo empaque: el usuario teclea EMPAQUES enteros y se
+     * persiste el desglose en cantidad (= empaques × qty_per_pack).
+     */
+    async _onPackInputChange(input) {
+        if (this.isSelectionLocked()) {
+            this._warnQuoteSelectionBlocked();
+            return;
+        }
+
+        const lotId = parseInt(input.dataset.lotId);
+        const qpp = parseFloat(input.dataset.qpp) || 0;
+        const maxPacks = parseInt(input.dataset.max, 10) || 0;
+        let packs = parseInt(input.value, 10) || 0;
+
+        if (packs < 1) packs = 1;
+        if (maxPacks > 0 && packs > maxPacks) packs = maxPacks;
+        input.value = packs;
+
+        const qty = this._roundQty(packs * qpp);
+        const breakdown = this.getBreakdown();
+        if (qty > 0) {
+            breakdown[String(lotId)] = qty;
+        } else {
+            delete breakdown[String(lotId)];
+        }
+
+        await this._saveBreakdownToServer(breakdown);
+        this._recalcInlineTotal();
+    }
+
     _recalcInlineTotal() {
         if (!this._detailsRow) return;
         const totalEl = this._detailsRow.querySelector("#stone-sel-total");
@@ -1016,6 +1150,10 @@ export class StoneExpandButton extends Component {
         let total = 0;
         this._detailsRow.querySelectorAll("tbody tr:not(.stone-row-ghost) .stone-qty-input").forEach((inp) => {
             total += parseFloat(inp.value) || 0;
+        });
+        this._detailsRow.querySelectorAll("tbody tr:not(.stone-row-ghost) .stone-pack-input").forEach((inp) => {
+            const qpp = parseFloat(inp.dataset.qpp) || 0;
+            total += (parseInt(inp.value, 10) || 0) * qpp;
         });
         this._detailsRow.querySelectorAll("tbody tr:not(.stone-row-ghost) td.col-qty-input .fw-semibold").forEach((span) => {
             const m = span.textContent.match(/([\d.]+)/);
@@ -1547,10 +1685,21 @@ export class StoneExpandButton extends Component {
                 cacheQuantForTotals(q);
                 const lotId = q.lot_id ? q.lot_id[0] : 0;
                 if (!lotId) continue;
-                state.pendingIds.add(lotId);
                 const tipo = (q.x_tipo || "placa").toLowerCase();
-                if ((tipo === "formato" || tipo === "pieza") && !state.pendingBreakdown[String(lotId)]) {
-                    state.pendingBreakdown[String(lotId)] = q.quantity || 0;
+                const packMode = self._lotPackMode(tipo);
+                if (packMode) {
+                    const maxPacks = self._maxPacks(q.quantity, packMode.qtyPerPack);
+                    if (maxPacks < 1) continue; // stock < 1 empaque: no seleccionable
+                    state.pendingIds.add(lotId);
+                    if (!state.pendingBreakdown[String(lotId)]) {
+                        // "Todo" => lote completo en empaques enteros.
+                        state.pendingBreakdown[String(lotId)] = self._roundQty(maxPacks * packMode.qtyPerPack);
+                    }
+                } else {
+                    state.pendingIds.add(lotId);
+                    if ((tipo === "formato" || tipo === "pieza") && !state.pendingBreakdown[String(lotId)]) {
+                        state.pendingBreakdown[String(lotId)] = q.quantity || 0;
+                    }
                 }
             }
             updateBadge();
@@ -1599,6 +1748,10 @@ export class StoneExpandButton extends Component {
                 const qtyLabel = tipo === "pieza" ? "pzas" : "m²";
                 const inputStep = tipo === "pieza" ? "1" : "0.01";
 
+                const packMode = self._lotPackMode(tipo);
+                const maxPacks = packMode ? self._maxPacks(q.quantity, packMode.qtyPerPack) : 0;
+                const packBlocked = !!packMode && maxPacks < 1;
+
                 const statusInfo = state.statusMap.get(lotId);
                 const lockedByStatus = statusInfo && statusInfo.is_locked;
 
@@ -1619,6 +1772,35 @@ export class StoneExpandButton extends Component {
                 if (lockedByStatus && sel) {
                     const lockedQty = statusInfo.displayed_qty || 0;
                     qtyCell = `<span class="text-muted"><i class="fa fa-lock me-1"></i>${self._fmt(lockedQty)} ${qtyLabel}</span>`;
+                } else if (packMode) {
+                    if (packBlocked) {
+                        qtyCell = `<span class="stone-pack-insufficient text-muted"
+                                         title="Stock insuficiente para un empaque completo (${self._fmt(packMode.qtyPerPack)} ${qtyLabel})">
+                                       <i class="fa fa-ban me-1"></i>&lt; 1 empaque
+                                   </span>`;
+                    } else if (sel) {
+                        const curQty = state.pendingBreakdown[lotIdStr] !== undefined
+                            ? parseFloat(state.pendingBreakdown[lotIdStr])
+                            : packMode.qtyPerPack;
+                        const curPacks = Math.max(
+                            1,
+                            Math.min(maxPacks, Math.round(curQty / packMode.qtyPerPack)) || 1
+                        );
+                        qtyCell = `<div class="stone-pack-picker">
+                                       <input type="number" class="stone-popup-pack-input"
+                                              data-lot-id="${lotId}" data-qpp="${packMode.qtyPerPack}"
+                                              data-max="${maxPacks}" step="1" min="1" max="${maxPacks}"
+                                              value="${curPacks}" />
+                                       <span class="stone-pack-suffix">emp.
+                                           <button type="button" class="stone-pack-max-btn"
+                                                   data-lot-id="${lotId}"
+                                                   title="Tomar el lote completo (${maxPacks} empaques)">máx ${maxPacks}</button>
+                                       </span>
+                                       <span class="stone-pack-eq text-muted">= ${self._fmt(curPacks * packMode.qtyPerPack)} ${qtyLabel}</span>
+                                   </div>`;
+                    } else {
+                        qtyCell = `<span class="text-muted">— <small>(máx ${maxPacks} emp.)</small></span>`;
+                    }
                 } else if (isPartial && sel) {
                     const currentVal = state.pendingBreakdown[lotIdStr] !== undefined
                         ? state.pendingBreakdown[lotIdStr]
@@ -1643,9 +1825,10 @@ export class StoneExpandButton extends Component {
                 const rowClasses = [];
                 if (sel) rowClasses.push("row-sel");
                 if (lockedByStatus) rowClasses.push("stone-popup-row-locked");
+                if (packBlocked) rowClasses.push("stone-popup-row-packblocked");
 
                 rows += `
-                    <tr class="${rowClasses.join(" ")}" data-lot-id="${lotId}" data-reserved="${reserved ? "1" : "0"}" data-tipo="${tipo}" data-locked="${lockedByStatus ? "1" : "0"}">
+                    <tr class="${rowClasses.join(" ")}" data-lot-id="${lotId}" data-reserved="${reserved ? "1" : "0"}" data-tipo="${tipo}" data-locked="${lockedByStatus ? "1" : "0"}" data-packblocked="${packBlocked ? "1" : "0"}">
                         <td class="col-chk">
                             <div class="stone-chkbox ${sel ? "checked" : ""}">
                                 ${sel ? '<i class="fa fa-check"></i>' : ""}
@@ -1702,12 +1885,16 @@ export class StoneExpandButton extends Component {
 
             body.querySelectorAll("tr[data-lot-id]").forEach((tr) => {
                 const lockedRow = tr.dataset.locked === "1";
-                tr.style.cursor = lockedRow ? "not-allowed" : "pointer";
+                const packBlockedRow = tr.dataset.packblocked === "1";
+                const notSelectable = lockedRow || packBlockedRow;
+                tr.style.cursor = notSelectable ? "not-allowed" : "pointer";
                 tr.addEventListener("click", (ev) => {
                     if (ev.target.closest(".stone-popup-qty-input")) return;
+                    if (ev.target.closest(".stone-popup-pack-input")) return;
+                    if (ev.target.closest(".stone-pack-max-btn")) return;
                     if (ev.target.closest(".stone-photo-cell[data-has-photo]")) return;
 
-                    if (lockedRow) {
+                    if (notSelectable) {
                         return;
                     }
 
@@ -1715,6 +1902,7 @@ export class StoneExpandButton extends Component {
                     if (!lotId) return;
                     const tipo = tr.dataset.tipo || "placa";
                     const isPartial = (tipo === "formato" || tipo === "pieza");
+                    const packMode = self._lotPackMode(tipo);
 
                     if (state.pendingIds.has(lotId)) {
                         state.pendingIds.delete(lotId);
@@ -1724,7 +1912,11 @@ export class StoneExpandButton extends Component {
                         if (isPartial) {
                             const q = state.quants.find(qq => qq.lot_id && qq.lot_id[0] === lotId);
                             if (q) {
-                                state.pendingBreakdown[String(lotId)] = q.quantity || 0;
+                                // En modo empaque: por defecto un empaque entero por lote.
+                                // En modo libre: el lote completo (cantidad disponible).
+                                state.pendingBreakdown[String(lotId)] = packMode
+                                    ? self._roundQty(packMode.qtyPerPack)
+                                    : (q.quantity || 0);
                             }
                         }
                     }
@@ -1746,6 +1938,42 @@ export class StoneExpandButton extends Component {
                     }
                     state.pendingBreakdown[String(lotId)] = val;
                     updateQtyDisplay();
+                });
+            });
+
+            body.querySelectorAll(".stone-popup-pack-input").forEach((input) => {
+                input.addEventListener("click", (e) => e.stopPropagation());
+                input.addEventListener("input", () => {
+                    const lotId = parseInt(input.dataset.lotId);
+                    const qpp = parseFloat(input.dataset.qpp) || 0;
+                    const max = parseInt(input.dataset.max, 10) || 0;
+                    let packs = parseInt(input.value, 10) || 0;
+                    if (packs < 1) packs = 1;
+                    if (max > 0 && packs > max) packs = max;
+                    input.value = packs;
+
+                    const qty = self._roundQty(packs * qpp);
+                    state.pendingBreakdown[String(lotId)] = qty;
+
+                    const tr = input.closest("tr");
+                    const eq = tr ? tr.querySelector(".stone-pack-eq") : null;
+                    if (eq) {
+                        const unit = (tr.dataset.tipo === "pieza") ? "pzas" : "m²";
+                        eq.textContent = `= ${self._fmt(qty)} ${unit}`;
+                    }
+                    updateQtyDisplay();
+                });
+            });
+
+            body.querySelectorAll(".stone-pack-max-btn").forEach((btn) => {
+                btn.addEventListener("click", (e) => {
+                    e.stopPropagation();
+                    const input = body.querySelector(
+                        `.stone-popup-pack-input[data-lot-id="${btn.dataset.lotId}"]`
+                    );
+                    if (!input) return;
+                    input.value = input.dataset.max;
+                    input.dispatchEvent(new Event("input", { bubbles: true }));
                 });
             });
 
