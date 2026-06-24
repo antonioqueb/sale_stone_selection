@@ -2495,3 +2495,73 @@ select.stone-filter-input {
     transform: none !important;
     box-shadow: none !important;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LÍNEAS DE LA ORDEN DE VENTA: FILA SIN FONDO GRIS (ACOTADO)
+//
+// Todo va anidado bajo `.o_tc_clean_order_lines`, clase que se añade SOLO al
+// campo `order_line` desde la vista (sale_views.xml). NO afecta otras listas
+// de Odoo.
+//
+// Odoo pinta de gris la fila al seleccionarla / editarla (`o_selected_row`),
+// en hover y al enfocar una celda (`:focus-within`), usando las variables
+// Bootstrap --bs-table-*. Aquí se neutralizan esas variables y el background a
+// `transparent`, de modo que la fila conserva el fondo blanco de la tabla en
+// todos los estados. Los inputs/selects se dejan transparentes para que se
+// integren con la celda (sin recuadro blanco) y conserven su color de texto
+// nativo (mismo valor visible en lectura y edición).
+// ═══════════════════════════════════════════════════════════════════════════
+.o_tc_clean_order_lines {
+
+    // ── Fila en cualquier estado: nunca gris ──
+    .o_data_row,
+    .o_data_row:hover,
+    .o_data_row:focus-within,
+    .o_data_row.o_selected_row,
+    .o_data_row.o_selected_row:hover,
+    .o_data_row.o_selected_row:focus-within,
+    .o_data_row.o_data_row_selected,
+    .o_data_row.table-active {
+        --bs-table-bg: transparent;
+        --bs-table-bg-state: transparent;
+        --bs-table-accent-bg: transparent;
+        --bs-table-hover-bg: transparent;
+        --bs-table-active-bg: transparent;
+        background-color: transparent !important;
+
+        > .o_data_cell,
+        > td,
+        > th {
+            --bs-table-bg: transparent;
+            --bs-table-bg-state: transparent;
+            --bs-table-accent-bg: transparent;
+            --bs-table-hover-bg: transparent;
+            --bs-table-active-bg: transparent;
+            background-color: transparent !important;
+            background-image: none !important;
+        }
+    }
+
+    // ── Inputs/selects integrados con la celda (sin recuadro blanco) ──
+    // Sin forzar color: conservan el color nativo del campo (p.ej. el azul de
+    // "Solicitado"), por lo que lectura y edición se ven iguales.
+    // NO se toca `background-image` de los <select> (conservan su flecha).
+    .o_data_cell {
+        input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+        select,
+        textarea,
+        .o_input:not(.form-check-input) {
+            &,
+            &:hover,
+            &:focus,
+            &:focus-visible,
+            &:active,
+            &[readonly],
+            &:disabled,
+            &[disabled] {
+                background-color: transparent !important;
+                box-shadow: none !important;
+            }
+        }
+    }
+}

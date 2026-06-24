@@ -16,6 +16,17 @@
                 <attribute name="js_class">stone_order_line_list</attribute>
             </xpath>
 
+            <!--
+                Clase contenedora para ACOTAR estilos a estas líneas:
+                quita el fondo gris de la fila seleccionada/editada (o_selected_row),
+                en hover y al enfocar una celda, SIN afectar otras listas de Odoo.
+                Se añade con 'add' para no pisar clases existentes del campo.
+                Estilos en static/src/scss/stone_styles.scss (.o_tc_clean_order_lines).
+            -->
+            <xpath expr="//field[@name='order_line']" position="attributes">
+                <attribute name="class" add="o_tc_clean_order_lines" separator=" "/>
+            </xpath>
+
             <!-- Botón Stone ANTES del producto (izquierda) -->
             <xpath expr="//field[@name='order_line']/list/field[@name='product_id']" position="before">
                 <field name="is_stone_expanded"
