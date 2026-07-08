@@ -50,6 +50,20 @@ class StockMove(models.Model):
 
             existing_lots = set(sol.lot_ids.ids) if sol.lot_ids else set()
 
+            # LA ASIGNACIÓN ES 100% DEL VENDEDOR: el sync refleja el estado de
+            # los lotes YA elegidos (quitas, reemplazos vía swap), pero JAMÁS
+            # agrega lotes nuevos. Una reserva nativa FIFO en cualquier picking
+            # de la cadena NO es una asignación y no debe "oficializarse" aquí.
+            auto_added = all_lot_ids - existing_lots
+            if auto_added:
+                added_names = self.env['stock.lot'].browse(
+                    list(auto_added)).mapped('name')
+                _logger.warning(
+                    "[STONE SYNC] Ignorando lotes NO asignados por el vendedor "
+                    "(reserva automática detectada) en SO Line %s: %s",
+                    sol.id, added_names)
+                all_lot_ids -= auto_added
+
             if all_lot_ids == existing_lots:
                 continue
 
