@@ -297,7 +297,9 @@ class SaleOrderLine(models.Model):
             order_partner = line.order_id.partner_id
             for quant in quants:
                 hold = quant.x_hold_activo_id if quant.x_tiene_hold else False
-                if hold and hold.partner_id and hold.partner_id != order_partner:
+                if (hold and hold.partner_id and order_partner
+                        and hold.partner_id.commercial_partner_id
+                        != order_partner.commercial_partner_id):
                     raise UserError(_(
                         'El lote %(lot)s está APARTADO para %(partner)s y no '
                         'puede asignarse a este pedido. Si el apartado ya no '
