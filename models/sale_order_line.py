@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from odoo import models, fields, api, _
+from odoo.exceptions import UserError
 import json
 import logging
 
@@ -269,6 +270,42 @@ class SaleOrderLine(models.Model):
 
         return super(SaleOrderLine, self).create(clean_vals_list)
 
+    def _stone_validate_lot_holds(self):
+        """Un lote con HOLD activo de OTRO cliente no puede quedar asignado a
+        la línea. Corre dentro del write, con candado FOR UPDATE sobre los
+        quants: dos operaciones simultáneas sobre el mismo lote se serializan
+        y la segunda ve el hold ya confirmado. Lotes sin quant interno (aún en
+        tránsito) no se tocan: su control vive en la torre de control."""
+        Quant = self.env['stock.quant'].sudo()
+        for line in self:
+            if not line.lot_ids:
+                continue
+            company = line.company_id or self.env.company
+            quants = Quant.search([
+                ('lot_id', 'in', line.lot_ids.ids),
+                ('location_id.usage', '=', 'internal'),
+                ('quantity', '>', 0),
+                ('company_id', '=', company.id),
+            ])
+            if not quants:
+                continue
+            self.env.cr.execute(
+                "SELECT id FROM stock_quant WHERE id IN %s FOR UPDATE",
+                [tuple(quants.ids)],
+            )
+            quants.invalidate_recordset()
+            order_partner = line.order_id.partner_id
+            for quant in quants:
+                hold = quant.x_hold_activo_id if quant.x_tiene_hold else False
+                if hold and hold.partner_id and hold.partner_id != order_partner:
+                    raise UserError(_(
+                        'El lote %(lot)s está APARTADO para %(partner)s y no '
+                        'puede asignarse a este pedido. Si el apartado ya no '
+                        'aplica, cancélalo primero.',
+                        lot=quant.lot_id.name,
+                        partner=hold.partner_id.name,
+                    ))
+
     def write(self, vals):
         vals = dict(vals or {})
 
@@ -331,6 +368,11 @@ class SaleOrderLine(models.Model):
                     SaleOrderLine,
                     allowed_lines.with_context(ctx)
                 ).write(vals) and result
+                # Revalidación EN la transacción: si un lote recién asignado
+                # tiene hold activo de OTRO cliente (creado un segundo antes
+                # por otra operación), el write completo se revierte.
+                if not self.env.context.get('skip_hold_validation'):
+                    allowed_lines._stone_validate_lot_holds()
 
         else:
             result = super(SaleOrderLine, self.with_context(ctx)).write(vals)
