@@ -578,7 +578,7 @@ class SaleOrder(models.Model):
 
             created_lines |= StockMoveLine.with_context(ctx).create(vals)
 
-            _logger.info(
+            _logger.debug(
                 "[STONE] ✓ Move line creada lote=%s qty=%.6f ubicación=%s picking=%s",
                 lot.name,
                 split_qty,
