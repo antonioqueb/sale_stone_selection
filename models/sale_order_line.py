@@ -135,8 +135,33 @@ class SaleOrderLine(models.Model):
         quants = self._stone_line_get_lot_quants(lot, move=move)
         physical_qty = sum((q.quantity or 0.0) for q in quants)
 
-        if tipo in ('formato', 'pieza') and lot_id_str in breakdown:
-            expected_qty = float(breakdown[lot_id_str] or 0.0)
+        if tipo in ('formato', 'pieza'):
+            if lot_id_str in breakdown:
+                expected_qty = float(breakdown[lot_id_str] or 0.0)
+            else:
+                # El breakdown puede venir con claves de quant.id (flujo del
+                # carrito) en lugar de lot.id — mismo criterio que
+                # _get_lot_qty_for_line en la confirmación.
+                expected_qty = None
+                if hasattr(self, 'x_selected_lots') and self.x_selected_lots:
+                    for quant in self.x_selected_lots:
+                        if quant.lot_id.id == lot.id and str(quant.id) in breakdown:
+                            expected_qty = float(breakdown[str(quant.id)] or 0.0)
+                            break
+
+                if expected_qty is None:
+                    # Formato/pieza SIN desglose: repartir lo vendido entre los
+                    # lotes de la línea (como hace la confirmación) en lugar de
+                    # reservar la placa física COMPLETA. Antes, vender 2 m² de
+                    # un formato podía dejar la entrega con demanda de 15 m².
+                    num_lots = len(self.lot_ids) if self.lot_ids else 1
+                    if num_lots > 0 and (self.product_uom_qty or 0.0) > 0:
+                        expected_qty = min(
+                            (self.product_uom_qty or 0.0) / num_lots,
+                            physical_qty,
+                        )
+                    else:
+                        expected_qty = physical_qty
         else:
             expected_qty = physical_qty
 

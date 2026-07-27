@@ -139,8 +139,35 @@ class SaleOrder(models.Model):
         _logger.info("[STONE] ACTION_CONFIRM INICIO - Orden: %s", self.name)
 
         # =====================================================================
-        # BLOQUEAR DOBLE CONFIRMACIÓN
+        # CANDADO DE FILA contra confirmación concurrente (dos pestañas /
+        # usuarios): la segunda transacción espera aquí y, al liberarse, los
+        # guards de abajo re-leen el estado ya confirmado por la primera.
+        # Sin esto se quemaban 2 folios V/ y se creaban 2 backups.
         # =====================================================================
+        if self.ids:
+            self.env.cr.execute(
+                "SELECT id FROM sale_order WHERE id IN %s FOR UPDATE",
+                (tuple(self.ids),),
+            )
+            self.invalidate_recordset(['state', 'name', 'x_is_quote_backup'])
+
+        # =====================================================================
+        # BLOQUEAR DOBLE CONFIRMACIÓN
+        # Nota multi-selección: los `return` de redirección solo aplican con
+        # UNA orden; en lote, una orden no confirmable aborta explícitamente
+        # (antes retornaba en silencio dejando el resto sin confirmar).
+        # =====================================================================
+        if len(self) > 1:
+            not_confirmable = self.filtered(
+                lambda o: o.state in ('sale', 'done') or o.x_is_quote_backup
+            )
+            if not_confirmable:
+                raise UserError(_(
+                    'No puedes confirmar en lote: estas órdenes ya están '
+                    'confirmadas o son respaldos de cotización: %s. '
+                    'Quítalas de la selección.'
+                ) % ', '.join(not_confirmable.mapped('name')))
+
         for order in self:
             if order.state in ('sale', 'done'):
                 _logger.info("[STONE] Orden %s ya confirmada (state=%s). Redirigiendo.", order.name, order.state)
@@ -226,6 +253,17 @@ class SaleOrder(models.Model):
         # 2. DUPLICACIÓN: Crear backup de cotización + renombrar a V
         # =====================================================================
         for order in self:
+            # GUARD folio: si la orden YA tiene folio de venta (V/…) es una
+            # orden regresada a borrador — re-confirmarla NO debe quemar otro
+            # folio ni crear un pseudo-backup con nombre V/. Conserva su folio.
+            if (order.name or '').startswith('V/'):
+                _logger.info(
+                    "[STONE] Orden %s ya tiene folio de venta; re-confirmación "
+                    "sin duplicar backup ni consumir folio nuevo.",
+                    order.name,
+                )
+                continue
+
             if order.state in ['draft', 'sent'] and not order.x_is_quote_backup:
                 current_cot_name = order.name
 
@@ -569,8 +607,14 @@ class SaleOrder(models.Model):
         rounding = product.uom_id.rounding or 0.00001
 
         for picking in pickings:
+            # Filtrar TAMBIÉN por línea de venta: dos líneas con el MISMO
+            # producto (mismo material, distintos lotes/precios) no deben
+            # contaminarse los moves entre sí. Fallback por producto solo para
+            # moves sin sale_line_id (agrupados por procurement).
             moves = picking.move_ids.filtered(
-                lambda m: m.product_id.id == product.id and m.state not in ['done', 'cancel']
+                lambda m: m.state not in ['done', 'cancel']
+                and m.product_id.id == product.id
+                and (not m.sale_line_id or m.sale_line_id == sale_line)
             )
 
             for move in moves:

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-from odoo import models, api
+from odoo import models, api, _
+from odoo.exceptions import UserError
 import logging
 
 _logger = logging.getLogger(__name__)
@@ -76,8 +77,20 @@ class StockMove(models.Model):
                 })
                 _logger.info("[STONE SYNC] ✓ Actualizado SO Line %s con %s lotes",
                              sol.id, len(all_lot_ids))
-            except Exception as e:
-                _logger.error("[STONE SYNC] Error actualizando SO Line: %s", str(e))
+            except UserError:
+                # Error de negocio (validador de holds, tope de stock…): debe
+                # LLEGAR al usuario. Tragarlo dejaba picking y línea de venta
+                # divergentes en silencio — justo lo que este sync evita.
+                raise
+            except Exception:
+                _logger.exception(
+                    "[STONE SYNC] Error inesperado actualizando SO Line %s",
+                    sol.id,
+                )
+                raise UserError(_(
+                    'No se pudo sincronizar los lotes del picking con la línea '
+                    'de venta %s. Revisa el registro del servidor.'
+                ) % sol.id)
 
     def write(self, vals):
         res = super(StockMove, self).write(vals)
