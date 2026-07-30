@@ -45,8 +45,30 @@ class StockQuant(models.Model):
         if 'x_tiene_hold' in self.env['stock.quant']._fields:
             free_domain.append(('x_tiene_hold', '=', False))
 
-        if safe_current_ids:
-            availability_domain = ['|', ('lot_id', 'in', safe_current_ids)] + ['&'] + free_domain
+        # Placas retenidas SOLO por un traslado interno de carrito/escáner
+        # ABIERTO (reserva DÉBIL de reacomodo de ubicación) siguen siendo
+        # vendibles: esa reserva se libera sola al confirmar la venta, así
+        # que no deben desaparecer del selector.
+        weak_lines = self.env['stock.move.line'].sudo().search([
+            ('product_id', '=', int(product_id)),
+            ('lot_id', '!=', False),
+            ('state', 'in', ('assigned', 'partially_available')),
+            ('picking_id.picking_type_code', '=', 'internal'),
+            ('picking_id.origin', '=like', 'Carrito - %'),
+            ('picking_id.state', 'not in', ('done', 'cancel')),
+        ])
+        weak_lot_ids = [
+            lid for lid in weak_lines.mapped('lot_id').ids
+            if lid not in (excluded_lot_ids or [])
+        ]
+        passthrough_ids = list(set(safe_current_ids or []) | set(weak_lot_ids))
+
+        if passthrough_ids:
+            availability_domain = (
+                ['|', ('lot_id', 'in', passthrough_ids)]
+                + ['&'] * (len(free_domain) - 1)
+                + free_domain
+            )
         else:
             availability_domain = free_domain
 
