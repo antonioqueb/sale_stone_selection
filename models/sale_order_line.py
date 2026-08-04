@@ -622,6 +622,38 @@ class SaleOrderLine(models.Model):
                 })
             return result
 
+        # Piezas/formatos vendidos desde el carrito: la selección vive en
+        # x_selected_lots (+ x_lot_breakdown_json, del módulo del carrito) y
+        # puede no estar sincronizada a lot_ids porque sin reserva forzada de
+        # lote tampoco hay move lines con lote. Sin este fallback, el reporte
+        # detalle no mostraba el desglose de lotes de productos tipo pieza.
+        if 'x_selected_lots' in self._fields and self.x_selected_lots:
+            breakdown = self._parse_breakdown_dict()
+            result = []
+            seen_lot_ids = set()
+            for quant in self.x_selected_lots:
+                lot = quant.lot_id
+                if not lot or lot.id in seen_lot_ids:
+                    continue
+                seen_lot_ids.add(lot.id)
+                tipo = str(lot.x_tipo).lower() if lot.x_tipo else 'placa'
+                lot_id_str = str(lot.id)
+
+                if tipo in ('formato', 'pieza') and lot_id_str in breakdown:
+                    qty = float(breakdown[lot_id_str])
+                else:
+                    qty = quant.quantity or (
+                        lot.x_alto * lot.x_ancho
+                        if lot.x_alto and lot.x_ancho
+                        else 0.0
+                    )
+
+                result.append({
+                    'lot': lot,
+                    'quantity': qty,
+                })
+            return result
+
         return []
 
     # =========================================================================
