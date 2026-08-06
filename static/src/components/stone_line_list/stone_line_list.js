@@ -115,6 +115,13 @@ export class StoneExpandButton extends Component {
         return parseFloat(num).toFixed(2);
     }
 
+    // Ubicación recortada: último padre / último hijo ("PATIO A/R1"),
+    // nunca la ruta completa — la columna se mantiene angosta.
+    _shortLoc(name) {
+        const parts = String(name || "").split("/").filter(Boolean);
+        return parts.length ? parts.slice(-2).join("/") : "";
+    }
+
     _fmtDim(num) {
         if (!num) return "-";
         const v = parseFloat(num);
@@ -894,6 +901,7 @@ export class StoneExpandButton extends Component {
                         <th class="col-status">Estatus</th>
                         <th>Bloque</th>
                         <th>Atado</th>
+                        <th>Ubicación</th>
                         <th class="col-num">Alto</th>
                         <th class="col-num">Largo</th>
                         <th class="col-num">Esp.</th>
@@ -994,6 +1002,7 @@ export class StoneExpandButton extends Component {
                     <td class="col-status">${badgesHtml}</td>
                     <td>${this._escapeHtml(item.x_bloque) || "-"}</td>
                     <td>${this._escapeHtml(item.x_atado) || "-"}</td>
+                    <td class="text-muted">${this._escapeHtml(this._shortLoc(item.location)) || "-"}</td>
                     <td class="col-num">${this._fmtDim(item.x_alto)}</td>
                     <td class="col-num">${this._fmtDim(item.x_ancho)}</td>
                     <td class="col-num">${this._fmtDim(item.x_grosor)}</td>
@@ -1804,7 +1813,7 @@ export class StoneExpandButton extends Component {
                 cacheQuantForTotals(q);
                 const lotId = q.lot_id ? q.lot_id[0] : 0;
                 const lotName = q.lot_id ? q.lot_id[1] : "-";
-                const loc = q.location_id ? q.location_id[1].split("/").pop() : "-";
+                const loc = q.location_id ? self._shortLoc(q.location_id[1]) : "-";
                 const sel = state.pendingIds.has(lotId);
                 const reserved = q.reserved_quantity > 0;
                 const tipo = (q.x_tipo || "placa").toLowerCase();

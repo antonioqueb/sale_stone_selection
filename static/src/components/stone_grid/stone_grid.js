@@ -41,7 +41,10 @@ export class StoneGrid extends Component {
                 id: q.id,
                 lot_id: q.lot_id ? q.lot_id[0] : false,
                 lot_name: q.lot_id ? q.lot_id[1] : 'Sin Lote',
-                location_name: q.location_id ? q.location_id[1] : '',
+                // Recortada: último padre / último hijo, no la ruta completa.
+                location_name: q.location_id
+                    ? q.location_id[1].split('/').filter(Boolean).slice(-2).join('/')
+                    : '',
                 quantity: q.quantity,
                 bloque: q.x_bloque || 'Sin Bloque',
                 tipo: q.x_tipo || 'Placa',

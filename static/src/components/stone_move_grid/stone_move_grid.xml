@@ -100,7 +100,7 @@
                                 <td><t t-esc="q.x_tipo or '-'"/></td>
                                 <td><t t-esc="q.x_color or '-'"/></td>
                                 <td class="text-muted">
-                                    <t t-esc="(q.location_id and q.location_id[1]) ? q.location_id[1].split('/').pop() : '-'"/>
+                                    <t t-esc="(q.location_id and q.location_id[1]) ? q.location_id[1].split('/').slice(-2).join('/') : '-'"/>
                                 </td>
                                 <td><t t-esc="q.x_origen or '-'"/></td>
                                 <td class="font-monospace text-muted">

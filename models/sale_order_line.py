@@ -781,8 +781,16 @@ class SaleOrderLine(models.Model):
             ('quantity', '>', 0),
         ])
         qty_map = {}
+        loc_map = {}
         for q in quants:
             qty_map[q.lot_id.id] = qty_map.get(q.lot_id.id, 0.0) + q.quantity
+            if q.lot_id.id not in loc_map and q.location_id:
+                # Ubicación RECORTADA: último padre / último hijo, para que
+                # la columna no se coma la tabla con la ruta completa.
+                parts = [p for p in (q.location_id.complete_name
+                                     or q.location_id.display_name
+                                     or '').split('/') if p]
+                loc_map[q.lot_id.id] = '/'.join(parts[-2:]) if parts else ''
 
         result = []
         for lot_id in all_lot_ids:
@@ -885,6 +893,7 @@ class SaleOrderLine(models.Model):
                 'x_ancho': self._stone_safe_get(lot, 'x_ancho', 0) or 0,
                 'x_grosor': self._stone_safe_get(lot, 'x_grosor', 0) or 0,
                 'x_color': self._stone_safe_get(lot, 'x_color', '') or '',
+                'location': loc_map.get(lot_id, ''),
                 'x_fotografia_principal': self._stone_safe_get(lot, 'x_fotografia_principal', False) or False,
                 'x_cantidad_fotos': self._stone_safe_get(lot, 'x_cantidad_fotos', 0) or 0,
                 'status_badges': badges,
