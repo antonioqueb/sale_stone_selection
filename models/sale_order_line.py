@@ -578,6 +578,39 @@ class SaleOrderLine(models.Model):
         # esa derivación.
         return
     
+    def _som_cap_lot_breakdown_to_line(self, items):
+        """El desglose por lote de una línea JAMÁS muestra más que lo
+        vendido: sin breakdown, el fallback era el stock FÍSICO del lote
+        (p. ej. 'Lote × 1000' en una venta de 600). Se recorta en orden
+        greedy y se descartan los que quedan en cero."""
+        limit = self.product_uom_qty or 0.0
+        if limit <= 0 or not items:
+            return items
+        running = 0.0
+        capped = []
+        for item in items:
+            allowed = max(min(item.get('quantity', 0.0), limit - running), 0.0)
+            running += allowed
+            if allowed > 0.0001:
+                item = dict(item, quantity=allowed)
+                capped.append(item)
+        return capped or items[:1]
+
+    def _som_breakdown_qty_for_lot(self, breakdown, lot):
+        """Cantidad asignada del lote en el desglose. El breakdown del
+        carrito puede venir con llave de LOT o de QUANT — se buscan ambas
+        (mismo criterio que _stone_line_expected_qty_for_lot)."""
+        if not breakdown:
+            return None
+        val = breakdown.get(str(lot.id))
+        if val is not None:
+            return float(val)
+        if 'x_selected_lots' in self._fields and self.x_selected_lots:
+            for quant in self.x_selected_lots:
+                if quant.lot_id.id == lot.id and str(quant.id) in breakdown:
+                    return float(breakdown[str(quant.id)])
+        return None
+
     def _get_all_sale_lots_with_qty(self):
         self.ensure_one()
 
@@ -596,7 +629,7 @@ class SaleOrderLine(models.Model):
                 if lot.id not in lot_data:
                     lot_data[lot.id] = {'lot': lot, 'quantity': 0.0}
                 lot_data[lot.id]['quantity'] += self._stone_line_move_line_qty(ml)
-            return list(lot_data.values())
+            return self._som_cap_lot_breakdown_to_line(list(lot_data.values()))
 
         if self.lot_ids:
             breakdown = self._parse_breakdown_dict()
@@ -604,10 +637,11 @@ class SaleOrderLine(models.Model):
             result = []
             for lot in self.lot_ids:
                 tipo = str(lot.x_tipo).lower() if lot.x_tipo else 'placa'
-                lot_id_str = str(lot.id)
 
-                if tipo in ('formato', 'pieza') and lot_id_str in breakdown:
-                    qty = float(breakdown[lot_id_str])
+                bqty = (self._som_breakdown_qty_for_lot(breakdown, lot)
+                        if tipo in ('formato', 'pieza') else None)
+                if bqty is not None:
+                    qty = bqty
                 else:
                     physical_qty = self._stone_line_get_lot_physical_qty(lot)
                     qty = physical_qty if physical_qty else (
@@ -620,7 +654,7 @@ class SaleOrderLine(models.Model):
                     'lot': lot,
                     'quantity': qty,
                 })
-            return result
+            return self._som_cap_lot_breakdown_to_line(result)
 
         # Piezas/formatos vendidos desde el carrito: la selección vive en
         # x_selected_lots (+ x_lot_breakdown_json, del módulo del carrito) y
@@ -639,8 +673,14 @@ class SaleOrderLine(models.Model):
                 tipo = str(lot.x_tipo).lower() if lot.x_tipo else 'placa'
                 lot_id_str = str(lot.id)
 
-                if tipo in ('formato', 'pieza') and lot_id_str in breakdown:
-                    qty = float(breakdown[lot_id_str])
+                bqty = None
+                if tipo in ('formato', 'pieza'):
+                    if lot_id_str in breakdown:
+                        bqty = float(breakdown[lot_id_str])
+                    elif str(quant.id) in breakdown:
+                        bqty = float(breakdown[str(quant.id)])
+                if bqty is not None:
+                    qty = bqty
                 else:
                     qty = quant.quantity or (
                         lot.x_alto * lot.x_ancho
@@ -652,7 +692,7 @@ class SaleOrderLine(models.Model):
                     'lot': lot,
                     'quantity': qty,
                 })
-            return result
+            return self._som_cap_lot_breakdown_to_line(result)
 
         return []
 
