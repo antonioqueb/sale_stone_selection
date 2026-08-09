@@ -76,10 +76,39 @@ class StockMove(models.Model):
             _logger.info("[STONE SYNC] Picking %s -> SO Line %s",
                          move.picking_id.name if move.picking_id else 'N/A', sol.id)
 
+            # SEMBRAR EL DESGLOSE de los lotes formato/pieza recién
+            # oficializados: sin entrada en x_lot_breakdown_json, el lote se
+            # interpretaba como COMPLETO en todos los consumidores (visual,
+            # ratchet, re-sync a picking con reparto uniforme). La cantidad
+            # sembrada es la de sus move lines en los pickings — exactamente
+            # lo que la entrega dice.
+            write_vals = {'lot_ids': [(6, 0, list(all_lot_ids))]}
+            if added and 'x_lot_breakdown_json' in sol._fields:
+                breakdown = dict(sol.x_lot_breakdown_json or {})
+                changed_bd = False
+                for lot_id in added:
+                    lot = self.env['stock.lot'].browse(lot_id)
+                    tipo = ''
+                    if 'x_tipo' in lot._fields and lot.x_tipo:
+                        tipo = str(lot.x_tipo).strip().lower()
+                    if tipo not in ('formato', 'pieza'):
+                        continue
+                    if sol._som_breakdown_qty_for_lot(breakdown, lot) is not None:
+                        continue
+                    ml_qty = sum(
+                        ml.quantity or 0.0
+                        for ml in sol.move_ids.mapped('move_line_ids')
+                        if ml.lot_id.id == lot_id
+                        and ml.state not in ('cancel',)
+                    )
+                    if ml_qty > 0:
+                        breakdown[str(lot_id)] = ml_qty
+                        changed_bd = True
+                if changed_bd:
+                    write_vals['x_lot_breakdown_json'] = breakdown
+
             try:
-                sol.with_context(skip_stone_sync_picking=True).write({
-                    'lot_ids': [(6, 0, list(all_lot_ids))]
-                })
+                sol.with_context(skip_stone_sync_picking=True).write(write_vals)
                 _logger.info("[STONE SYNC] ✓ Actualizado SO Line %s con %s lotes",
                              sol.id, len(all_lot_ids))
             except UserError:

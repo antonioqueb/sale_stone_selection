@@ -845,13 +845,16 @@ class SaleOrderLine(models.Model):
 
             if is_ghost:
                 displayed_qty = 0.0
-            elif tipo in ('formato', 'pieza') and str(lot_id) in breakdown:
-                displayed_qty = float(breakdown[str(lot_id)])
+            elif tipo in ('formato', 'pieza') and breakdown:
+                bqty = self._som_breakdown_qty_for_lot(breakdown, lot)
+                displayed_qty = (
+                    float(bqty) if bqty is not None else available_qty)
             else:
                 displayed_qty = available_qty
 
             badges = []
             is_locked = False
+            swap_locked = False
 
             if d:
                 for sw in d['swap_replaced_by']:
@@ -861,6 +864,7 @@ class SaleOrderLine(models.Model):
                         'icon': 'fa-exchange',
                     })
                     is_locked = True
+                    swap_locked = True
                 for sw in d['swap_replacement_of']:
                     badges.append({
                         'type': 'swap_replacement',
@@ -913,6 +917,22 @@ class SaleOrderLine(models.Model):
                         })
                     is_locked = True
 
+            # CANDADO PARCIAL (formato/pieza): las entregas NO congelan la
+            # asignación — queda editable con PISO = entregado neto del lote
+            # (el guard de servidor lo respalda). Solo el reemplazo por swap
+            # bloquea del todo. Las PLACAS conservan el candado completo:
+            # se entregan enteras y no hay parcialidad que editar.
+            min_qty = 0.0
+            if d:
+                min_qty = max(
+                    (d['qty_delivered'] or 0.0)
+                    + (d['qty_redelivered_confirmed'] or 0.0)
+                    - (d['qty_returned'] or 0.0),
+                    0.0,
+                )
+            if tipo in ('formato', 'pieza') and is_locked and not swap_locked:
+                is_locked = False
+
             if not badges and not is_ghost:
                 badges.append({
                     'type': 'pending',
@@ -939,6 +959,7 @@ class SaleOrderLine(models.Model):
                 'status_badges': badges,
                 'is_locked': is_locked,
                 'is_ghost': is_ghost,
+                'min_qty': min_qty,
                 'qty_delivered': d['qty_delivered'] if d else 0.0,
                 'qty_returned': d['qty_returned'] if d else 0.0,
                 'qty_redelivered': (

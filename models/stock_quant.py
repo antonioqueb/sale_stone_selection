@@ -26,8 +26,64 @@ class StockQuant(models.Model):
             ('lot_ids', '!=', False),
             ('order_id.state', 'in', ['sale', 'done']),
         ])
+
+        # COMPROMISO PARCIAL (formato/pieza): un lote asignado en PARTE a
+        # ventas confirmadas solo se compromete completo cuando su asignación
+        # viva (desglose − entregado) agota el físico. El remanente libre
+        # sigue vendible desde el selector — antes cualquier presencia en
+        # lot_ids escondía el lote entero aunque quedaran m² libres.
+        assigned_by_lot = {}       # lot_id -> suma asignada en desgloses
+        full_commit_lots = set()   # sin desglose => lote completo
+        lines_by_order = {}
         for sol in committed_sol:
-            committed_ids.update(sol.lot_ids.ids)
+            lines_by_order.setdefault(sol.order_id, []).append(sol)
+            breakdown = getattr(sol, 'x_lot_breakdown_json', None) or {}
+            for lot in sol.lot_ids:
+                tipo = ''
+                if 'x_tipo' in lot._fields and lot.x_tipo:
+                    tipo = str(lot.x_tipo).strip().lower()
+                if tipo not in ('formato', 'pieza'):
+                    full_commit_lots.add(lot.id)
+                    continue
+                bqty = None
+                if breakdown and hasattr(sol, '_som_breakdown_qty_for_lot'):
+                    bqty = sol._som_breakdown_qty_for_lot(breakdown, lot)
+                if bqty is None:
+                    # Sin parcialidad declarada: compromiso total.
+                    full_commit_lots.add(lot.id)
+                else:
+                    assigned_by_lot[lot.id] = (
+                        assigned_by_lot.get(lot.id, 0.0) + float(bqty or 0.0))
+
+        committed_ids.update(full_commit_lots)
+
+        partial_lot_ids = set(assigned_by_lot) - full_commit_lots
+        if partial_lot_ids:
+            # Entregado por lote (para no contar contra el físico lo que ya
+            # salió del almacén). Un mapa por orden involucrada.
+            delivered_by_lot = {}
+            for order in lines_by_order:
+                if hasattr(order, '_som_lot_delivered_net_map'):
+                    for (slid, lot_id), qty in order._som_lot_delivered_net_map().items():
+                        if lot_id in partial_lot_ids:
+                            delivered_by_lot[lot_id] = (
+                                delivered_by_lot.get(lot_id, 0.0) + qty)
+
+            for lot in self.env['stock.lot'].browse(list(partial_lot_ids)):
+                physical = lot.product_qty or 0.0
+                live_assigned = max(
+                    assigned_by_lot.get(lot.id, 0.0)
+                    - delivered_by_lot.get(lot.id, 0.0),
+                    0.0,
+                )
+                if physical - live_assigned <= 0.0001:
+                    committed_ids.add(lot.id)
+                else:
+                    # Hay remanente libre: se descarta también del set por
+                    # move lines (la reserva parcial no esconde el lote).
+                    # Los topes de asignación cuidan que nadie tome más que
+                    # ese remanente.
+                    committed_ids.discard(lot.id)
 
         return list(committed_ids)
 

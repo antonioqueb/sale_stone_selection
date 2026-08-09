@@ -969,19 +969,27 @@ export class StoneExpandButton extends Component {
                                </div>`;
                 }
             } else if (isPartial && !isLocked) {
+                // Lote con entregas: editable con PISO = entregado neto y
+                // TECHO = entregado + físico restante (lo entregado ya no
+                // está en almacén pero sigue contando en la asignación).
+                const minQty = parseFloat(item.min_qty || 0) || 0;
+                const maxQty = minQty + (parseFloat(item.available_qty || 0) || 0);
                 qtyCell = `<input type="number" class="stone-qty-input"
-                                  data-lot-id="${item.lot_id}" data-max="${item.available_qty}"
-                                  step="${inputStep}" min="0" max="${item.available_qty}"
-                                  value="${item.displayed_qty || 0}" />`;
+                                  data-lot-id="${item.lot_id}" data-max="${maxQty}"
+                                  data-min="${minQty}"
+                                  step="${inputStep}" min="${minQty}" max="${maxQty}"
+                                  value="${item.displayed_qty || 0}"
+                                  ${minQty > 0 ? `title="Ya entregado: ${minQty} — la asignación no puede bajar de ahí"` : ""} />`;
             } else {
                 qtyCell = `<span class="fw-semibold">${this._fmt(item.displayed_qty)} ${qtyLabel}</span>`;
             }
 
-            const lockMsg = isLocked
-                ? this._escapeHtml(item.status_badges?.[0]?.label || "Bloqueado")
+            const hasDeliveries = (parseFloat(item.min_qty || 0) || 0) > 0;
+            const lockMsg = (isLocked || hasDeliveries)
+                ? this._escapeHtml(item.status_badges?.[0]?.label || "Con entregas: no se puede quitar")
                 : "Quitar";
 
-            const removeBtn = isLocked
+            const removeBtn = (isLocked || hasDeliveries)
                 ? `<button class="stone-remove-btn stone-remove-btn-disabled" disabled title="${lockMsg}">
                        <i class="fa fa-lock"></i>
                    </button>`
@@ -1167,8 +1175,10 @@ export class StoneExpandButton extends Component {
 
         const lotId = parseInt(input.dataset.lotId);
         const maxQty = parseFloat(input.dataset.max) || 0;
+        const minQty = parseFloat(input.dataset.min) || 0;
         let val = parseFloat(input.value) || 0;
 
+        if (val < minQty) val = minQty;
         if (val < 0) val = 0;
         if (val > maxQty) val = maxQty;
         input.value = val;
