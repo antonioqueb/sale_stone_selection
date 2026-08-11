@@ -29,16 +29,47 @@ class StockQuant(models.Model):
         for sol in committed_sol:
             committed_ids.update(sol.lot_ids.ids)
 
-        # REGLA TODO-O-NADA (2026-08-10, pedida explícitamente tras el caso
-        # del lote 202-16-4): un lote presente en CUALQUIER venta confirmada
-        # u operación activa se oculta COMPLETO de los selectores, aunque su
-        # asignación sea parcial y tenga remanente físico. El validador de
-        # duplicados a nivel move line (_validate_duplicate_lot_commitment)
-        # es todo-o-nada: ofrecer el remanente aquí producía la trampa de
-        # "seleccionable pero al guardar truena". El remanente parcial sigue
-        # VISIBLE (dividido) en el Inventario Visual; venderlo a otra orden
-        # requiere primero hacer partial-aware ese validador (pendiente).
-        return list(committed_ids)
+        # PARCIALIDADES (2026-08-11): el validador de duplicados ya es
+        # partial-aware para FORMATO/PIEZA, así que aquí solo se excluyen
+        # los lotes COMPLETAMENTE comprometidos:
+        # - PLACAS: atómicas — cualquier compromiso las excluye completas.
+        # - FORMATO/PIEZA: excluidos solo si lo comprometido (máx entre move
+        #   lines vivas y capturas en órdenes) cubre todo el físico; con
+        #   remanente siguen seleccionables (el caller los pasa al
+        #   passthrough para librar los filtros de reserva/hold).
+        if not committed_ids:
+            return []
+        fully = []
+        for lot in self.env['stock.lot'].browse(list(committed_ids)):
+            tipo = str(getattr(lot, 'x_tipo', '') or '').lower()
+            if tipo not in ('formato', 'pieza'):
+                fully.append(lot.id)
+                continue
+            quants = self.env['stock.quant'].sudo().search([
+                ('lot_id', '=', lot.id),
+                ('location_id.usage', '=', 'internal'),
+                ('quantity', '>', 0),
+            ])
+            fisico = sum(quants.mapped('quantity'))
+            ml_qty = 0.0
+            for ml in committed_move_lines:
+                if ml.lot_id.id == lot.id:
+                    ml_qty += (ml.quantity if 'quantity' in ml._fields
+                               else getattr(ml, 'qty_done', 0.0)) or 0.0
+            sol_qty = 0.0
+            for sol in committed_sol:
+                if lot.id not in sol.lot_ids.ids:
+                    continue
+                qty = None
+                if hasattr(sol, '_som_breakdown_qty_for_lot'):
+                    bd = getattr(sol, 'x_lot_breakdown_json', None)
+                    if bd:
+                        qty = sol._som_breakdown_qty_for_lot(bd, lot)
+                sol_qty += float(qty) if qty is not None else fisico
+            comprometido = max(ml_qty, min(sol_qty, fisico))
+            if comprometido >= fisico - 0.0001:
+                fully.append(lot.id)
+        return fully
 
     def _build_stone_domain(self, product_id, filters, safe_current_ids, excluded_lot_ids):
         base_domain = [
@@ -90,10 +121,30 @@ class StockQuant(models.Model):
                 and q.som_hold_free_qty() > 0.0001
             ]
 
+        # Comprometidos PARCIALES (formato/pieza con remanente): pueden
+        # traer reserva nativa — pasan al passthrough para ser visibles.
+        partial_committed_ids = []
+        Sol = self.env['sale.order.line'].sudo()
+        sols_live = Sol.search([
+            ('product_id', '=', int(product_id)),
+            ('lot_ids', '!=', False),
+            ('order_id.state', 'in', ['sale', 'done']),
+        ])
+        seen_partial = set()
+        for sol in sols_live:
+            for lot in sol.lot_ids:
+                if lot.id in seen_partial or lot.id in (excluded_lot_ids or []):
+                    continue
+                tipo = str(getattr(lot, 'x_tipo', '') or '').lower()
+                if tipo in ('formato', 'pieza'):
+                    seen_partial.add(lot.id)
+                    partial_committed_ids.append(lot.id)
+
         passthrough_ids = list(
             set(safe_current_ids or [])
             | set(weak_lot_ids)
-            | set(partial_hold_lot_ids))
+            | set(partial_hold_lot_ids)
+            | set(partial_committed_ids))
 
         if passthrough_ids:
             availability_domain = (
