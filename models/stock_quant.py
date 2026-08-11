@@ -70,7 +70,30 @@ class StockQuant(models.Model):
             lid for lid in weak_lines.mapped('lot_id').ids
             if lid not in (excluded_lot_ids or [])
         ]
-        passthrough_ids = list(set(safe_current_ids or []) | set(weak_lot_ids))
+
+        # APARTADO PARCIAL: un formato/pieza con hold que solo retiene su
+        # parcialidad sigue siendo vendible por el REMANENTE — pasa al
+        # selector (la validación de holds y los topes cuidan la cantidad).
+        partial_hold_lot_ids = []
+        if 'x_tiene_hold' in self.env['stock.quant']._fields:
+            held_quants = self.env['stock.quant'].sudo().search([
+                ('product_id', '=', int(product_id)),
+                ('location_id.usage', '=', 'internal'),
+                ('quantity', '>', 0),
+                ('x_tiene_hold', '=', True),
+                ('lot_id.x_tipo', 'in', ('formato', 'pieza')),
+            ])
+            partial_hold_lot_ids = [
+                q.lot_id.id for q in held_quants
+                if q.lot_id
+                and q.lot_id.id not in (excluded_lot_ids or [])
+                and q.som_hold_free_qty() > 0.0001
+            ]
+
+        passthrough_ids = list(
+            set(safe_current_ids or [])
+            | set(weak_lot_ids)
+            | set(partial_hold_lot_ids))
 
         if passthrough_ids:
             availability_domain = (
