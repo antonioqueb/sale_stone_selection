@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Saneo idempotente en cada actualización: los respaldos de
+         cotización (ya convertidos a V/) se archivan. -->
+    <function model="sale.order" name="_som_archive_quote_backups"/>
+</odoo>

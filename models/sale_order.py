@@ -11,6 +11,12 @@ _logger = logging.getLogger(__name__)
 class SaleOrder(models.Model):
     _inherit = 'sale.order'
 
+    # sale.order NO trae 'active' en core: se agrega para poder ARCHIVAR
+    # los respaldos de cotización. Todo search del ORM excluye archivados
+    # por defecto — exactamente el efecto deseado: en Cotizaciones solo
+    # viven las cotizaciones reales.
+    active = fields.Boolean(default=True)
+
     x_is_quote_backup = fields.Boolean(
         string="Es Cotización Histórica",
         default=False,
@@ -127,6 +133,22 @@ class SaleOrder(models.Model):
                 "Líneas detectadas:\n%s\n\n"
                 "Revise la limpieza de pickings automáticos antes de reintentar."
             ) % '\n'.join(details))
+
+    @api.model
+    def _som_archive_quote_backups(self):
+        """Archiva TODOS los respaldos de cotización (x_is_quote_backup):
+        por construcción ya tienen su homóloga orden de venta V/. Corre en
+        cada -u del módulo (idempotente) — sanea el histórico."""
+        backups = self.search([
+            ('x_is_quote_backup', '=', True),
+            ('active', '=', True),
+        ])
+        if backups:
+            backups.write({'active': False})
+            _logger.info(
+                '[STONE] %s respaldos de cotización archivados.',
+                len(backups))
+        return True
 
     def action_confirm(self):
         """
@@ -287,6 +309,9 @@ class SaleOrder(models.Model):
                     'origin': 'Convertido a %s' % new_ov_name,
                     'x_is_quote_backup': True,
                     'date_order': fields.Datetime.now(),
+                    # El respaldo nace ARCHIVADO: la lista de cotizaciones
+                    # queda solo con cotizaciones vivas de verdad.
+                    'active': False,
                 }
 
                 if has_stone_lots:
