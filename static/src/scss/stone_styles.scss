@@ -2115,6 +2115,70 @@ select.stone-filter-input {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// MÓVIL — misma receta que Inventario Visual: las tablas conservan su ancho
+// natural dentro de un wrapper con scroll TÁCTIL horizontal (nada se aplasta
+// ni se corta), y el selector ocupa la pantalla completa en teléfonos.
+// ═══════════════════════════════════════════════════════════════════════════
+@media (max-width: 992px) {
+    .stone-popup-body,
+    .stone-selected-body,
+    .stone-grid-wrapper {
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .stone-popup-table,
+    .stone-sel-table,
+    .o_stone_table {
+        width: max-content;
+        min-width: 100%;
+    }
+}
+
+@media (max-width: 640px) {
+    .stone-popup-overlay {
+        padding: 0;
+    }
+
+    .stone-popup-container {
+        width: 100vw;
+        max-width: 100vw;
+        // 100vh como respaldo; dvh respeta las barras dinámicas del
+        // navegador móvil (el footer no queda escondido tras la barra).
+        height: 100vh;
+        height: 100dvh;
+        max-height: 100dvh;
+        border-radius: 0;
+        border-left: 0;
+        border-right: 0;
+    }
+
+    .stone-popup-header {
+        padding: 12px;
+    }
+
+    // Densidad táctil: celdas compactas y sin saltos de línea — el detalle
+    // completo se recorre con el scroll horizontal.
+    .stone-popup-table th,
+    .stone-popup-table td,
+    .stone-sel-table th,
+    .stone-sel-table td {
+        padding: 6px 8px;
+        font-size: 11px;
+        white-space: nowrap;
+    }
+
+    // Acciones siempre a la mano: el pie del selector queda pegado abajo.
+    .stone-popup-footer {
+        position: sticky;
+        bottom: 0;
+        z-index: 5;
+        padding: 10px 12px;
+        background: #ffffff;
+        box-shadow: 0 -6px 16px rgba(15, 23, 42, 0.08);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // POPUP — RESUMEN DE ASIGNACIÓN VS CANTIDAD MANDADA
 // ═══════════════════════════════════════════════════════════════════════════
 .stone-badge-requested {
