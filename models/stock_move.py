@@ -61,6 +61,30 @@ class StockMove(models.Model):
             if not all_lot_ids:
                 continue
 
+            # EXCEPCIÓN A LA REGLA DE ORO: los lotes reservados EN TRÁNSITO
+            # en un viaje ACTIVO no pueden estar en la entrega todavía (el
+            # material va en el mar) — la entrega no manda sobre lo que aún
+            # no llega. Sin esta preservación, validar la recepción de UN
+            # embarque reemplazaba lot_ids con sus placas y SOLTABA la
+            # reserva de las placas del OTRO embarque en camino (caso real:
+            # V/131 perdió 41 placas de EMBARQUE/2026/0035 al recibir el
+            # EMBARQUE/2026/0029).
+            missing_lots = existing_lots - all_lot_ids
+            if missing_lots and 'stock.transit.line' in self.env:
+                in_transit = self.env['stock.transit.line'].sudo().search([
+                    ('order_id', '=', sol.order_id.id),
+                    ('product_id', '=', sol.product_id.id),
+                    ('lot_id', 'in', list(missing_lots)),
+                    ('allocation_status', '=', 'reserved'),
+                    ('voyage_id.custom_status', 'not in', ['delivered', 'cancel']),
+                ]).mapped('lot_id')
+                if in_transit:
+                    _logger.info(
+                        "[STONE SYNC] Preservando %s lote(s) reservados en "
+                        "tránsito activo (SO Line %s): %s",
+                        len(in_transit), sol.id, in_transit.mapped('name'))
+                    all_lot_ids.update(in_transit.ids)
+
             added = all_lot_ids - existing_lots
             if added:
                 added_names = self.env['stock.lot'].browse(
