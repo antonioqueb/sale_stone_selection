@@ -132,7 +132,18 @@ class StockMove(models.Model):
                     write_vals['x_lot_breakdown_json'] = breakdown
 
             try:
-                sol.with_context(skip_stone_sync_picking=True).write(write_vals)
+                # tc_qty_sync_from_lots: la oficialización viene de la
+                # ENTREGA y NO debe derivar el Solicitado. Sin esta marca,
+                # el ratchet de Torre de Control subía la cantidad a cobrar
+                # al oficializar lotes entregados (V/150: una línea de
+                # 13.46 con lotes de entregas previas oficializados saltó a
+                # 26.92 EN CALIENTE, infló la orden $80,050.93 y el candado
+                # de pago bloqueó la remisión). El Solicitado solo se mueve
+                # por decisión comercial, nunca por sincronizar la entrega.
+                sol.with_context(
+                    skip_stone_sync_picking=True,
+                    tc_qty_sync_from_lots=True,
+                ).write(write_vals)
                 _logger.info("[STONE SYNC] ✓ Actualizado SO Line %s con %s lotes",
                              sol.id, len(all_lot_ids))
             except UserError:
