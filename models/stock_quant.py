@@ -26,8 +26,32 @@ class StockQuant(models.Model):
             ('lot_ids', '!=', False),
             ('order_id.state', 'in', ['sale', 'done']),
         ])
+        # ENTREGADO NO COMPROMETE (2026-08-14): lot_ids conserva los lotes
+        # oficializados aunque la línea YA se entregó. Si ese material
+        # regresó por devolución, está físicamente disponible y debe ser
+        # elegible otra vez (venta, reclasificación, taller). Comprometido
+        # = pendiente de entregar: se descuentan los lotes con salida DONE
+        # a cliente de SU MISMA línea (si otra orden abierta los tiene,
+        # esa orden los sigue comprometiendo por su cuenta).
+        sol_lot_ids = set()
         for sol in committed_sol:
-            committed_ids.update(sol.lot_ids.ids)
+            sol_lot_ids.update(sol.lot_ids.ids)
+        delivered_by_line = {}
+        if sol_lot_ids:
+            done_mls = self.env['stock.move.line'].sudo().search([
+                ('product_id', '=', product_id),
+                ('lot_id', 'in', list(sol_lot_ids)),
+                ('state', '=', 'done'),
+                ('location_dest_id.usage', '=', 'customer'),
+                ('move_id.sale_line_id', 'in', committed_sol.ids),
+            ])
+            for ml in done_mls:
+                delivered_by_line.setdefault(
+                    ml.move_id.sale_line_id.id, set()).add(ml.lot_id.id)
+        for sol in committed_sol:
+            delivered = delivered_by_line.get(sol.id, set())
+            committed_ids.update(
+                lid for lid in sol.lot_ids.ids if lid not in delivered)
 
         # PARCIALIDADES (2026-08-11): el validador de duplicados ya es
         # partial-aware para FORMATO/PIEZA, así que aquí solo se excluyen
