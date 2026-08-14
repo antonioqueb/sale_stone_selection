@@ -62,6 +62,22 @@ export class StoneGrid extends Component {
         }
     }
 
+    // Recencia del bloque (misma regla del Inventario Visual): serie
+    // S<edad> = lo más reciente (número mayor = más nuevo); folios
+    // numéricos después (mayor = más nuevo); sin folio al final.
+    _blockRecency(name) {
+        const s = String(name || "").trim().toUpperCase();
+        const m = s.match(/^S\s*-?(\d+)/);
+        if (m) {
+            return [2, parseInt(m[1], 10)];
+        }
+        const n = parseInt(s, 10);
+        if (!isNaN(n)) {
+            return [1, n];
+        }
+        return [0, 0];
+    }
+
     get groupedDetails() {
         const groups = {};
         for (const detail of this.state.details) {
@@ -73,7 +89,20 @@ export class StoneGrid extends Component {
             groups[blockName].count++;
             groups[blockName].totalArea += detail.quantity;
         }
-        return Object.values(groups).sort((a, b) => b.count - a.count);
+        const out = Object.values(groups);
+        // Placas dentro del bloque: orden natural ascendente (S26-01,
+        // S26-02, ... S26-10 — no el orden de llegada del search).
+        for (const g of out) {
+            g.items.sort((a, b) => String(a.lot_name).localeCompare(
+                String(b.lot_name), "es", { numeric: true }));
+        }
+        // Bloques: del MÁS NUEVO al más viejo, como el Inventario Visual.
+        return out.sort((a, b) => {
+            const ka = this._blockRecency(a.blockName);
+            const kb = this._blockRecency(b.blockName);
+            return (kb[0] - ka[0]) || (kb[1] - ka[1])
+                || String(a.blockName).localeCompare(String(b.blockName));
+        });
     }
 
     toggleSelection(detail) {
