@@ -25,6 +25,19 @@
             -->
             <xpath expr="//field[@name='order_line']" position="attributes">
                 <attribute name="class" add="o_tc_clean_order_lines" separator=" "/>
+                <!-- SIN montos por sección en la interfaz: las secciones son
+                     DIVISORES, no subtotales — los montos por sección
+                     confundían a los vendedores. -->
+                <attribute name="aggregated_fields"></attribute>
+            </xpath>
+
+            <!-- Botones de captura garantizados (en español) -->
+            <xpath expr="//field[@name='order_line']/list/control" position="replace">
+                <control>
+                    <create name="add_product_control" string="Agregar producto"/>
+                    <create name="add_section_control" string="Agregar sección" context="{'default_display_type': 'line_section'}"/>
+                    <create name="add_note_control" string="Agregar nota" context="{'default_display_type': 'line_note'}"/>
+                </control>
             </xpath>
 
             <!-- Botón Stone ANTES del producto (izquierda) -->
