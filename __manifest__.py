@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Stone Selection & Visual Sale Grid',
-    'version': '19.0.7.5.0',
+    'version': '19.0.7.6.0',
     'category': 'Sales/Sales',
     'summary': 'Selección visual de placas con reserva estricta y estatus de entrega',
     'description': """
@@ -27,6 +27,7 @@
         'data/archive_quote_backups.xml',
         'views/sale_views.xml',
         'views/stock_views.xml',
+        'data/mail_template_sale_confirmation.xml',
     ],
     'assets': {
         'web.assets_backend': [
