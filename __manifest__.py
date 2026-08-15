@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Stone Selection & Visual Sale Grid',
-    'version': '19.0.7.8.0',
+    'version': '19.0.7.9.0',
     'category': 'Sales/Sales',
     'summary': 'Selección visual de placas con reserva estricta y estatus de entrega',
     'description': """

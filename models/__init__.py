@@ -12,3 +12,4 @@ from . import sale_stone_swap_history
 # Ese archivo hereda de sale.swap.wizard, modelo definido por sale_delivery_wizard.
 # Importarlo desde sale_stone_selection crea dependencia circular:
 # sale_stone_selection -> sale_delivery_wizard -> sale_stone_selection.
+from . import mail_template_branding
