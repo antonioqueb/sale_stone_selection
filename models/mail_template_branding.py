@@ -16,15 +16,13 @@ _TEMPLATES = {
     'sale.mail_template_sale_confirmation': {
         'file': 'sale_stone_selection/data/mail_bodies/confirmation.html',
         'subject': (
-            'Your order {{ object.name or \'n/a\' }} is confirmed — '
-            '(SOM)'),
+            "Your order {{ object.name or '' }} is confirmed"),
     },
     'sale.email_template_edi_sale': {
         'file': 'sale_stone_selection/data/mail_bodies/quotation.html',
         'subject': (
             "Your {{ object.state in ('draft', 'sent') and 'quotation' "
-            "or 'order' }} {{ object.name or 'n/a' }} — "
-            '(SOM)'),
+            "or 'order' }} {{ object.name or '' }} is ready for review"),
     },
 }
 

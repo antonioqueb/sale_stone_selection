@@ -8,32 +8,32 @@
                     <tr>
                         <td style="vertical-align: middle;">
                             <img t-att-src="object.get_base_url() + '/theme_list_modern/static/img/logosom.png'"
-                                 alt="(SOM)" style="height: 30px; width: auto; display: block;"/>
+                                 alt="SOM" style="height: 30px; width: auto; display: block;"/>
                         </td>
                         <td style="vertical-align: middle; text-align: right; font-size: 10px; letter-spacing: .28em; text-transform: uppercase; color: #8A8072; white-space: nowrap;">
-                            ( Order Confirmation )
+                            Order Confirmation
                         </td>
                     </tr>
                 </table>
                 <div style="margin-top: 18px; border-top: 1px solid #2C221B;"></div>
             </td>
         </tr>
-        <!-- FOLIO + TOTAL -->
+        <!-- TITULAR + TOTAL -->
         <tr>
-            <td style="padding: 18px 44px 0;">
+            <td style="padding: 20px 44px 0;">
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                     <tr>
                         <td style="vertical-align: bottom;">
-                            <div style="font-size: 28px; font-weight: 300; letter-spacing: .04em; color: #2C221B;">
-                                <t t-out="object.name or ''">S00049</t>
+                            <div style="font-size: 26px; font-weight: 300; letter-spacing: .01em; color: #2C221B; line-height: 1.25;">
+                                Your order is confirmed.
                             </div>
-                            <div style="font-size: 10px; letter-spacing: .22em; text-transform: uppercase; color: #8A8072; margin-top: 6px;">
-                                <t t-out="format_date(object.date_order) or ''"/>
+                            <div style="font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: #8A8072; margin-top: 8px;">
+                                <t t-out="object.name or ''">S00049</t> &#183; <t t-out="format_date(object.date_order) or ''"/>
                             </div>
                         </td>
                         <td style="vertical-align: bottom; text-align: right;">
                             <div style="font-size: 10px; letter-spacing: .2em; text-transform: uppercase; color: #8A8072;">
-                                ( Total &#183; <t t-out="object.currency_id.name or ''">MXN</t> )
+                                Total &#183; <t t-out="object.currency_id.name or ''">MXN</t>
                             </div>
                             <div style="margin-top: 4px;">
                                 <span style="font-size: 26px; font-weight: 500; letter-spacing: .01em; color: #2C221B; white-space: nowrap;"
@@ -51,15 +51,15 @@
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background: #ECE9E1;">
                     <tr>
                         <td t-if="object.client_order_ref" style="padding: 14px 22px 16px 28px; vertical-align: top; width: 33%;">
-                            <div style="font-size: 9px; letter-spacing: .2em; text-transform: uppercase; color: #8A8072;">( Your reference )</div>
+                            <div style="font-size: 9px; letter-spacing: .2em; text-transform: uppercase; color: #8A8072;">Your reference</div>
                             <div style="font-size: 13px; font-weight: 600; color: #2C221B; letter-spacing: .02em; margin-top: 5px;"><t t-out="object.client_order_ref or ''"/></div>
                         </td>
                         <td t-if="object.user_id" style="padding: 14px 22px 16px; border-left: 1px solid #D8D2C6; vertical-align: top; width: 33%;">
-                            <div style="font-size: 9px; letter-spacing: .2em; text-transform: uppercase; color: #8A8072;">( Sales advisor )</div>
+                            <div style="font-size: 9px; letter-spacing: .2em; text-transform: uppercase; color: #8A8072;">Sales advisor</div>
                             <div style="font-size: 13px; font-weight: 600; color: #2C221B; letter-spacing: .02em; margin-top: 5px;"><t t-out="object.user_id.name or ''">Advisor</t></div>
                         </td>
                         <td style="padding: 14px 22px 16px; border-left: 1px solid #D8D2C6; vertical-align: top; width: 33%;">
-                            <div style="font-size: 9px; letter-spacing: .2em; text-transform: uppercase; color: #8A8072;">( Status )</div>
+                            <div style="font-size: 9px; letter-spacing: .2em; text-transform: uppercase; color: #8A8072;">Status</div>
                             <div style="font-size: 13px; font-weight: 600; color: #2C221B; letter-spacing: .02em; margin-top: 5px;">Confirmed</div>
                         </td>
                     </tr>
@@ -73,10 +73,9 @@
                 <p style="margin: 0;">
                     Dear <t t-out="object.partner_id.name or ''">Customer</t>,
                     <t t-if="object.state == 'sale' or (tx_sudo and tx_sudo.state in ('done', 'authorized'))">
-                        we are pleased to confirm your order. Our team has begun
-                        preparing your material with the precision every natural
-                        piece deserves, and your advisor will keep you informed
-                        at each stage.
+                        our team has begun preparing your material with the care
+                        and precision that define our work. Your advisor will
+                        keep you informed at each stage.
                     </t>
                     <t t-elif="tx_sudo and tx_sudo.state == 'pending'">
                         your order has been received and will be confirmed once
@@ -90,10 +89,10 @@
         </tr>
         <!-- DOCUMENTOS -->
         <tr>
-            <td style="padding: 4px 44px 0; font-size: 13px; color: #3D352C; line-height: 1.6;">
+            <td style="padding: 6px 44px 0; font-size: 13px; color: #3D352C; line-height: 1.6;">
                 <t t-set="documents" t-value="object._get_product_documents()"/>
                 <t t-if="documents">
-                    <span style="font-size: 9px; letter-spacing: .2em; text-transform: uppercase; color: #8A8072;">( Enclosed )</span>&#160;
+                    <span style="font-size: 9px; letter-spacing: .2em; text-transform: uppercase; color: #8A8072;">Enclosed</span>&#160;
                     <t t-foreach="documents" t-as="document">
                         <a style="color: #2C221B; text-decoration: underline; margin-right: 10px;"
                            t-out="document.ir_attachment_id.name"
