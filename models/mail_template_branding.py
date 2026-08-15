@@ -17,14 +17,14 @@ _TEMPLATES = {
         'file': 'sale_stone_selection/data/mail_bodies/confirmation.html',
         'subject': (
             'Your order {{ object.name or \'n/a\' }} is confirmed — '
-            'SOM Sophisticated Materials'),
+            '(SOM)'),
     },
     'sale.email_template_edi_sale': {
         'file': 'sale_stone_selection/data/mail_bodies/quotation.html',
         'subject': (
             "Your {{ object.state in ('draft', 'sent') and 'quotation' "
             "or 'order' }} {{ object.name or 'n/a' }} — "
-            'SOM Sophisticated Materials'),
+            '(SOM)'),
     },
 }
 
