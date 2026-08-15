@@ -11,6 +11,12 @@
                 <attribute name="js_class">stone_autosave_form</attribute>
             </xpath>
 
+            <!-- Sin banderines de estado en el encabezado: el estado ya se
+                 lee en la lista y en los botones disponibles. -->
+            <xpath expr="//header/field[@name='state']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+
             <!-- js_class para cargar assets -->
             <xpath expr="//field[@name='order_line']/list" position="attributes">
                 <attribute name="js_class">stone_order_line_list</attribute>
