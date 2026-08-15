@@ -293,7 +293,73 @@ class SaleOrderLine(models.Model):
 
             clean_vals_list.append(vals_to_create)
 
-        return super(SaleOrderLine, self).create(clean_vals_list)
+        lines = super(SaleOrderLine, self).create(clean_vals_list)
+        for line in lines:
+            if line.lot_ids:
+                line._som_log_lot_change(line.lot_ids, 'assign')
+        return lines
+
+    # =========================================================================
+    # BITÁCORA DE ASIGNACIÓN (stock.lot.assignment.log)
+    # =========================================================================
+    # lot_ids es un many2many SIN tracking: cuando una placa se caía de un
+    # pedido no quedaba rastro en la base (solo el log del servidor, que se
+    # rota). Aquí se registra cada entrada/salida con usuario, documento y
+    # motivo para poder contestar "¿quién desasignó el material de V/091?".
+
+    def _som_log_lot_change(self, lots, action, reason=None, note=None):
+        self.ensure_one()
+        if not lots:
+            return
+        order = self.order_id
+        material = ''
+        if self.product_id:
+            material = self.x_mask_name or self.product_id.display_name or ''
+        self.env['stock.lot.assignment.log']._som_log_lots(
+            lots,
+            action,
+            document=order,
+            line=self,
+            reason=reason,
+            note=note or material or False,
+            partner=order.partner_id if order else None,
+            salesperson=order.user_id if order else None,
+            product=self.product_id,
+        )
+
+    def _som_snapshot_lot_ids(self):
+        """{line_id: set(lot_ids)} ANTES del write, para diferenciar después."""
+        return {line.id: set(line.lot_ids.ids) for line in self}
+
+    def _som_log_lot_diff(self, before):
+        """Compara contra el snapshot y registra altas y bajas de placas."""
+        if not before:
+            return
+        Lot = self.env['stock.lot']
+        for line in self:
+            previous = before.get(line.id)
+            if previous is None:
+                continue
+            current = set(line.lot_ids.ids)
+            added = current - previous
+            removed = previous - current
+            if not added and not removed:
+                continue
+
+            # La línea en cotización no puede traer placas: si aquí perdió
+            # las suyas fue la limpieza del propio módulo, no una decisión
+            # del usuario. Se etiqueta así aunque nadie haya puesto motivo.
+            reason = None
+            if not line._stone_can_select_lots():
+                reason = ('Limpieza automática: la línea no está confirmada '
+                          'y no puede conservar placas seleccionadas')
+
+            if added:
+                line._som_log_lot_change(
+                    Lot.browse(sorted(added)), 'assign', reason=reason)
+            if removed:
+                line._som_log_lot_change(
+                    Lot.browse(sorted(removed)), 'unassign', reason=reason)
 
     def _stone_validate_lot_holds(self):
         """Un lote con HOLD activo de OTRO cliente no puede quedar asignado a
@@ -339,6 +405,11 @@ class SaleOrderLine(models.Model):
         has_selection_vals = any(
             key in vals for key in ('lot_ids', 'x_lot_breakdown_json')
         )
+
+        # Foto de las placas ANTES del write: la bitácora se arma comparando
+        # contra ella (el many2many puede venir en cualquier formato de
+        # comando — 6/4/3/5 —, así que el diff real es la única fuente fiable).
+        lots_before = self._som_snapshot_lot_ids() if 'lot_ids' in vals else None
 
         if has_selection_vals:
             _logger.info("[STONE LINE WRITE] Líneas IDs: %s", self.ids)
@@ -403,6 +474,9 @@ class SaleOrderLine(models.Model):
 
         else:
             result = super(SaleOrderLine, self.with_context(ctx)).write(vals)
+
+        if lots_before is not None:
+            self._som_log_lot_diff(lots_before)
 
         if (
             any(k in vals for k in ('lot_ids', 'x_lot_breakdown_json'))

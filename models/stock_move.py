@@ -143,6 +143,12 @@ class StockMove(models.Model):
                 sol.with_context(
                     skip_stone_sync_picking=True,
                     tc_qty_sync_from_lots=True,
+                    som_lot_log_reason=(
+                        'Sincronización desde la entrega %s (STONE SYNC): la '
+                        'línea de venta se alinea con lo que traen los '
+                        'movimientos' % (
+                            move.picking_id.name if move.picking_id else 'N/A')
+                    ),
                 ).write(write_vals)
                 _logger.info("[STONE SYNC] ✓ Actualizado SO Line %s con %s lotes",
                              sol.id, len(all_lot_ids))

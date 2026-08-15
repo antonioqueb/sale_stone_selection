@@ -56,6 +56,9 @@ class SaleOrder(models.Model):
                 skip_stone_sync_picking=True,
                 skip_picking_clean=True,
                 allow_quote_lot_cleanup=True,
+                som_lot_log_reason=(
+                    'Limpieza automática: la cotización traía placas '
+                    'seleccionadas antes de confirmarse'),
             ).write({
                 'lot_ids': [(5, 0, 0)],
                 'x_lot_breakdown_json': False,
@@ -431,7 +434,12 @@ class SaleOrder(models.Model):
                 if source_orders:
                     _logger.info("[STONE] Limpiando lot_ids de cotización origen %s", source_orders.name)
                     for source_line in source_orders.order_line.filtered(lambda l: l.lot_ids):
-                        source_line.with_context(ctx).write({
+                        source_line.with_context(
+                            ctx,
+                            som_lot_log_reason=(
+                                'Limpieza automática de la cotización origen '
+                                'al convertirla en orden de venta'),
+                        ).write({
                             'lot_ids': [(5, 0, 0)],
                             'x_lot_breakdown_json': False,
                         })
