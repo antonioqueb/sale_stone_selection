@@ -11,7 +11,7 @@
                                  alt="SOM" style="height: 28px; width: auto; display: block;"/>
                         </td>
                         <td style="vertical-align: middle; text-align: right; font-size: 9px; letter-spacing: .24em; text-transform: uppercase; color: #8A8072; white-space: nowrap;">
-                            Order Confirmation
+                            Confirmaci&#243;n de pedido
                         </td>
                     </tr>
                 </table>
@@ -22,7 +22,7 @@
         <tr>
             <td style="padding: 18px 28px 0;">
                 <div style="font-size: 24px; font-weight: 300; letter-spacing: .01em; color: #2C221B; line-height: 1.25;">
-                    Your order is confirmed.
+                    Tu pedido est&#225; confirmado.
                 </div>
                 <div style="font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: #8A8072; margin-top: 8px; line-height: 1.7;">
                     <t t-out="object.name or ''">S00049</t> &#183; <t t-out="format_date(object.date_order) or ''"/>
@@ -51,16 +51,16 @@
             <td style="padding: 8px 28px 0;">
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                     <tr t-if="object.client_order_ref">
-                        <td style="padding: 9px 0; border-bottom: 1px solid #D8D2C6; font-size: 9px; letter-spacing: .18em; text-transform: uppercase; color: #8A8072; white-space: nowrap; vertical-align: middle;">Your reference</td>
+                        <td style="padding: 9px 0; border-bottom: 1px solid #D8D2C6; font-size: 9px; letter-spacing: .18em; text-transform: uppercase; color: #8A8072; white-space: nowrap; vertical-align: middle;">Tu referencia</td>
                         <td style="padding: 9px 0; border-bottom: 1px solid #D8D2C6; text-align: right; font-size: 13px; font-weight: 600; color: #2C221B; letter-spacing: .01em; vertical-align: middle;"><t t-out="object.client_order_ref or ''"/></td>
                     </tr>
                     <tr t-if="object.user_id">
-                        <td style="padding: 9px 0; border-bottom: 1px solid #D8D2C6; font-size: 9px; letter-spacing: .18em; text-transform: uppercase; color: #8A8072; white-space: nowrap; vertical-align: middle;">Sales advisor</td>
-                        <td style="padding: 9px 0; border-bottom: 1px solid #D8D2C6; text-align: right; font-size: 13px; font-weight: 600; color: #2C221B; letter-spacing: .01em; vertical-align: middle;"><t t-out="object.user_id.name or ''">Advisor</t></td>
+                        <td style="padding: 9px 0; border-bottom: 1px solid #D8D2C6; font-size: 9px; letter-spacing: .18em; text-transform: uppercase; color: #8A8072; white-space: nowrap; vertical-align: middle;">Asesor de ventas</td>
+                        <td style="padding: 9px 0; border-bottom: 1px solid #D8D2C6; text-align: right; font-size: 13px; font-weight: 600; color: #2C221B; letter-spacing: .01em; vertical-align: middle;"><t t-out="object.user_id.name or ''">Asesor</t></td>
                     </tr>
                     <tr>
-                        <td style="padding: 9px 0; border-bottom: 1px solid #D8D2C6; font-size: 9px; letter-spacing: .18em; text-transform: uppercase; color: #8A8072; white-space: nowrap; vertical-align: middle;">Status</td>
-                        <td style="padding: 9px 0; border-bottom: 1px solid #D8D2C6; text-align: right; font-size: 13px; font-weight: 600; color: #2C221B; letter-spacing: .01em; vertical-align: middle;">Confirmed</td>
+                        <td style="padding: 9px 0; border-bottom: 1px solid #D8D2C6; font-size: 9px; letter-spacing: .18em; text-transform: uppercase; color: #8A8072; white-space: nowrap; vertical-align: middle;">Estado</td>
+                        <td style="padding: 9px 0; border-bottom: 1px solid #D8D2C6; text-align: right; font-size: 13px; font-weight: 600; color: #2C221B; letter-spacing: .01em; vertical-align: middle;">Confirmado</td>
                     </tr>
                 </table>
             </td>
@@ -70,17 +70,17 @@
             <td style="padding: 18px 28px 0; font-size: 14px; color: #3D352C; line-height: 1.7;">
                 <t t-set="tx_sudo" t-value="object.get_portal_last_transaction()"/>
                 <p style="margin: 0;">
-                    Dear <t t-out="object.partner_id.name or ''">Customer</t>,
+                    Estimado(a) <t t-out="object.partner_id.name or ''">Cliente</t>,
                     <t t-if="object.state == 'sale' or (tx_sudo and tx_sudo.state in ('done', 'authorized'))">
-                        our team has begun preparing your material with the care
-                        and precision that define our work. Your advisor will
-                        keep you informed at each stage.
+                        nuestro equipo ya comenz&#243; a preparar tu material con
+                        el cuidado y la precisi&#243;n que definen nuestro trabajo.
+                        Tu asesor te mantendr&#225; informado en cada etapa.
                     </t>
                     <t t-elif="tx_sudo and tx_sudo.state == 'pending'">
-                        your order has been received and will be confirmed once
-                        your payment is processed.
+                        hemos recibido tu pedido y se confirmar&#225; en cuanto se
+                        procese tu pago.
                         <t t-if="object.reference">
-                            Your payment reference is <b t-out="object.reference or ''"/>.
+                            Tu referencia de pago es <b t-out="object.reference or ''"/>.
                         </t>
                     </t>
                 </p>
@@ -91,7 +91,7 @@
             <td style="padding: 12px 28px 0; font-size: 13px; color: #3D352C; line-height: 1.7;">
                 <t t-set="documents" t-value="object._get_product_documents()"/>
                 <t t-if="documents">
-                    <span style="font-size: 9px; letter-spacing: .18em; text-transform: uppercase; color: #8A8072;">Enclosed</span>&#160;
+                    <span style="font-size: 9px; letter-spacing: .18em; text-transform: uppercase; color: #8A8072;">Adjuntos</span>&#160;
                     <t t-foreach="documents" t-as="document">
                         <a style="color: #2C221B; text-decoration: underline; margin-right: 10px;"
                            t-out="document.ir_attachment_id.name"
@@ -105,11 +105,11 @@
         <tr>
             <td style="padding: 18px 28px 24px;">
                 <div style="font-size: 13px; font-style: italic; color: #2C221B; line-height: 1.65;">
-                    We do not supply common surfaces &#8212; we craft singular ones. Thank you for placing yours in our hands.
+                    No ofrecemos superficies comunes &#8212; creamos piezas singulares. Gracias por poner la tuya en nuestras manos.
                 </div>
                 <div style="margin-top: 14px; font-size: 13px; color: #3D352C; line-height: 1.7;">
-                    Sincerely,<br/>
-                    <span style="font-weight: 600; color: #2C221B;" t-out="object.user_id.name or object.company_id.name or ''">Advisor</span><br/>
+                    Atentamente,<br/>
+                    <span style="font-weight: 600; color: #2C221B;" t-out="object.user_id.name or object.company_id.name or ''">Asesor</span><br/>
                     <span style="font-size: 9px; letter-spacing: .18em; text-transform: uppercase; color: #8A8072;"><t t-out="object.company_id.name or ''">SOM Group</t></span>
                 </div>
             </td>

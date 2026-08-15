@@ -16,13 +16,13 @@ _TEMPLATES = {
     'sale.mail_template_sale_confirmation': {
         'file': 'sale_stone_selection/data/mail_bodies/confirmation.html',
         'subject': (
-            "Your order {{ object.name or '' }} is confirmed"),
+            "Tu pedido {{ object.name or '' }} está confirmado"),
     },
     'sale.email_template_edi_sale': {
         'file': 'sale_stone_selection/data/mail_bodies/quotation.html',
         'subject': (
-            "Your {{ object.state in ('draft', 'sent') and 'quotation' "
-            "or 'order' }} {{ object.name or '' }} is ready for review"),
+            "Tu {{ object.state in ('draft', 'sent') and 'cotización' "
+            "or 'pedido' }} {{ object.name or '' }} ya está disponible"),
     },
 }
 
