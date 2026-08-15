@@ -17,6 +17,12 @@
                 <attribute name="invisible">1</attribute>
             </xpath>
 
+            <!-- Cancelar sale de la botonera: vive en el engrane (ver la
+                 acción de servidor al final de este archivo). -->
+            <xpath expr="//header/button[@name='action_cancel']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+
             <!-- js_class para cargar assets -->
             <xpath expr="//field[@name='order_line']/list" position="attributes">
                 <attribute name="js_class">stone_order_line_list</attribute>
@@ -86,5 +92,17 @@
             </xpath>
 
         </field>
+    </record>
+
+    <!-- Cancelar desde el engrane (menú Acciones) del formulario: reemplaza
+         al botón oculto de la botonera. records.action_cancel() conserva el
+         flujo nativo (wizard de cancelación cuando aplica). -->
+    <record id="action_server_sale_order_cancel" model="ir.actions.server">
+        <field name="name">Cancelar orden</field>
+        <field name="model_id" ref="sale.model_sale_order"/>
+        <field name="binding_model_id" ref="sale.model_sale_order"/>
+        <field name="binding_view_types">form</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_cancel()</field>
     </record>
 </odoo>
