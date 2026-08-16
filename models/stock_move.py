@@ -38,17 +38,6 @@ class StockMove(models.Model):
                     if ml.lot_id:
                         all_lot_ids.add(ml.lot_id.id)
 
-            pending_moves = sol.move_ids.filtered(
-                lambda m: m.state in ('confirmed', 'waiting', 'partially_available')
-                and not m.move_line_ids
-            )
-            if pending_moves:
-                existing_so_lots = set(sol.lot_ids.ids) if sol.lot_ids else set()
-                accounted_lots = all_lot_ids.copy()
-                unaccounted = existing_so_lots - accounted_lots
-                if unaccounted:
-                    all_lot_ids.update(unaccounted)
-
             existing_lots = set(sol.lot_ids.ids) if sol.lot_ids else set()
 
             # REGLA DE ORO (2026-08-07, pedida explícitamente): LAS ENTREGAS
@@ -61,30 +50,30 @@ class StockMove(models.Model):
             if not all_lot_ids:
                 continue
 
-            # EXCEPCIÓN A LA REGLA DE ORO: los lotes reservados EN TRÁNSITO
-            # en un viaje ACTIVO no pueden estar en la entrega todavía (el
-            # material va en el mar) — la entrega no manda sobre lo que aún
-            # no llega. Sin esta preservación, validar la recepción de UN
-            # embarque reemplazaba lot_ids con sus placas y SOLTABA la
-            # reserva de las placas del OTRO embarque en camino (caso real:
-            # V/131 perdió 41 placas de EMBARQUE/2026/0035 al recibir el
-            # EMBARQUE/2026/0029).
-            missing_lots = existing_lots - all_lot_ids
-            if missing_lots and 'stock.transit.line' in self.env:
-                in_transit = self.env['stock.transit.line'].sudo().search([
-                    ('order_id', '=', sol.order_id.id),
-                    ('product_id', '=', sol.product_id.id),
-                    ('lot_id', 'in', list(missing_lots)),
-                    ('allocation_status', '=', 'reserved'),
-                    ('voyage_id.custom_status', 'not in', ['delivered', 'cancel']),
-                ]).mapped('lot_id')
-                if in_transit:
-                    _logger.info(
-                        "[STONE SYNC] Preservando %s lote(s) reservados en "
-                        "tránsito activo (SO Line %s): %s",
-                        len(in_transit), sol.id, in_transit.mapped('name'))
-                    all_lot_ids.update(in_transit.ids)
+            # ═══ LA ASIGNACIÓN DEL USUARIO NO SE TOCA (2026-08-16) ═══
+            # La "regla de oro" de arriba se escribió para que la entrega
+            # OFICIALICE lo que el vendedor no había marcado. Pero el write
+            # es un (6, 0, ...) — un REEMPLAZO — así que además borraba todo
+            # lo asignado que no estuviera en el picking en ese instante.
+            #
+            # Y eso pasa todo el tiempo sin que nadie toque la venta: si
+            # almacén des-reserva la entrega, si Odoo re-reserva y toma
+            # otras placas, o si la entrega es parcial, las placas que el
+            # usuario asignó desaparecen solas de la orden. Ese es el
+            # "asigné material y luego ya no aparece asignado".
+            #
+            # Regla del negocio: en una orden de venta el material SOLO se
+            # desasigna cuando una persona lo desasigna. El sync suma, no
+            # resta. Para quitar placas está el selector (que sí baja al
+            # picking) y el desasignador de Torre de Control.
+            all_lot_ids |= existing_lots
 
+            # Nota histórica: aquí vivían dos parches parciales que
+            # preservaban solo algunos lotes (movimientos sin líneas, y lotes
+            # reservados en tránsito activo — el caso V/131, que perdió 41
+            # placas de EMBARQUE/2026/0035 al recibir el EMBARQUE/2026/0029).
+            # La unión de arriba los cubre a los dos y a todos los demás
+            # casos que no habíamos encontrado todavía.
             added = all_lot_ids - existing_lots
             if added:
                 added_names = self.env['stock.lot'].browse(
