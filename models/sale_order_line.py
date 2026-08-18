@@ -294,6 +294,7 @@ class SaleOrderLine(models.Model):
             clean_vals_list.append(vals_to_create)
 
         lines = super(SaleOrderLine, self).create(clean_vals_list)
+        lines.filtered('lot_ids')._stone_validate_duplicate_plates_in_order()
         for line in lines:
             if line.lot_ids:
                 line._som_log_lot_change(line.lot_ids, 'assign')
@@ -399,6 +400,38 @@ class SaleOrderLine(models.Model):
                         partner=hold.partner_id.name,
                     ))
 
+    def _stone_validate_duplicate_plates_in_order(self):
+        """Una PLACA no puede vivir en lot_ids de DOS líneas del mismo
+        pedido: cada línea genera su propio move y ambos terminan
+        reservando la misma placa (caso V/229: 4 placas compartidas entre
+        dos líneas, reservado al DOBLE del físico). Nada validaba esta
+        exclusividad ni al capturar ni al reservar.
+
+        Formatos/piezas quedan fuera: su parcialidad sí permite compartir
+        el lote entre líneas (la suma se valida contra el físico en el
+        candado de move lines)."""
+        if self.env.context.get('skip_stone_dup_plate_check'):
+            return
+        for order in self.mapped('order_id'):
+            seen = {}
+            for line in order.order_line:
+                if line.display_type or not line.lot_ids:
+                    continue
+                for lot in line.lot_ids:
+                    tipo = str(getattr(lot, 'x_tipo', '') or 'placa').lower()
+                    if tipo in ('formato', 'pieza'):
+                        continue
+                    if lot.id in seen and seen[lot.id] != line.id:
+                        raise UserError(_(
+                            'La placa %(lot)s ya está asignada en OTRA línea '
+                            'de este mismo pedido (%(order)s). Una placa solo '
+                            'puede vivir en una línea: quítala de una de las '
+                            'dos antes de guardar.',
+                            lot=lot.name,
+                            order=order.name,
+                        ))
+                    seen[lot.id] = line.id
+
     def write(self, vals):
         vals = dict(vals or {})
 
@@ -471,6 +504,9 @@ class SaleOrderLine(models.Model):
                 # por otra operación), el write completo se revierte.
                 if not self.env.context.get('skip_hold_validation'):
                     allowed_lines._stone_validate_lot_holds()
+                # Exclusividad de PLACAS entre líneas del mismo pedido
+                # (misma transacción: si se duplicó, el write se revierte).
+                allowed_lines._stone_validate_duplicate_plates_in_order()
 
         else:
             result = super(SaleOrderLine, self.with_context(ctx)).write(vals)
