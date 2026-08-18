@@ -103,6 +103,11 @@
         <field name="binding_model_id" ref="sale.model_sale_order"/>
         <field name="binding_view_types">form</field>
         <field name="state">code</field>
-        <field name="code">action = records.action_cancel()</field>
+        <field name="code">result = records.action_cancel()
+# action_cancel() sólo devuelve una acción cuando toca abrir el wizard de
+# cancelación; en el caso normal cancela y devuelve True. Asignar ese True a
+# "action" truena en clean_action ('bool' object has no attribute 'setdefault').
+if result and result is not True:
+    action = result</field>
     </record>
 </odoo>
