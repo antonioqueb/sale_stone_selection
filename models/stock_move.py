@@ -164,4 +164,22 @@ class StockMove(models.Model):
                 if move.sale_line_id and move.state not in ['done', 'cancel']:
                     move._sync_stone_sale_lines()
 
+        # LÍNEAS HUÉRFANAS: las move lines creadas a mano por el stone sync
+        # cuando el move aún no tenía picking nacían con picking_id vacío y
+        # NUNCA se corregían — el pick ticket recorre las líneas del picking
+        # y encontraba cero (caso V/458 y 5 pedidos más, 17 moves). Cuando
+        # el move recibe su picking, se propaga a sus líneas huérfanas.
+        if vals.get('picking_id'):
+            for move in self:
+                orphans = move.move_line_ids.filtered(
+                    lambda ml: not ml.picking_id
+                    and ml.state not in ('done', 'cancel'))
+                if orphans:
+                    orphans.with_context(skip_stone_sync_so=True).write(
+                        {'picking_id': move.picking_id.id})
+                    _logger.info(
+                        '[STONE SYNC] %s move line(s) huérfanas adoptadas '
+                        'por el picking %s (move %s).',
+                        len(orphans), move.picking_id.name, move.id)
+
         return res
