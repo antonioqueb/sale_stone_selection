@@ -150,6 +150,11 @@ class StockMove(models.Model):
                 # por decisión comercial o por asignación fresca de placas.
                 sol.with_context(
                     skip_stone_sync_picking=True,
+                    # Plomería, no captura humana: la exclusividad de placas
+                    # no debe tumbar este sync (bloqueaba la VALIDACIÓN de
+                    # una recepción en tránsito porque V/378 traía mls
+                    # dobles residuales — el candado es para el vendedor).
+                    skip_stone_dup_plate_check=True,
                     tc_qty_sync_from_lots=suppress_ratchet,
                     som_lot_log_reason=(
                         'Sincronización desde la entrega %s (STONE SYNC): la '
