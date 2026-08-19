@@ -120,18 +120,37 @@ class StockMove(models.Model):
                 if changed_bd:
                     write_vals['x_lot_breakdown_json'] = breakdown
 
+            # ¿Los lotes NUEVOS son OFICIALIZACIÓN de entregas ya hechas o
+            # asignación FRESCA hecha en la entrega? El ratchet solo se
+            # suprime en la oficialización (caso V/150: sincronizar lo YA
+            # entregado no debe inflar lo cobrado). Una asignación nueva vía
+            # picking SÍ debe subir el Solicitado: el piso
+            # 'solicitado >= asignado' es universal y este contexto lo
+            # apagaba parejo — asignar placas directo en la entrega dejaba
+            # el Solicitado congelado en lo capturado al inicio.
+            delivered_added = set()
+            for lot_id in added:
+                done_qty = sum(
+                    ml.quantity or 0.0
+                    for ml in sol.move_ids.mapped('move_line_ids')
+                    if ml.lot_id.id == lot_id and ml.state == 'done'
+                )
+                if done_qty > 0:
+                    delivered_added.add(lot_id)
+            suppress_ratchet = not (added - delivered_added)
+
             try:
-                # tc_qty_sync_from_lots: la oficialización viene de la
-                # ENTREGA y NO debe derivar el Solicitado. Sin esta marca,
+                # tc_qty_sync_from_lots: solo cuando TODO lo agregado es
+                # oficialización de entregado (ver arriba). Sin esta marca,
                 # el ratchet de Torre de Control subía la cantidad a cobrar
                 # al oficializar lotes entregados (V/150: una línea de
                 # 13.46 con lotes de entregas previas oficializados saltó a
                 # 26.92 EN CALIENTE, infló la orden $80,050.93 y el candado
                 # de pago bloqueó la remisión). El Solicitado solo se mueve
-                # por decisión comercial, nunca por sincronizar la entrega.
+                # por decisión comercial o por asignación fresca de placas.
                 sol.with_context(
                     skip_stone_sync_picking=True,
-                    tc_qty_sync_from_lots=True,
+                    tc_qty_sync_from_lots=suppress_ratchet,
                     som_lot_log_reason=(
                         'Sincronización desde la entrega %s (STONE SYNC): la '
                         'línea de venta se alinea con lo que traen los '
