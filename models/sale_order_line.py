@@ -294,7 +294,12 @@ class SaleOrderLine(models.Model):
             clean_vals_list.append(vals_to_create)
 
         lines = super(SaleOrderLine, self).create(clean_vals_list)
-        lines.filtered('lot_ids')._stone_validate_duplicate_plates_in_order()
+        # Una línea que NACE con placas las tiene todas como recién
+        # agregadas; un duplicado histórico entre OTRAS líneas del pedido
+        # no debe impedir crear esta.
+        new_lines = lines.filtered('lot_ids')
+        new_lines._stone_validate_duplicate_plates_in_order(
+            added_by_line={l.id: set(l.lot_ids.ids) for l in new_lines})
         for line in lines:
             if line.lot_ids:
                 line._som_log_lot_change(line.lot_ids, 'assign')
@@ -400,7 +405,7 @@ class SaleOrderLine(models.Model):
                         partner=hold.partner_id.name,
                     ))
 
-    def _stone_validate_duplicate_plates_in_order(self):
+    def _stone_validate_duplicate_plates_in_order(self, added_by_line=None):
         """Una PLACA no puede vivir en lot_ids de DOS líneas del mismo
         pedido: cada línea genera su propio move y ambos terminan
         reservando la misma placa (caso V/229: 4 placas compartidas entre
@@ -422,6 +427,18 @@ class SaleOrderLine(models.Model):
                     if tipo in ('formato', 'pieza'):
                         continue
                     if lot.id in seen and seen[lot.id] != line.id:
+                        # Solo la placa RECIÉN AGREGADA en este write puede
+                        # bloquear. Un duplicado HISTÓRICO (dato viejo) no
+                        # debe impedir editar cantidades ni DESASIGNAR — de
+                        # hecho quitar la placa de una línea es justo la
+                        # manera de corregirlo, y este candado lo impedía.
+                        if added_by_line is not None:
+                            involved = (
+                                added_by_line.get(line.id, set())
+                                | added_by_line.get(seen[lot.id], set()))
+                            if lot.id not in involved:
+                                seen[lot.id] = line.id
+                                continue
                         raise UserError(_(
                             'La placa %(lot)s ya está asignada en OTRA línea '
                             'de este mismo pedido (%(order)s). Una placa solo '
@@ -506,7 +523,15 @@ class SaleOrderLine(models.Model):
                     allowed_lines._stone_validate_lot_holds()
                 # Exclusividad de PLACAS entre líneas del mismo pedido
                 # (misma transacción: si se duplicó, el write se revierte).
-                allowed_lines._stone_validate_duplicate_plates_in_order()
+                # Solo cuentan las placas AGREGADAS en este write: los
+                # duplicados históricos no bloquean ediciones ni quitados.
+                added_map = {}
+                for _line in allowed_lines:
+                    _before = (lots_before or {}).get(
+                        _line.id, set(_line.lot_ids.ids))
+                    added_map[_line.id] = set(_line.lot_ids.ids) - _before
+                allowed_lines._stone_validate_duplicate_plates_in_order(
+                    added_by_line=added_map)
 
         else:
             result = super(SaleOrderLine, self.with_context(ctx)).write(vals)
