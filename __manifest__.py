@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Stone Selection & Visual Sale Grid',
-    'version': '19.0.9.11.0',
+    'version': '19.0.9.12.0',
     'category': 'Sales/Sales',
     'summary': 'Selección visual de placas con reserva estricta y estatus de entrega',
     'description': """
@@ -33,6 +33,7 @@
         'web.assets_backend': [
             'sale_stone_selection/static/src/js/sale_autosave.js',
             'sale_stone_selection/static/src/scss/stone_styles.scss',
+            'sale_stone_selection/static/src/scss/mobile_order_lines.scss',
             'sale_stone_selection/static/src/components/stone_grid/stone_grid.xml',
             'sale_stone_selection/static/src/components/stone_grid/stone_grid.js',
             'sale_stone_selection/static/src/components/stone_line_list/stone_line_list.xml',
