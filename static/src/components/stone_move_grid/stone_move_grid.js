@@ -283,11 +283,32 @@ export class StoneMoveGridField extends Component {
                 });
             }
 
-            await this.loadInventory();
+            // Sincroniza el estado local SIN recargar del servidor: la
+            // recarga completa del inventario costaba un segundo viaje
+            // pesado por cada click de palomita. El refresco de verdad
+            // sigue disponible con el botón Actualizar y el filtro.
+            this._syncLocalSelection(lotId, !isCurrentlySelected);
 
         } catch (e) {
             console.error("[STONE] Error en toggleLot:", e);
             this.state.error = e.message || "Error al actualizar";
+            // El estado local pudo quedar a medias: aquí sí se recarga.
+            await this.loadInventory();
+        }
+    }
+
+    _syncLocalSelection(lotId, selected) {
+        const ids = new Set(this.state.assignedLots);
+        if (selected) {
+            ids.add(lotId);
+        } else {
+            ids.delete(lotId);
+        }
+        this.state.assignedLots = [...ids];
+        for (const q of this.state.quants) {
+            if (q.lot_id && q.lot_id[0] === lotId) {
+                q._isAssigned = selected;
+            }
         }
     }
 

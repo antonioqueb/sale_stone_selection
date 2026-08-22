@@ -367,19 +367,30 @@ class SaleOrderLine(models.Model):
                 line._som_log_lot_change(
                     Lot.browse(sorted(removed)), 'unassign', reason=reason)
 
-    def _stone_validate_lot_holds(self):
+    def _stone_validate_lot_holds(self, added_by_line=None):
         """Un lote con HOLD activo de OTRO cliente no puede quedar asignado a
         la línea. Corre dentro del write, con candado FOR UPDATE sobre los
         quants: dos operaciones simultáneas sobre el mismo lote se serializan
         y la segunda ve el hold ya confirmado. Lotes sin quant interno (aún en
-        tránsito) no se tocan: su control vive en la torre de control."""
+        tránsito) no se tocan: su control vive en la torre de control.
+
+        Con `added_by_line` ({line_id: set(lot_ids)}) solo se validan los
+        lotes AGREGADOS en este write: un hold ajeno creado DESPUÉS sobre un
+        lote que la línea ya tenía no debe impedir editar cantidades ni
+        quitar otras placas — validar solo el delta, jamás la historia."""
         Quant = self.env['stock.quant'].sudo()
         for line in self:
             if not line.lot_ids:
                 continue
+            check_lots = line.lot_ids
+            if added_by_line is not None:
+                added = added_by_line.get(line.id) or set()
+                check_lots = line.lot_ids.filtered(lambda l: l.id in added)
+                if not check_lots:
+                    continue
             company = line.company_id or self.env.company
             quants = Quant.search([
-                ('lot_id', 'in', line.lot_ids.ids),
+                ('lot_id', 'in', check_lots.ids),
                 ('location_id.usage', '=', 'internal'),
                 ('quantity', '>', 0),
                 ('company_id', '=', company.id),
@@ -516,20 +527,22 @@ class SaleOrderLine(models.Model):
                     SaleOrderLine,
                     allowed_lines.with_context(ctx)
                 ).write(vals) and result
-                # Revalidación EN la transacción: si un lote recién asignado
-                # tiene hold activo de OTRO cliente (creado un segundo antes
-                # por otra operación), el write completo se revierte.
-                if not self.env.context.get('skip_hold_validation'):
-                    allowed_lines._stone_validate_lot_holds()
-                # Exclusividad de PLACAS entre líneas del mismo pedido
-                # (misma transacción: si se duplicó, el write se revierte).
-                # Solo cuentan las placas AGREGADAS en este write: los
-                # duplicados históricos no bloquean ediciones ni quitados.
+                # Solo cuentan las placas AGREGADAS en este write: la
+                # historia (holds nacidos después sobre placas ya puestas,
+                # duplicados viejos) no bloquea ediciones ni quitados.
                 added_map = {}
                 for _line in allowed_lines:
                     _before = (lots_before or {}).get(
                         _line.id, set(_line.lot_ids.ids))
                     added_map[_line.id] = set(_line.lot_ids.ids) - _before
+                # Revalidación EN la transacción: si un lote recién asignado
+                # tiene hold activo de OTRO cliente (creado un segundo antes
+                # por otra operación), el write completo se revierte.
+                if not self.env.context.get('skip_hold_validation'):
+                    allowed_lines._stone_validate_lot_holds(
+                        added_by_line=added_map)
+                # Exclusividad de PLACAS entre líneas del mismo pedido
+                # (misma transacción: si se duplicó, el write se revierte).
                 allowed_lines._stone_validate_duplicate_plates_in_order(
                     added_by_line=added_map)
 
