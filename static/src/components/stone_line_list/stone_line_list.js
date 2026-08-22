@@ -67,6 +67,15 @@ export class StoneExpandButton extends Component {
         });
 
         onWillUnmount(() => {
+            // Ráfaga de X sin confirmar: se manda al servidor antes de
+            // morir para no perder quitados hechos justo antes de navegar.
+            if (this._removalFlushTimer) {
+                clearTimeout(this._removalFlushTimer);
+                this._removalFlushTimer = null;
+            }
+            if (this._pendingRemovalIds && this._pendingRemovalIds.size) {
+                this._flushLotRemovals();
+            }
             this.removeDetailsRow();
             this.destroyPopup();
             this._destroyLightbox();
@@ -434,27 +443,73 @@ export class StoneExpandButton extends Component {
      * 2. Escribe directo por ORM, lo que dispara el write de Python
      *    (=> _sync_lots_to_picking_moves) sin necesidad de pulsar Guardar.
      */
+    /**
+     * Espejo local SIN onchange: el onchange de lot_ids manda al servidor
+     * el diff de la ORDEN COMPLETA y en pedidos grandes cuesta ~medio
+     * segundo por click. Tras un orm.write directo el servidor ya es la
+     * fuente de verdad; aquí solo se refleja el valor en memoria para que
+     * la UI y un guardado posterior queden coherentes.
+     */
+    async _recordUpdateNoOnchange(changes) {
+        const rec = this.props.record;
+        try {
+            if (typeof rec._update === "function" && rec.model?.mutex) {
+                await rec.model.mutex.exec(() =>
+                    rec._update(changes, { withoutOnchange: true })
+                );
+                return;
+            }
+        } catch (e) {
+            console.warn("[STONE] _update sin onchange falló, uso update:", e);
+        }
+        await rec.update(changes);
+    }
+
     async _commitSelectionToServer(newIds, breakdown) {
         if (this.isSelectionLocked()) {
             this._warnQuoteSelectionBlocked();
             return;
         }
 
-        this._localBreakdown = { ...breakdown };
+        // Ráfaga de X pendiente: cualquier commit la absorbe para que un
+        // guardado desde el popup no resucite placas recién quitadas.
+        if (this._pendingRemovalIds && this._pendingRemovalIds.size) {
+            const pend = this._pendingRemovalIds;
+            this._pendingRemovalIds = new Set();
+            if (this._removalFlushTimer) {
+                clearTimeout(this._removalFlushTimer);
+                this._removalFlushTimer = null;
+            }
+            newIds = newIds.filter((id) => !pend.has(id));
+            breakdown = { ...breakdown };
+            pend.forEach((id) => delete breakdown[String(id)]);
+        }
 
-        await this.props.record.update({
-            lot_ids: [[6, 0, newIds]],
-            x_lot_breakdown_json: breakdown,
-        });
+        this._localBreakdown = { ...breakdown };
 
         const recordId = this._getRecordId();
         if (recordId && typeof recordId === "number" && recordId > 0) {
+            // PRIMERO el write directo (la única llamada pesada e
+            // imprescindible: dispara sync de picking, ratchet y candados).
+            // Si truena, el record local queda intacto y la UI se restaura.
             await this.orm.write("sale.order.line", [recordId], {
+                lot_ids: [[6, 0, newIds]],
+                x_lot_breakdown_json: breakdown,
+            });
+            // Espejo local sin onchange (rápido, sin RPC).
+            await this._recordUpdateNoOnchange({
                 lot_ids: [[6, 0, newIds]],
                 x_lot_breakdown_json: breakdown,
             });
             // Sin 'Mandar a pedir', el backend iguala Solicitado a la suma de placas.
             await this._refreshRequestedQtyFromServer();
+        } else {
+            // Línea aún no guardada: el record es la única fuente, con su
+            // onchange normal.
+            await this.props.record.update({
+                lot_ids: [[6, 0, newIds]],
+                x_lot_breakdown_json: breakdown,
+            });
         }
     }
 
@@ -1251,58 +1306,80 @@ export class StoneExpandButton extends Component {
      * - Persiste de inmediato al backend SIN recargar la página.
      * - Si algo falla, restaura la tabla al estado real.
      */
-    async removeLot(lotId, btnEl = null) {
+    /**
+     * Quitar con la X: UI optimista INSTANTÁNEA y un solo write por ráfaga.
+     *
+     * Antes cada click esperaba 170ms de animación + onchange de toda la
+     * orden + write + read (≈2s por placa). Ahora el click quita la fila al
+     * instante, acumula el lote en una ráfaga y ~300ms después de la última
+     * X se hace UN solo commit al servidor con todo el paquete. Nada
+     * refresca la página: solo la sección de placas.
+     */
+    removeLot(lotId, btnEl = null) {
         if (this.isSelectionLocked()) {
             this._warnQuoteSelectionBlocked();
             return;
         }
 
-        if (this._removingLot) return;
-        this._removingLot = true;
+        this._pendingRemovalIds = this._pendingRemovalIds || new Set();
+        if (this._pendingRemovalIds.has(lotId)) return;
+        this._pendingRemovalIds.add(lotId);
 
-        const toggleableBtns = () =>
-            this._detailsRow
-                ? this._detailsRow.querySelectorAll(".stone-remove-btn:not(.stone-remove-btn-disabled)")
-                : [];
-
+        // Eliminación optimista inmediata (la animación CSS corre sola,
+        // sin bloquear el flujo).
         const rowEl = btnEl ? btnEl.closest("tr") : null;
-        if (rowEl) rowEl.classList.add("stone-row-removing");
-        toggleableBtns().forEach((b) => (b.disabled = true));
+        if (rowEl) {
+            rowEl.classList.add("stone-row-removing");
+            setTimeout(() => rowEl.remove(), 170);
+        }
 
-        const newIds = this.getCurrentLotIds().filter((id) => id !== lotId);
+        const remainingIds = this.getCurrentLotIds().filter(
+            (id) => !this._pendingRemovalIds.has(id));
+        this._recalcInlineTotal();
+        if (this._detailsRow) {
+            const badge = this._detailsRow.querySelector(".stone-sel-badge");
+            if (badge) badge.textContent = remainingIds.length;
+            this._updateAddButtonLabel(remainingIds.length);
+        }
+
+        // Ráfaga: se re-arma el temporizador con cada X; al soltar, UN commit.
+        if (this._removalFlushTimer) clearTimeout(this._removalFlushTimer);
+        this._removalFlushTimer = setTimeout(() => {
+            this._removalFlushTimer = null;
+            this._flushLotRemovals();
+        }, 300);
+    }
+
+    async _flushLotRemovals() {
+        // Serializa contra un flush anterior aún en vuelo.
+        this._removalChain = (this._removalChain || Promise.resolve()).then(
+            () => this._doFlushLotRemovals());
+        return this._removalChain;
+    }
+
+    async _doFlushLotRemovals() {
+        const pending = this._pendingRemovalIds;
+        if (!pending || !pending.size) return;
+        this._pendingRemovalIds = new Set();
+
+        const newIds = this.getCurrentLotIds().filter((id) => !pending.has(id));
         const breakdown = this.getBreakdown();
-        delete breakdown[String(lotId)];
+        pending.forEach((id) => delete breakdown[String(id)]);
 
         try {
-            // Eliminación optimista en pantalla
-            if (rowEl) {
-                await new Promise((r) => setTimeout(r, 170));
-                rowEl.remove();
-            }
-
-            // Refresca contadores de la UI al instante
-            this._recalcInlineTotal();
-            if (this._detailsRow) {
-                const badge = this._detailsRow.querySelector(".stone-sel-badge");
-                if (badge) badge.textContent = newIds.length;
-                this._updateAddButtonLabel(newIds.length);
-            }
-
-            // Persiste al backend (dispara la sync del picking)
             await this._commitSelectionToServer(newIds, breakdown);
             this._updateCount();
-
-            // Si ya no quedan lotes, mostrar estado vacío
             if (newIds.length === 0) {
                 await this.refreshSelectedTable();
             }
         } catch (e) {
-            console.error("[STONE] Error eliminando lote:", e);
-            this.notification.add("No se pudo eliminar el lote. Reintenta.", { type: "danger" });
+            console.error("[STONE] Error eliminando lote(s):", e);
+            this.notification.add(
+                "No se pudo eliminar la selección. Se restauró la lista.",
+                { type: "danger" });
+            // El write falló: el record sigue con las placas — se repinta
+            // la tabla desde él para revertir el quitado optimista.
             await this.refreshSelectedTable();
-        } finally {
-            this._removingLot = false;
-            toggleableBtns().forEach((b) => (b.disabled = false));
         }
     }
 
