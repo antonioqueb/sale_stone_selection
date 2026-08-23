@@ -60,13 +60,18 @@
                 </control>
             </xpath>
 
-            <!-- MÓVIL = LA MISMA LISTA, no kanban. El core define un
-                 <kanban class="o_kanban_mobile"> dentro de order_line y en
-                 pantallas chicas Odoo lo prefiere sobre la lista — ahí no
-                 existe el botón Stone ni el selector de placas, así que en
-                 el teléfono desaparecía toda la selección de lotes. Al
-                 eliminar la sub-vista kanban, móvil cae a la lista con el
-                 selector completo (scroll horizontal incluido). -->
+            <!-- MÓVIL = LA MISMA LISTA, no kanban. Dos candados del core:
+                 1) El atributo mode="list,kanban" del campo hace que en
+                    pantallas chicas Odoo pida la sub-vista kanban SIN
+                    verificar que exista — con el kanban eliminado pintaba
+                    el fallback de tarjetas de una columna (solo el
+                    display_name). mode="list" fuerza la lista SIEMPRE.
+                 2) La sub-vista <kanban class="o_kanban_mobile"> se elimina
+                    porque con mode="list" es peso muerto y nadie más se
+                    ancla a ella. -->
+            <xpath expr="//field[@name='order_line']" position="attributes">
+                <attribute name="mode">list</attribute>
+            </xpath>
             <xpath expr="//field[@name='order_line']/kanban" position="replace"/>
 
             <!-- Botón Stone ANTES del producto (izquierda) -->
