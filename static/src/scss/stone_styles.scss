@@ -2114,6 +2114,63 @@ select.stone-filter-input {
         background: #ffffff;
         box-shadow: 0 -6px 16px rgba(15, 23, 42, 0.08);
     }
+
+    // ── DENSIDAD MÓVIL: todo COMPACTO excepto la tabla ─────────────────
+    // Las franjas fijas (encabezado, resumen, filtros, pie) se encogen
+    // para regalarle su altura al grid de placas; los botones caben sin
+    // panear y asignar no pelea con el espacio. La tabla NO se toca.
+    .stone-popup-header {
+        padding: 8px 12px;
+        gap: 10px;
+    }
+
+    .stone-popup-title {
+        font-size: 15px;
+    }
+
+    .stone-popup-subtitle {
+        font-size: 11px;
+    }
+
+    .stone-popup-header-actions .stone-btn,
+    .stone-popup-footer .stone-btn,
+    .stone-footer-actions .stone-btn,
+    .stone-btn-select-all,
+    .stone-btn-clear-all {
+        min-height: 28px;
+        padding: 5px 10px;
+        font-size: 10.5px;
+        gap: 4px;
+    }
+
+    .stone-popup-allocation-summary {
+        padding: 6px 10px;
+        gap: 6px;
+    }
+
+    .stone-allocation-card,
+    .stone-allocation-progress-box {
+        min-height: 40px;
+        padding: 6px 9px;
+        border-radius: 12px;
+    }
+
+    .stone-popup-filters {
+        padding: 6px 10px;
+        gap: 6px;
+    }
+
+    .stone-filter-input,
+    .stone-filter-input.stone-filter-sm {
+        min-height: 28px;
+        padding: 4px 8px;
+        font-size: 11px;
+    }
+
+    .stone-popup-footer {
+        padding: 6px 10px;
+        gap: 6px;
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
