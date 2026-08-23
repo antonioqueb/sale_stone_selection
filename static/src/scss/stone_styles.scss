@@ -2048,78 +2048,51 @@ select.stone-filter-input {
 // ═══════════════════════════════════════════════════════════════════════════
 // RESPONSIVE
 // ═══════════════════════════════════════════════════════════════════════════
+// MÓVIL/TABLET: EL MISMO SELECTOR DE ESCRITORIO, PANEADO.
+// Nada se apila ni se re-acomoda (el apilado en columna se comía toda la
+// altura del teléfono y el grid quedaba sin espacio ni scroll). Cada
+// franja — encabezado, resumen, filtros, pie — conserva su layout de
+// escritorio y se desliza horizontal por separado; la tabla scrollea en
+// ambos ejes con inercia táctil. Pantalla completa en el teléfono.
 @media (max-width: 992px) {
     .stone-popup-overlay {
-        padding: 8px;
+        padding: 0;
     }
 
     .stone-popup-container {
-        border-radius: 22px;
+        width: 100vw;
+        max-width: 100vw;
+        // 100vh como respaldo; dvh respeta las barras dinámicas del
+        // navegador móvil (el pie no queda escondido tras la barra).
+        height: 100vh;
+        height: 100dvh;
+        max-height: 100dvh;
+        border-radius: 0;
+        border-left: 0;
+        border-right: 0;
     }
 
-    .stone-popup-header {
-        align-items: flex-start;
-        flex-direction: column;
-        padding: 16px;
-    }
-
-    .stone-popup-title {
-        font-size: 19px;
-        width: 100%;
-    }
-
-    .stone-popup-subtitle {
-        max-width: 100%;
-        display: inline-block;
-    }
-
-    .stone-popup-header-actions {
-        width: 100%;
-        justify-content: flex-start;
-    }
-
-    .stone-popup-footer {
-        flex-wrap: wrap;
-    }
-
-    .stone-footer-actions {
-        margin-left: auto;
-    }
-}
-
-@media (max-width: 640px) {
-    .stone-selected-header,
+    .stone-popup-header,
+    .stone-popup-allocation-summary,
     .stone-popup-filters,
+    .stone-popup-footer,
+    .stone-selected-header,
     .stone-header {
-        align-items: stretch;
-        flex-direction: column;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        flex-wrap: nowrap;
     }
 
-    .stone-filter-group,
-    .stone-filter-input,
-    .stone-filter-input.stone-filter-sm {
-        width: 100%;
+    // Los hijos de cada franja no se encogen: desbordan y se panea,
+    // igual que en escritorio con ventana angosta.
+    .stone-popup-header > *,
+    .stone-popup-filters > *,
+    .stone-popup-footer > *,
+    .stone-selected-header > *,
+    .stone-header > * {
+        flex: 0 0 auto;
     }
 
-    .stone-filter-actions,
-    .stone-footer-actions {
-        width: 100%;
-        justify-content: space-between;
-    }
-
-    .stone-btn,
-    .stone-btn-select-all,
-    .stone-btn-clear-all {
-        flex: 1 1 auto;
-    }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// MÓVIL — misma receta que Inventario Visual: las tablas conservan su ancho
-// natural dentro de un wrapper con scroll TÁCTIL horizontal (nada se aplasta
-// ni se corta), y el selector ocupa la pantalla completa en teléfonos.
-// ═══════════════════════════════════════════════════════════════════════════
-@media (max-width: 992px) {
     .stone-popup-body,
     .stone-selected-body,
     .stone-grid-wrapper {
@@ -2132,47 +2105,12 @@ select.stone-filter-input {
         width: max-content;
         min-width: 100%;
     }
-}
-
-@media (max-width: 640px) {
-    .stone-popup-overlay {
-        padding: 0;
-    }
-
-    .stone-popup-container {
-        width: 100vw;
-        max-width: 100vw;
-        // 100vh como respaldo; dvh respeta las barras dinámicas del
-        // navegador móvil (el footer no queda escondido tras la barra).
-        height: 100vh;
-        height: 100dvh;
-        max-height: 100dvh;
-        border-radius: 0;
-        border-left: 0;
-        border-right: 0;
-    }
-
-    .stone-popup-header {
-        padding: 12px;
-    }
-
-    // Densidad táctil: celdas compactas y sin saltos de línea — el detalle
-    // completo se recorre con el scroll horizontal.
-    .stone-popup-table th,
-    .stone-popup-table td,
-    .stone-sel-table th,
-    .stone-sel-table td {
-        padding: 6px 8px;
-        font-size: 11px;
-        white-space: nowrap;
-    }
 
     // Acciones siempre a la mano: el pie del selector queda pegado abajo.
     .stone-popup-footer {
         position: sticky;
         bottom: 0;
         z-index: 5;
-        padding: 10px 12px;
         background: #ffffff;
         box-shadow: 0 -6px 16px rgba(15, 23, 42, 0.08);
     }
@@ -2356,21 +2294,8 @@ select.stone-filter-input {
     }
 }
 
-@media (max-width: 1180px) {
-    .stone-popup-allocation-summary {
-        grid-template-columns: repeat(3, minmax(130px, 1fr));
-    }
-
-    .stone-allocation-progress-box {
-        grid-column: 1 / -1;
-    }
-}
-
-@media (max-width: 640px) {
-    .stone-popup-allocation-summary {
-        grid-template-columns: 1fr;
-    }
-}
+// (El resumen de asignación conserva su grid de 4 columnas de escritorio
+// en cualquier ancho: su franja panea horizontal en pantallas chicas.)
 
 
 
