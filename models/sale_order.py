@@ -530,35 +530,60 @@ class SaleOrder(models.Model):
             ('quantity', '>', 0),
         ]
 
+        quants = Quant.browse()
+
         if source_location:
-            # SIN FALLBACK cuando el move declara su origen: si el lote no
-            # está bajo esa ubicación, ESTE documento no debe tomarlo.
-            #
-            # El fallback a "cualquier ubicación interna" creaba líneas que
-            # contradecían el flujo del propio documento — una entrega desde
-            # SOM/Salida sacando del pasillo, una recolección desde
-            # Existencias sacando del andén — y como el asignador corre para
-            # TODOS los pickings vivos del pedido, el mismo lote acababa
-            # reservado una vez por documento.
-            #
-            # Caso V/365: cuatro operaciones vivas en direcciones distintas
-            # (PICK Existencias→Salida, PICK Salida→Existencias, OUT
-            # Salida→Customers, IN Customers→Salida) dejaron el lote 21381-4
-            # con 50 m² físicos y 150 reservados, y 21232-8 con 100 contra 400.
-            return Quant.search(
+            # Se prefiere la ubicación declarada por el move...
+            quants = Quant.search(
                 base_domain + [('location_id', 'child_of', source_location.id)],
                 order='quantity desc, location_id, id',
             )
 
-        # Sin ubicación declarada sí se busca en cualquier interna: es el
-        # camino de las asignaciones que aún no tienen movimiento con origen.
-        return Quant.search(
-            base_domain + [('location_id.usage', '=', 'internal')],
-            order='quantity desc, location_id, id',
-        )
+        if not quants:
+            # ...pero si inventario movió la placa fuera de esa rama, se toma
+            # de donde esté. El flujo NO debe romperse por una reubicación: el
+            # move line se recrea apuntando a la ubicación nueva (ver
+            # _stone_unlink_existing_lot_move_lines + _stone_create_lot_move_lines).
+            quants = Quant.search(
+                base_domain + [('location_id.usage', '=', 'internal')],
+                order='quantity desc, location_id, id',
+            )
+
+        return quants
 
     def _stone_get_lot_physical_qty(self, quants):
         return sum((q.quantity or 0.0) for q in quants)
+
+    def _stone_get_lot_free_qty(self, quants, move=None):
+        """Cantidad REALMENTE disponible del lote: físico menos lo que ya
+        reservaron OTRAS operaciones vivas.
+
+        Las líneas del PROPIO move no se descuentan: están a punto de ser
+        reemplazadas por esta misma asignación.
+
+        Sin este tope, el asignador tomaba `quantity` a secas y, como corre
+        para TODOS los pickings vivos del pedido, cada documento reservaba el
+        lote completo. Caso V/365: el lote 21381-4 quedó con 50 m² físicos y
+        150 reservados entre cuatro operaciones, y 21232-8 con 100 contra 400.
+        """
+        MoveLine = self.env['stock.move.line'].sudo()
+        total = 0.0
+        for quant in quants:
+            reservado = quant.reserved_quantity or 0.0
+            if move:
+                propias = MoveLine.search([
+                    ('move_id', '=', move.id),
+                    ('lot_id', '=', quant.lot_id.id),
+                    ('location_id', '=', quant.location_id.id),
+                    ('state', 'not in', ('done', 'cancel')),
+                ])
+                reservado -= sum(
+                    propias.mapped(self._get_qty_field_name())
+                    if hasattr(self, '_get_qty_field_name')
+                    else propias.mapped('quantity')
+                )
+            total += max((quant.quantity or 0.0) - max(reservado, 0.0), 0.0)
+        return total
 
     def _stone_build_quant_splits(self, quants, qty):
         qty = float(qty or 0.0)
@@ -700,15 +725,24 @@ class SaleOrder(models.Model):
                     else:
                         qty_to_assign = physical_qty
 
-                    if float_compare(qty_to_assign, physical_qty, precision_rounding=rounding) > 0:
+                    # Tope contra lo LIBRE, no contra el físico: si otra
+                    # operación viva ya reservó el lote, este documento no
+                    # puede volver a tomarlo (era el origen de las reservas
+                    # multiplicadas en pedidos con varios pickings abiertos).
+                    free_qty = self._stone_get_lot_free_qty(quants, move=move)
+
+                    if float_compare(qty_to_assign, free_qty, precision_rounding=rounding) > 0:
                         _logger.warning(
-                            "[STONE] Lote %s solicitado %.6f pero solo existe físicamente %.6f. Se usará %.6f.",
+                            "[STONE] Lote %s solicitado %.6f | físico %.6f | "
+                            "LIBRE %.6f (el resto lo retienen otras operaciones). "
+                            "Se usará %.6f.",
                             lot.name,
                             qty_to_assign,
                             physical_qty,
-                            physical_qty,
+                            free_qty,
+                            free_qty,
                         )
-                        qty_to_assign = physical_qty
+                        qty_to_assign = free_qty
 
                     if float_compare(qty_to_assign, 0, precision_rounding=rounding) <= 0:
                         continue
