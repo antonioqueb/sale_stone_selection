@@ -530,21 +530,32 @@ class SaleOrder(models.Model):
             ('quantity', '>', 0),
         ]
 
-        quants = Quant.browse()
-
         if source_location:
-            quants = Quant.search(
+            # SIN FALLBACK cuando el move declara su origen: si el lote no
+            # está bajo esa ubicación, ESTE documento no debe tomarlo.
+            #
+            # El fallback a "cualquier ubicación interna" creaba líneas que
+            # contradecían el flujo del propio documento — una entrega desde
+            # SOM/Salida sacando del pasillo, una recolección desde
+            # Existencias sacando del andén — y como el asignador corre para
+            # TODOS los pickings vivos del pedido, el mismo lote acababa
+            # reservado una vez por documento.
+            #
+            # Caso V/365: cuatro operaciones vivas en direcciones distintas
+            # (PICK Existencias→Salida, PICK Salida→Existencias, OUT
+            # Salida→Customers, IN Customers→Salida) dejaron el lote 21381-4
+            # con 50 m² físicos y 150 reservados, y 21232-8 con 100 contra 400.
+            return Quant.search(
                 base_domain + [('location_id', 'child_of', source_location.id)],
                 order='quantity desc, location_id, id',
             )
 
-        if not quants:
-            quants = Quant.search(
-                base_domain + [('location_id.usage', '=', 'internal')],
-                order='quantity desc, location_id, id',
-            )
-
-        return quants
+        # Sin ubicación declarada sí se busca en cualquier interna: es el
+        # camino de las asignaciones que aún no tienen movimiento con origen.
+        return Quant.search(
+            base_domain + [('location_id.usage', '=', 'internal')],
+            order='quantity desc, location_id, id',
+        )
 
     def _stone_get_lot_physical_qty(self, quants):
         return sum((q.quantity or 0.0) for q in quants)
