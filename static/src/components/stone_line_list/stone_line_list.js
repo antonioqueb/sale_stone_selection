@@ -293,12 +293,33 @@ export class StoneExpandButton extends Component {
         return { qtyPerPack };
     }
 
-    /** Empaques completos máximos que caben en la cantidad disponible. */
+    /**
+     * Empaques del lote. UN LOTE COMPLETO SIEMPRE ES VÁLIDO: físicamente son
+     * cajas enteras aunque el empaque configurado esté redondeado (caja real
+     * 2.166 m² vs empaque "2.17": 60 cajas = 129.96 m²). Si el lote equivale
+     * a N cajas con tolerancia, el máximo es N y "máx" = TODO el lote; si no,
+     * cajas completas que caben (floor). Solo las tomas parciales van por
+     * múltiplos exactos.
+     */
     _maxPacks(availableQty, qtyPerPack) {
         if (!qtyPerPack || qtyPerPack <= 0) {
             return 0;
         }
-        return Math.floor((availableQty || 0) / qtyPerPack + 1e-6);
+        const avail = availableQty || 0;
+        const n = Math.round(avail / qtyPerPack);
+        const tol = Math.max(0.02 * avail, 0.5 * qtyPerPack);
+        if (n >= 1 && Math.abs(avail - n * qtyPerPack) <= tol) {
+            return n;
+        }
+        return Math.floor(avail / qtyPerPack + 1e-6);
+    }
+
+    /** Cantidad para N empaques: el máximo = lote completo (cantidad real). */
+    _packQty(packs, maxPacks, availableQty, qtyPerPack) {
+        if (maxPacks > 0 && packs >= maxPacks && availableQty > 0) {
+            return this._roundQty(availableQty);
+        }
+        return this._roundQty(packs * qtyPerPack);
     }
 
     _roundQty(value) {
@@ -1014,6 +1035,7 @@ export class StoneExpandButton extends Component {
                     qtyCell = `<div class="stone-pack-picker">
                                    <input type="number" class="stone-pack-input"
                                           data-lot-id="${item.lot_id}" data-qpp="${packMode.qtyPerPack}"
+                                          data-avail="${item.available_qty || 0}"
                                           data-max="${maxPacks}" step="1" min="1" max="${maxPacks}"
                                           value="${curPacks}" />
                                    <span class="stone-pack-suffix">emp.
@@ -1262,13 +1284,14 @@ export class StoneExpandButton extends Component {
         const lotId = parseInt(input.dataset.lotId);
         const qpp = parseFloat(input.dataset.qpp) || 0;
         const maxPacks = parseInt(input.dataset.max, 10) || 0;
+        const avail = parseFloat(input.dataset.avail) || 0;
         let packs = parseInt(input.value, 10) || 0;
 
         if (packs < 1) packs = 1;
         if (maxPacks > 0 && packs > maxPacks) packs = maxPacks;
         input.value = packs;
 
-        const qty = this._roundQty(packs * qpp);
+        const qty = this._packQty(packs, maxPacks, avail, qpp);
         const breakdown = this.getBreakdown();
         if (qty > 0) {
             breakdown[String(lotId)] = qty;
@@ -1853,8 +1876,8 @@ export class StoneExpandButton extends Component {
                     if (maxPacks < 1) continue; // stock < 1 empaque: no seleccionable
                     state.pendingIds.add(lotId);
                     if (!state.pendingBreakdown[String(lotId)]) {
-                        // "Todo" => lote completo en empaques enteros.
-                        state.pendingBreakdown[String(lotId)] = self._roundQty(maxPacks * packMode.qtyPerPack);
+                        // "Todo" => el lote COMPLETO (cantidad real, cajas físicas).
+                        state.pendingBreakdown[String(lotId)] = self._packQty(maxPacks, maxPacks, q.quantity, packMode.qtyPerPack);
                     }
                 } else {
                     state.pendingIds.add(lotId);
@@ -1950,6 +1973,7 @@ export class StoneExpandButton extends Component {
                         qtyCell = `<div class="stone-pack-picker">
                                        <input type="number" class="stone-popup-pack-input"
                                               data-lot-id="${lotId}" data-qpp="${packMode.qtyPerPack}"
+                                              data-avail="${q.quantity || 0}"
                                               data-max="${maxPacks}" step="1" min="1" max="${maxPacks}"
                                               value="${curPacks}" />
                                        <span class="stone-pack-suffix">emp.
@@ -1957,7 +1981,7 @@ export class StoneExpandButton extends Component {
                                                    data-lot-id="${lotId}"
                                                    title="Tomar el lote completo (${maxPacks} empaques)">máx ${maxPacks}</button>
                                        </span>
-                                       <span class="stone-pack-eq text-muted">= ${self._fmt(curPacks * packMode.qtyPerPack)} ${qtyLabel}</span>
+                                       <span class="stone-pack-eq text-muted">= ${self._fmt(self._packQty(curPacks, maxPacks, q.quantity, packMode.qtyPerPack))} ${qtyLabel}</span>
                                    </div>`;
                     } else {
                         qtyCell = `<span class="text-muted">— <small>(máx ${maxPacks} emp.)</small></span>`;
@@ -2108,12 +2132,13 @@ export class StoneExpandButton extends Component {
                     const lotId = parseInt(input.dataset.lotId);
                     const qpp = parseFloat(input.dataset.qpp) || 0;
                     const max = parseInt(input.dataset.max, 10) || 0;
+                    const avail = parseFloat(input.dataset.avail) || 0;
                     let packs = parseInt(input.value, 10) || 0;
                     if (packs < 1) packs = 1;
                     if (max > 0 && packs > max) packs = max;
                     input.value = packs;
 
-                    const qty = self._roundQty(packs * qpp);
+                    const qty = self._packQty(packs, max, avail, qpp);
                     state.pendingBreakdown[String(lotId)] = qty;
 
                     const tr = input.closest("tr");
