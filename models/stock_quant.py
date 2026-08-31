@@ -95,11 +95,27 @@ class StockQuant(models.Model):
                 fully.append(lot.id)
         return fully
 
+    @api.model
+    def _som_stone_company_ids(self, filters=None):
+        """Compañías que acota el selector visual. Si el llamador manda la
+        compañía de la VENTA (filters['company_id']) se usa esa; si no, las
+        compañías activas del usuario (mismo alcance que las ir.rule)."""
+        company_id = (filters or {}).get('company_id')
+        try:
+            company_id = int(company_id or 0)
+        except (TypeError, ValueError):
+            company_id = 0
+        if company_id:
+            return [company_id]
+        return self.env.companies.ids
+
     def _build_stone_domain(self, product_id, filters, safe_current_ids, excluded_lot_ids):
+        company_ids = self._som_stone_company_ids(filters)
         base_domain = [
             ('product_id', '=', int(product_id)),
             ('location_id.usage', '=', 'internal'),
-            ('quantity', '>', 0)
+            ('quantity', '>', 0),
+            ('company_id', 'in', company_ids),
         ]
 
         if excluded_lot_ids:
@@ -120,6 +136,7 @@ class StockQuant(models.Model):
             ('picking_id.picking_type_code', '=', 'internal'),
             ('picking_id.origin', '=like', 'Carrito - %'),
             ('picking_id.state', 'not in', ('done', 'cancel')),
+            ('company_id', 'in', company_ids),
         ])
         weak_lot_ids = [
             lid for lid in weak_lines.mapped('lot_id').ids
@@ -137,6 +154,7 @@ class StockQuant(models.Model):
                 ('quantity', '>', 0),
                 ('x_tiene_hold', '=', True),
                 ('lot_id.x_tipo', 'in', ('formato', 'pieza')),
+                ('company_id', 'in', company_ids),
             ])
             partial_hold_lot_ids = [
                 q.lot_id.id for q in held_quants
@@ -153,6 +171,7 @@ class StockQuant(models.Model):
             ('product_id', '=', int(product_id)),
             ('lot_ids', '!=', False),
             ('order_id.state', 'in', ['sale', 'done']),
+            ('company_id', 'in', company_ids),
         ])
         seen_partial = set()
         for sol in sols_live:
@@ -278,11 +297,15 @@ class StockQuant(models.Model):
         return result
 
     @api.model
-    def search_stone_inventory_for_so(self, product_id, filters=None, current_lot_ids=None):
+    def search_stone_inventory_for_so(self, product_id, filters=None, current_lot_ids=None, company_id=None):
         _logger.info("[STONE QUANT SEARCH] INICIO - product_id: %s, filters: %s", product_id, filters)
 
         if not filters:
             filters = {}
+        # company_id opcional = compañía de la VENTA que se está editando
+        # (el selector la puede mandar); sin ella, compañías activas.
+        if company_id:
+            filters = dict(filters, company_id=company_id)
 
         safe_current_ids = []
         if current_lot_ids:
@@ -303,9 +326,11 @@ class StockQuant(models.Model):
         return result
 
     @api.model
-    def search_stone_inventory_for_so_paginated(self, product_id, filters=None, current_lot_ids=None, page=0, page_size=35):
+    def search_stone_inventory_for_so_paginated(self, product_id, filters=None, current_lot_ids=None, page=0, page_size=35, company_id=None):
         if not filters:
             filters = {}
+        if company_id:
+            filters = dict(filters, company_id=company_id)
 
         safe_current_ids = []
         if current_lot_ids:

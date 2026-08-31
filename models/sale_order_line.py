@@ -90,6 +90,7 @@ class SaleOrderLine(models.Model):
                 product=self.product_id,
                 lot=lot,
                 source_location=source_location,
+                company=(move.company_id if move else False) or self.company_id,
             )
 
         Quant = self.env['stock.quant']
@@ -98,6 +99,9 @@ class SaleOrderLine(models.Model):
             ('product_id', '=', self.product_id.id),
             ('quantity', '>', 0),
         ]
+        company = (move.company_id if move else False) or self.company_id
+        if company:
+            base_domain.append(('company_id', 'in', [company.id, False]))
 
         quants = Quant.browse()
         if source_location:

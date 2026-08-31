@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Stone Selection & Visual Sale Grid',
-    'version': '19.0.9.17.0',
+    'version': '19.0.9.18.0',
     'category': 'Sales/Sales',
     'summary': 'Selección visual de placas con reserva estricta y estatus de entrega',
     'description': """
@@ -24,6 +24,7 @@
     ],
     'data': [
         'security/ir.model.access.csv',
+        'security/multi_company_rules.xml',
         'data/archive_quote_backups.xml',
         'views/sale_views.xml',
         'views/stock_views.xml',

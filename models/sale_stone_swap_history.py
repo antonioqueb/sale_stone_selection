@@ -24,6 +24,11 @@ class SaleStoneSwapHistory(models.Model):
         store=True,
         index=True,
     )
+    company_id = fields.Many2one(
+        'res.company', string='Compañía',
+        related='sale_line_id.company_id',
+        store=True, readonly=True, index=True,
+    )
     old_lot_id = fields.Many2one(
         'stock.lot', string='Lote Reemplazado',
         required=True, index=True, ondelete='restrict',

@@ -292,7 +292,9 @@ class SaleOrder(models.Model):
             if order.state in ['draft', 'sent'] and not order.x_is_quote_backup:
                 current_cot_name = order.name
 
-                new_ov_name = self.env['ir.sequence'].next_by_code('sale.order.confirmed')
+                # Folio con la compañía de la ORDEN (no la activa del usuario).
+                new_ov_name = self._som_next_sequence(
+                    'sale.order.confirmed', order.company_id)
                 if not new_ov_name:
                     new_ov_name = current_cot_name.replace('COT/', 'V/')
                     _logger.warning(
@@ -521,7 +523,7 @@ class SaleOrder(models.Model):
             return {'qty_done': qty}
         return {}
 
-    def _stone_get_lot_quants_for_assignment(self, product, lot, source_location=None):
+    def _stone_get_lot_quants_for_assignment(self, product, lot, source_location=None, company=None):
         Quant = self.env['stock.quant']
 
         base_domain = [
@@ -529,6 +531,11 @@ class SaleOrder(models.Model):
             ('product_id', '=', product.id),
             ('quantity', '>', 0),
         ]
+        # Compañía del documento (la orden), no la activa del usuario: un
+        # vendedor con varias compañías activas no debe tomar stock de otra.
+        company = company or (self.company_id if len(self) == 1 else False)
+        if company:
+            base_domain.append(('company_id', 'in', [company.id, False]))
 
         quants = Quant.browse()
 
@@ -700,6 +707,7 @@ class SaleOrder(models.Model):
                         product=product,
                         lot=lot,
                         source_location=move.location_id,
+                        company=move.company_id or sale_line.company_id,
                     )
 
                     if not quants:
