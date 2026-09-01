@@ -1944,6 +1944,12 @@ export class StoneExpandButton extends Component {
                     statusBadge = self._renderStatusBadges(statusInfo.status_badges, { compact: true });
                 } else if (sel) {
                     statusBadge = `<span class="stone-tag stone-tag-ok">Selec.</span>`;
+                } else if (isPartial && q.physical_qty !== undefined
+                           && (q.physical_qty - (q.quantity || 0)) > 0.005) {
+                    // Formato/pieza con parte ya tomada por otro documento:
+                    // Disp. muestra SOLO el remanente libre.
+                    statusBadge = `<span class="stone-tag stone-tag-warn"
+                                         title="Físico ${self._fmt(q.physical_qty)} · libre ${self._fmt(q.quantity || 0)} ${qtyLabel}">Parcial</span>`;
                 } else if (reserved) {
                     statusBadge = `<span class="stone-tag stone-tag-warn">Reserv.</span>`;
                 } else {
@@ -2183,6 +2189,11 @@ export class StoneExpandButton extends Component {
             }
         };
 
+        // Línea de venta en edición (solo si ya está guardada): el backend
+        // no le descuenta su propia reserva/captura al calcular el libre.
+        const rawLineId = self._getRecordId();
+        const saleLineId = Number.isInteger(rawLineId) ? rawLineId : false;
+
         const loadPage = async (page, reset) => {
             if (reset) {
                 state.isLoading = true;
@@ -2209,6 +2220,7 @@ export class StoneExpandButton extends Component {
                             product_id: productId,
                             filters: state.filters,
                             current_lot_ids: Array.from(state.pendingIds),
+                            sale_line_id: saleLineId,
                             page,
                             page_size: PAGE_SIZE,
                         }
@@ -2222,6 +2234,7 @@ export class StoneExpandButton extends Component {
                             product_id: productId,
                             filters: state.filters,
                             current_lot_ids: Array.from(state.pendingIds),
+                            sale_line_id: saleLineId,
                         }
                     )) || [];
                     result = {

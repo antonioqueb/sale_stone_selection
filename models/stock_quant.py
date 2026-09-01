@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from collections import defaultdict
+
 from odoo import models, api
 import logging
 _logger = logging.getLogger(__name__)
@@ -95,6 +97,137 @@ class StockQuant(models.Model):
                 fully.append(lot.id)
         return fully
 
+    # Remanente menor a esto (2 decimales visibles) = residuo de redondeo,
+    # no material vendible.
+    SOM_STONE_FREE_EPS = 0.005
+
+    @api.model
+    def _som_stone_free_by_lot(self, product_id, lot_ids, company_ids=None,
+                               exclude_sale_line_id=None):
+        """Libre REAL por lote (formato/pieza): físico interno menos lo que
+        OTROS documentos ya tomaron. Mismo criterio que
+        stock.lot.hold.order.line._som_lot_free_qty:
+
+            asignado = max(reserva nativa del quant,
+                           move lines VIVAS de ventas confirmadas,
+                           min(capturado en ventas confirmadas − entregado, físico))
+            libre    = físico − asignado − retenido por holds activos
+
+        `exclude_sale_line_id` = la línea que se está editando: su propia
+        reserva/captura no se descuenta (está a punto de reemplazarse).
+        Devuelve {lot_id: {'fisico': m², 'libre': m²}}."""
+        lot_ids = [int(l) for l in (lot_ids or []) if l]
+        if not lot_ids:
+            return {}
+        product_id = int(product_id)
+        exclude_id = int(exclude_sale_line_id or 0) or None
+
+        Quant = self.env['stock.quant'].sudo()
+        qdom = [
+            ('product_id', '=', product_id),
+            ('lot_id', 'in', lot_ids),
+            ('location_id.usage', '=', 'internal'),
+            ('quantity', '>', 0),
+        ]
+        if company_ids:
+            qdom.append(('company_id', 'in', list(company_ids)))
+        quants = Quant.search(qdom)
+
+        fisico = defaultdict(float)
+        reservado = defaultdict(float)
+        retenido = defaultdict(float)
+        has_hold = 'x_tiene_hold' in Quant._fields
+        for q in quants:
+            lid = q.lot_id.id
+            fisico[lid] += q.quantity or 0.0
+            reservado[lid] += q.reserved_quantity or 0.0
+            if has_hold and q.x_tiene_hold and hasattr(q, 'som_hold_held_qty'):
+                try:
+                    retenido[lid] += q.som_hold_held_qty()
+                except Exception:
+                    retenido[lid] += q.quantity or 0.0
+
+        Ml = self.env['stock.move.line'].sudo()
+        qty_field = 'quantity' if 'quantity' in Ml._fields else 'qty_done'
+        live_mls = Ml.search([
+            ('product_id', '=', product_id),
+            ('lot_id', 'in', lot_ids),
+            ('state', 'not in', ('done', 'cancel')),
+        ])
+        asignado_so = defaultdict(float)
+        for ml in live_mls:
+            qty = getattr(ml, qty_field) or 0.0
+            sol = ml.move_id.sale_line_id
+            if exclude_id and sol.id == exclude_id:
+                # Reserva de la propia línea: no cuenta en su contra.
+                reservado[ml.lot_id.id] -= qty
+                continue
+            if sol and sol.order_id.state in ('sale', 'done'):
+                asignado_so[ml.lot_id.id] += qty
+
+        Sol = self.env['sale.order.line'].sudo()
+        sols = Sol.search([
+            ('product_id', '=', product_id),
+            ('lot_ids', 'in', lot_ids),
+            ('order_id.state', 'in', ('sale', 'done')),
+        ])
+        if exclude_id:
+            sols = sols.filtered(lambda l: l.id != exclude_id)
+        delivered = defaultdict(float)
+        if sols:
+            done_mls = Ml.search([
+                ('product_id', '=', product_id),
+                ('lot_id', 'in', lot_ids),
+                ('state', '=', 'done'),
+                ('location_dest_id.usage', '=', 'customer'),
+                ('move_id.sale_line_id', 'in', sols.ids),
+            ])
+            for ml in done_mls:
+                delivered[(ml.move_id.sale_line_id.id, ml.lot_id.id)] += (
+                    getattr(ml, qty_field) or 0.0)
+        asignado_sol = defaultdict(float)
+        for sol in sols:
+            bd = getattr(sol, 'x_lot_breakdown_json', None)
+            for lot in sol.lot_ids:
+                if lot.id not in fisico:
+                    continue
+                qty = None
+                if bd and hasattr(sol, '_som_breakdown_qty_for_lot'):
+                    qty = sol._som_breakdown_qty_for_lot(bd, lot)
+                if qty is None:
+                    # Sin desglose = lote tomado completo.
+                    qty = fisico[lot.id]
+                asignado_sol[lot.id] += max(
+                    float(qty or 0.0) - delivered.get((sol.id, lot.id), 0.0), 0.0)
+
+        out = {}
+        for lid in lot_ids:
+            f = fisico.get(lid, 0.0)
+            asignado = max(
+                max(reservado.get(lid, 0.0), 0.0),
+                asignado_so.get(lid, 0.0),
+                min(asignado_sol.get(lid, 0.0), f),
+            )
+            out[lid] = {
+                'fisico': f,
+                'libre': max(f - asignado - retenido.get(lid, 0.0), 0.0),
+            }
+        return out
+
+    @api.model
+    def _som_stone_partial_lot_ids(self, quants, lots_data):
+        """Lotes formato/pieza presentes en los quants (los únicos donde el
+        libre puede diferir del físico)."""
+        out = []
+        for q in quants:
+            lid = q.lot_id.id if q.lot_id else False
+            if not lid:
+                continue
+            tipo = str((lots_data.get(lid) or {}).get('x_tipo') or '').lower()
+            if tipo in ('formato', 'pieza') and lid not in out:
+                out.append(lid)
+        return out
+
     @api.model
     def _som_stone_company_ids(self, filters=None):
         """Compañías que acota el selector visual. Si el llamador manda la
@@ -109,7 +242,8 @@ class StockQuant(models.Model):
             return [company_id]
         return self.env.companies.ids
 
-    def _build_stone_domain(self, product_id, filters, safe_current_ids, excluded_lot_ids):
+    def _build_stone_domain(self, product_id, filters, safe_current_ids, excluded_lot_ids,
+                            sale_line_id=None):
         company_ids = self._som_stone_company_ids(filters)
         base_domain = [
             ('product_id', '=', int(product_id)),
@@ -182,6 +316,26 @@ class StockQuant(models.Model):
                 if tipo in ('formato', 'pieza'):
                     seen_partial.add(lot.id)
                     partial_committed_ids.append(lot.id)
+
+        # SOLO LO QUE REALMENTE QUEDA: un formato/pieza comprometido o
+        # retenido en parte pasa al selector únicamente si su libre real
+        # (físico − reservas/capturas de otros − holds) es mayor a cero.
+        # Antes bastaba con estar anotado en una venta viva: pallets
+        # completos con reserva nativa (o con residuo de redondeo de
+        # empaque) salían como "Reserv." y confundían al vendedor.
+        remainder_candidates = (
+            (set(partial_hold_lot_ids) | set(partial_committed_ids))
+            - set(safe_current_ids or []))
+        if remainder_candidates:
+            free_by_lot = self._som_stone_free_by_lot(
+                product_id, list(remainder_candidates), company_ids, sale_line_id)
+            with_remainder = {
+                lid for lid, info in free_by_lot.items()
+                if info.get('libre', 0.0) > self.SOM_STONE_FREE_EPS}
+            partial_hold_lot_ids = [
+                lid for lid in partial_hold_lot_ids if lid in with_remainder]
+            partial_committed_ids = [
+                lid for lid in partial_committed_ids if lid in with_remainder]
 
         passthrough_ids = list(
             set(safe_current_ids or [])
@@ -263,16 +417,32 @@ class StockQuant(models.Model):
 
         return lots_data
 
-    def _quants_to_result(self, quants, lots_data):
+    def _quants_to_result(self, quants, lots_data, free_by_lot=None, keep_physical_lot_ids=None):
+        """`quantity` = lo que el usuario puede tomar. Para formato/pieza es
+        el LIBRE real del lote (repartido entre sus quants en orden); las
+        placas son atómicas y conservan el físico. `physical_qty` siempre
+        trae el físico del quant y `free_qty` lo libre que se le asignó."""
+        free_by_lot = free_by_lot or {}
+        keep_physical = set(keep_physical_lot_ids or [])
+        remaining = {lid: info.get('libre', 0.0) for lid, info in free_by_lot.items()}
         result = []
         for q in quants:
             lot_id = q.lot_id.id if q.lot_id else False
             lot_info = lots_data.get(lot_id, {})
+            physical = q.quantity or 0.0
+            if lot_id in remaining and lot_id not in keep_physical:
+                take = max(min(physical, remaining[lot_id]), 0.0)
+                remaining[lot_id] -= take
+                free_qty = round(take, 4)
+            else:
+                free_qty = physical
             result.append({
                 'id': q.id,
                 'lot_id': [lot_id, lot_info.get('name', '')] if lot_id else False,
                 'location_id': [q.location_id.id, q.location_id.display_name] if q.location_id else False,
-                'quantity': q.quantity,
+                'quantity': free_qty,
+                'physical_qty': physical,
+                'free_qty': free_qty,
                 'reserved_quantity': q.reserved_quantity,
                 'x_grosor': lot_info.get('x_grosor', 0) or 0,
                 'x_alto': lot_info.get('x_alto', 0) or 0,
@@ -297,7 +467,8 @@ class StockQuant(models.Model):
         return result
 
     @api.model
-    def search_stone_inventory_for_so(self, product_id, filters=None, current_lot_ids=None, company_id=None):
+    def search_stone_inventory_for_so(self, product_id, filters=None, current_lot_ids=None, company_id=None,
+                                      sale_line_id=None):
         _logger.info("[STONE QUANT SEARCH] INICIO - product_id: %s, filters: %s", product_id, filters)
 
         if not filters:
@@ -315,18 +486,38 @@ class StockQuant(models.Model):
         committed_lot_ids = self._get_committed_lot_ids(int(product_id))
         excluded_lot_ids = [lid for lid in committed_lot_ids if lid not in safe_current_ids]
 
-        domain = self._build_stone_domain(product_id, filters, safe_current_ids, excluded_lot_ids)
+        domain = self._build_stone_domain(product_id, filters, safe_current_ids, excluded_lot_ids,
+                                          sale_line_id=sale_line_id)
         quants = self.search(domain, limit=300, order='lot_id')
 
         lot_ids = quants.mapped('lot_id').ids
         lots_data = self._build_lots_data(lot_ids)
-        result = self._quants_to_result(quants, lots_data)
+        free_by_lot, keep_physical = self._som_stone_free_for_result(
+            product_id, filters, quants, lots_data, safe_current_ids, sale_line_id)
+        result = self._quants_to_result(quants, lots_data, free_by_lot, keep_physical)
 
         _logger.info("[STONE QUANT SEARCH] Encontrados: %s quants", len(result))
         return result
 
     @api.model
-    def search_stone_inventory_for_so_paginated(self, product_id, filters=None, current_lot_ids=None, page=0, page_size=35, company_id=None):
+    def _som_stone_free_for_result(self, product_id, filters, quants, lots_data,
+                                   safe_current_ids, sale_line_id=None):
+        """Mapa de libre por lote para los formato/pieza de la página. Sin
+        `sale_line_id` (línea aún sin guardar) los lotes de la propia
+        selección conservan el físico: no hay forma de separar su propia
+        captura de la de terceros."""
+        partial_ids = self._som_stone_partial_lot_ids(quants, lots_data)
+        if not partial_ids:
+            return {}, []
+        company_ids = self._som_stone_company_ids(filters)
+        free_by_lot = self._som_stone_free_by_lot(
+            product_id, partial_ids, company_ids, sale_line_id)
+        keep_physical = [] if sale_line_id else list(safe_current_ids or [])
+        return free_by_lot, keep_physical
+
+    @api.model
+    def search_stone_inventory_for_so_paginated(self, product_id, filters=None, current_lot_ids=None, page=0, page_size=35, company_id=None,
+                                                sale_line_id=None):
         if not filters:
             filters = {}
         if company_id:
@@ -340,7 +531,8 @@ class StockQuant(models.Model):
         committed_lot_ids = self._get_committed_lot_ids(int(product_id))
         excluded_lot_ids = [lid for lid in committed_lot_ids if lid not in safe_current_ids]
 
-        domain = self._build_stone_domain(product_id, filters, safe_current_ids, excluded_lot_ids)
+        domain = self._build_stone_domain(product_id, filters, safe_current_ids, excluded_lot_ids,
+                                          sale_line_id=sale_line_id)
 
         total = self.search_count(domain)
 
@@ -349,7 +541,9 @@ class StockQuant(models.Model):
 
         lot_ids = quants.mapped('lot_id').ids
         lots_data = self._build_lots_data(lot_ids)
-        items = self._quants_to_result(quants, lots_data)
+        free_by_lot, keep_physical = self._som_stone_free_for_result(
+            product_id, filters, quants, lots_data, safe_current_ids, sale_line_id)
+        items = self._quants_to_result(quants, lots_data, free_by_lot, keep_physical)
 
         _logger.info(
             "[STONE QUANT PAGINATED] product=%s page=%s total=%s got=%s",
