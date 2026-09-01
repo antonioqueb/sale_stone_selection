@@ -23,6 +23,7 @@ const STATUS_CLASS_MAP = {
     swap_replaced: "stone-tag-swap-old",
     swap_replacement: "stone-tag-swap-new",
     pending: "stone-tag-pending",
+    transit: "stone-tag-transit",
 };
 
 export class StoneExpandButton extends Component {
@@ -1004,6 +1005,8 @@ export class StoneExpandButton extends Component {
             const rowClasses = [];
             if (isGhost) rowClasses.push("stone-row-ghost");
             if (isLocked && !isGhost) rowClasses.push("stone-row-locked");
+            // Prealocado en tránsito: fila tenue, distinta del stock real.
+            if (item.is_transit && !isGhost) rowClasses.push("stone-row-transit");
 
             const qtyLabel = tipo === "pieza" ? "pzas" : "m²";
             const inputStep = tipo === "pieza" ? "1" : "0.01";

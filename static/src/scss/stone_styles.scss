@@ -2433,6 +2433,30 @@ select.stone-filter-input {
         color: $stone-muted;
         border-color: rgba(215, 232, 242, 0.96);
     }
+
+    // Prealocado en tránsito: gris tenue con borde punteado — se lee como
+    // "todavía no está aquí", a diferencia del asignado en stock.
+    &.stone-tag-transit {
+        background: rgba(241, 245, 249, 0.85);
+        color: #94a3b8;
+        border: 1px dashed rgba(148, 163, 184, 0.7);
+        font-style: italic;
+    }
+}
+
+.stone-row-transit {
+    opacity: 0.68;
+    background: rgba(248, 250, 252, 0.7) !important;
+    box-shadow: inset 4px 0 0 rgba(148, 163, 184, 0.45);
+
+    .cell-lot {
+        color: #64748b !important;
+        font-style: italic;
+    }
+
+    &:hover {
+        opacity: 0.85;
+    }
 }
 
 // Filas especiales en lista inline

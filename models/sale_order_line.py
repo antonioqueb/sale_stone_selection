@@ -984,6 +984,21 @@ class SaleOrderLine(models.Model):
                                      or '').split('/') if p]
                 loc_map[q.lot_id.id] = '/'.join(parts[-2:]) if parts else ''
 
+        # PREALOCADO EN TRÁNSITO: lotes asignados sin quant interno pero con
+        # existencia en ubicación de tránsito (embarque). Se marcan aparte
+        # y en color tenue para que el vendedor no los tome por stock.
+        transit_lot_ids = set()
+        missing = [lid for lid in all_lot_ids if lid not in qty_map]
+        if missing:
+            Loc = self.env['stock.location']
+            tbase = [('lot_id', 'in', missing), ('quantity', '>', 0)]
+            tdom = (tbase + Loc._som_transit_quant_leaf()
+                    if hasattr(Loc, '_som_transit_quant_leaf')
+                    else tbase + [('location_id.usage', '=', 'transit')])
+            for q in self.env['stock.quant'].sudo().search(tdom):
+                transit_lot_ids.add(q.lot_id.id)
+                loc_map.setdefault(q.lot_id.id, _('En tránsito'))
+
         result = []
         for lot_id in all_lot_ids:
             lot = lots_map.get(lot_id)
@@ -992,6 +1007,7 @@ class SaleOrderLine(models.Model):
 
             d = info.get(lot_id)
             is_ghost = lot_id in ghost_lot_ids and lot_id not in current_lot_ids
+            is_transit = lot_id in transit_lot_ids and not is_ghost
             tipo = (lot.x_tipo or 'placa').lower() if self._stone_safe_get(lot, 'x_tipo') else 'placa'
             available_qty = qty_map.get(lot_id, 0.0)
 
@@ -1085,6 +1101,13 @@ class SaleOrderLine(models.Model):
             if tipo in ('formato', 'pieza') and is_locked and not swap_locked:
                 is_locked = False
 
+            if is_transit:
+                badges.insert(0, {
+                    'type': 'transit',
+                    'label': _('Prealocado · en tránsito'),
+                    'icon': 'fa-ship',
+                })
+
             if not badges and not is_ghost:
                 badges.append({
                     'type': 'pending',
@@ -1111,6 +1134,7 @@ class SaleOrderLine(models.Model):
                 'status_badges': badges,
                 'is_locked': is_locked,
                 'is_ghost': is_ghost,
+                'is_transit': is_transit,
                 'min_qty': min_qty,
                 'qty_delivered': d['qty_delivered'] if d else 0.0,
                 'qty_returned': d['qty_returned'] if d else 0.0,
