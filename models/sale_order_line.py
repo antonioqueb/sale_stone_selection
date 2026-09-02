@@ -733,20 +733,18 @@ class SaleOrderLine(models.Model):
     def _som_cap_lot_breakdown_to_line(self, items):
         """El desglose por lote de una línea JAMÁS muestra más que lo
         vendido: sin breakdown, el fallback era el stock FÍSICO del lote
-        (p. ej. 'Lote × 1000' en una venta de 600). Se recorta en orden
-        greedy y se descartan los que quedan en cero."""
+        (p. ej. 'Lote × 1000' en una venta de 600). Si la suma excede lo
+        vendido se ESCALA proporcionalmente: todas las placas asignadas
+        siguen saliendo (antes se recortaba en orden y las últimas placas
+        desaparecían del reporte)."""
         limit = self.product_uom_qty or 0.0
         if limit <= 0 or not items:
             return items
-        running = 0.0
-        capped = []
-        for item in items:
-            allowed = max(min(item.get('quantity', 0.0), limit - running), 0.0)
-            running += allowed
-            if allowed > 0.0001:
-                item = dict(item, quantity=allowed)
-                capped.append(item)
-        return capped or items[:1]
+        total = sum(float(item.get('quantity', 0.0) or 0.0) for item in items)
+        if total <= limit + 0.0001 or total <= 0:
+            return items
+        factor = limit / total
+        return [dict(item, quantity=float(item.get('quantity', 0.0) or 0.0) * factor) for item in items]
 
     def _som_breakdown_qty_for_lot(self, breakdown, lot):
         """Cantidad asignada del lote en el desglose. El breakdown del
@@ -764,89 +762,86 @@ class SaleOrderLine(models.Model):
         return None
 
     def _get_all_sale_lots_with_qty(self):
+        """Placas de la línea para el reporte "Orden de Venta - Detalle".
+
+        REGLA (2 sep 2026): TODA placa asignada sale SIEMPRE, esté en pick
+        ticket, en recolección, entregada o todavía en piso. Antes se
+        perdían placas por dos causas:
+        * el desglose se armaba SOLO con las líneas de movimiento y, en la
+          ruta de dos pasos (Recolectar → Entrega) o con líneas duplicadas,
+          cada placa se sumaba dos veces; el tope de "no mostrar más de lo
+          vendido" recortaba en orden y las últimas placas desaparecían;
+        * si había movimientos, los lotes asignados (lot_ids) que no
+          estuvieran en ellos ni se miraban.
+        Ahora: universo = lotes asignados ∪ lotes en movimientos ∪ selección
+        del carrito; cantidad por placa = desglose (formato/pieza), si no lo
+        movido (máximo por placa ENTRE pickings, nunca suma entre pasos), si
+        no lo físico o alto × ancho; y el tope escala en vez de recortar."""
         self.ensure_one()
 
         if not self._stone_can_select_lots():
             return []
 
+        breakdown = self._parse_breakdown_dict()
+
+        # 1) Lo movido, por placa: máximo entre pickings (PICK y OUT llevan
+        #    la misma placa: no se suma), sumando solo dentro del mismo picking.
         move_lines = self.env['stock.move.line'].search([
             ('move_id.sale_line_id', '=', self.id),
             ('lot_id', '!=', False),
+            ('state', '!=', 'cancel'),
         ])
+        per_picking = {}
+        for ml in move_lines:
+            key = ml.picking_id.id or ('move', ml.move_id.id)
+            bucket = per_picking.setdefault(key, {})
+            bucket[ml.lot_id] = bucket.get(ml.lot_id, 0.0) + self._stone_line_move_line_qty(ml)
+        moved_qty = {}
+        for bucket in per_picking.values():
+            for lot, qty in bucket.items():
+                moved_qty[lot] = max(moved_qty.get(lot, 0.0), qty)
 
-        if move_lines:
-            lot_data = {}
-            for ml in move_lines:
-                lot = ml.lot_id
-                if lot.id not in lot_data:
-                    lot_data[lot.id] = {'lot': lot, 'quantity': 0.0}
-                lot_data[lot.id]['quantity'] += self._stone_line_move_line_qty(ml)
-            return self._som_cap_lot_breakdown_to_line(list(lot_data.values()))
-
-        if self.lot_ids:
-            breakdown = self._parse_breakdown_dict()
-
-            result = []
-            for lot in self.lot_ids:
-                tipo = str(lot.x_tipo).lower() if lot.x_tipo else 'placa'
-
-                bqty = (self._som_breakdown_qty_for_lot(breakdown, lot)
-                        if tipo in ('formato', 'pieza') else None)
-                if bqty is not None:
-                    qty = bqty
-                else:
-                    physical_qty = self._stone_line_get_lot_physical_qty(lot)
-                    qty = physical_qty if physical_qty else (
-                        lot.x_alto * lot.x_ancho
-                        if lot.x_alto and lot.x_ancho
-                        else 0.0
-                    )
-
-                result.append({
-                    'lot': lot,
-                    'quantity': qty,
-                })
-            return self._som_cap_lot_breakdown_to_line(result)
-
-        # Piezas/formatos vendidos desde el carrito: la selección vive en
-        # x_selected_lots (+ x_lot_breakdown_json, del módulo del carrito) y
-        # puede no estar sincronizada a lot_ids porque sin reserva forzada de
-        # lote tampoco hay move lines con lote. Sin este fallback, el reporte
-        # detalle no mostraba el desglose de lotes de productos tipo pieza.
+        # 2) Universo ordenado: asignadas primero, luego las movidas que no
+        #    estén asignadas, luego la selección del carrito.
+        lots = self.env['stock.lot']
+        for lot in self.lot_ids:
+            lots |= lot
+        for lot in moved_qty:
+            if lot not in lots:
+                lots |= lot
+        selected_quant_by_lot = {}
         if 'x_selected_lots' in self._fields and self.x_selected_lots:
-            breakdown = self._parse_breakdown_dict()
-            result = []
-            seen_lot_ids = set()
             for quant in self.x_selected_lots:
-                lot = quant.lot_id
-                if not lot or lot.id in seen_lot_ids:
-                    continue
-                seen_lot_ids.add(lot.id)
-                tipo = str(lot.x_tipo).lower() if lot.x_tipo else 'placa'
-                lot_id_str = str(lot.id)
+                if quant.lot_id and quant.lot_id.id not in selected_quant_by_lot:
+                    selected_quant_by_lot[quant.lot_id.id] = quant
+                    if quant.lot_id not in lots:
+                        lots |= quant.lot_id
+        if not lots:
+            return []
 
-                bqty = None
-                if tipo in ('formato', 'pieza'):
-                    if lot_id_str in breakdown:
-                        bqty = float(breakdown[lot_id_str])
-                    elif str(quant.id) in breakdown:
+        # 3) Cantidad por placa.
+        result = []
+        for lot in lots:
+            tipo = str(lot.x_tipo).lower() if lot.x_tipo else 'placa'
+            qty = None
+            if tipo in ('formato', 'pieza'):
+                bqty = self._som_breakdown_qty_for_lot(breakdown, lot)
+                if bqty is None and lot.id in selected_quant_by_lot:
+                    quant = selected_quant_by_lot[lot.id]
+                    if str(quant.id) in breakdown:
                         bqty = float(breakdown[str(quant.id)])
                 if bqty is not None:
                     qty = bqty
-                else:
-                    qty = quant.quantity or (
-                        lot.x_alto * lot.x_ancho
-                        if lot.x_alto and lot.x_ancho
-                        else 0.0
-                    )
-
-                result.append({
-                    'lot': lot,
-                    'quantity': qty,
-                })
-            return self._som_cap_lot_breakdown_to_line(result)
-
-        return []
+            if qty is None and moved_qty.get(lot, 0.0) > 0.0001:
+                qty = moved_qty[lot]
+            if qty is None:
+                physical_qty = self._stone_line_get_lot_physical_qty(lot)
+                if not physical_qty and lot.id in selected_quant_by_lot:
+                    physical_qty = selected_quant_by_lot[lot.id].quantity or 0.0
+                qty = physical_qty if physical_qty else (
+                    lot.x_alto * lot.x_ancho if lot.x_alto and lot.x_ancho else 0.0)
+            result.append({'lot': lot, 'quantity': qty or 0.0})
+        return self._som_cap_lot_breakdown_to_line(result)
 
     # =========================================================================
     # API NUEVA: Estatus de entrega completo por lote
