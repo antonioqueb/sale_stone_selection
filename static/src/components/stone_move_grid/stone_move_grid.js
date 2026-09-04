@@ -29,6 +29,13 @@ export class StoneMoveGridField extends Component {
         });
     }
 
+    // Las plantillas OWL no exponen parseFloat/Number: formatear aquí
+    // (en el XML tumbaba la vista con "ctx.parseFloat is not a function").
+    fmtGrosor(value) {
+        const n = parseFloat(value);
+        return Number.isFinite(n) ? n.toFixed(2) : "-";
+    }
+
     _extractId(field) {
         if (!field) return null;
         if (typeof field === 'number') return field;
