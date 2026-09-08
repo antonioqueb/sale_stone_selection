@@ -283,15 +283,48 @@ export class StoneExpandButton extends Component {
      * El empaque solo aplica a formato/pieza; la placa siempre se toma completa.
      */
     _lotPackMode(tipo) {
+        // EMPAQUE = TOPE, NO CANTIDAD OBLIGATORIA (incidencia V/745, 8 sep
+        // 2026): el modo "número de empaques" redondeaba cualquier captura a
+        // empaques completos (mínimo 1 = lote entero cuando el lote equivalía a
+        // un empaque: 3 pzas se volvían 8). Formato y pieza se capturan ahora
+        // por cantidad libre, con tope = lo disponible del lote; el empaque
+        // queda como referencia (ver _packHint). Los helpers de empaque se
+        // conservan por compatibilidad.
+        return null;
+    }
+
+    /**
+     * Cantidad que aún falta por cubrir del Solicitado de la línea, descontando
+     * lo ya seleccionado en el popup (pendingBreakdown) y las placas enteras
+     * ya asignadas. 0 si no se puede determinar.
+     */
+    _pendingToCover(state) {
+        const requested = this._parseFloatField(this.props.record.data.product_uom_qty) || 0;
+        if (requested <= 0) return 0;
+        let taken = 0;
+        for (const v of Object.values(state.pendingBreakdown || {})) {
+            taken += parseFloat(v) || 0;
+        }
+        for (const lotId of (state.pendingIds || [])) {
+            if (state.pendingBreakdown && state.pendingBreakdown[String(lotId)] !== undefined) continue;
+            const q = (state.quants || []).find(qq => qq.lot_id && qq.lot_id[0] === lotId);
+            if (q) taken += parseFloat(q.quantity) || 0;
+        }
+        return Math.max(requested - taken, 0);
+    }
+
+    /** Texto de referencia del empaque estándar de la línea, o "". */
+    _packHint(tipo) {
         const t = String(tipo || "").toLowerCase();
         if (t !== "formato" && t !== "pieza") {
-            return null;
+            return "";
         }
         const { hasPack, qtyPerPack } = this._getPackInfo();
         if (!hasPack) {
-            return null;
+            return "";
         }
-        return { qtyPerPack };
+        const unit = t === "pieza" ? "pzas" : "m²";
+        return `Empaque de referencia: ${this._fmt(qtyPerPack)} ${unit}. Puedes tomar cualquier cantidad hasta lo disponible del lote.`;
     }
 
     /**
@@ -1054,12 +1087,13 @@ export class StoneExpandButton extends Component {
                 // está en almacén pero sigue contando en la asignación).
                 const minQty = parseFloat(item.min_qty || 0) || 0;
                 const maxQty = minQty + (parseFloat(item.available_qty || 0) || 0);
+                const packHint = this._packHint(tipo);
                 qtyCell = `<input type="number" class="stone-qty-input"
                                   data-lot-id="${item.lot_id}" data-max="${maxQty}"
                                   data-min="${minQty}"
                                   step="${inputStep}" min="${minQty}" max="${maxQty}"
                                   value="${item.displayed_qty || 0}"
-                                  ${minQty > 0 ? `title="Ya entregado: ${minQty} — la asignación no puede bajar de ahí"` : ""} />`;
+                                  ${minQty > 0 ? `title="Ya entregado: ${minQty} — la asignación no puede bajar de ahí"` : (packHint ? `title="${packHint}"` : "")} />`;
             } else {
                 qtyCell = `<span class="fw-semibold">${this._fmt(item.displayed_qty)} ${qtyLabel}</span>`;
             }
@@ -1999,10 +2033,11 @@ export class StoneExpandButton extends Component {
                     const currentVal = state.pendingBreakdown[lotIdStr] !== undefined
                         ? state.pendingBreakdown[lotIdStr]
                         : q.quantity;
+                    const packHint = self._packHint(tipo);
                     qtyCell = `<input type="number" class="stone-popup-qty-input"
                                      data-lot-id="${lotId}" data-max="${q.quantity}"
                                      step="${inputStep}" min="0" max="${q.quantity}"
-                                     value="${currentVal}" />`;
+                                     value="${currentVal}" ${packHint ? `title="${packHint}"` : ""} />`;
                 } else if (isPartial && !sel) {
                     qtyCell = `<span class="text-muted">—</span>`;
                 } else {
@@ -2106,11 +2141,18 @@ export class StoneExpandButton extends Component {
                         if (isPartial) {
                             const q = state.quants.find(qq => qq.lot_id && qq.lot_id[0] === lotId);
                             if (q) {
-                                // En modo empaque: por defecto un empaque entero por lote.
-                                // En modo libre: el lote completo (cantidad disponible).
+                                // Por defecto: lo que FALTA por cubrir del Solicitado,
+                                // sin pasar de lo disponible del lote (3 pzas pedidas de
+                                // un lote de 8 => 3). Sin faltante conocido: el lote
+                                // completo. El vendedor puede cambiarlo libremente.
+                                let dflt = q.quantity || 0;
+                                const pending = self._pendingToCover(state);
+                                if (pending > 0 && pending < dflt) {
+                                    dflt = self._roundQty(pending);
+                                }
                                 state.pendingBreakdown[String(lotId)] = packMode
                                     ? self._roundQty(packMode.qtyPerPack)
-                                    : (q.quantity || 0);
+                                    : dflt;
                             }
                         }
                     }
