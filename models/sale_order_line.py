@@ -407,18 +407,48 @@ class SaleOrderLine(models.Model):
             )
             quants.invalidate_recordset()
             order_partner = line.order_id.partner_id
+            breakdown = line._parse_breakdown_dict()
             for quant in quants:
                 hold = quant.x_hold_activo_id if quant.x_tiene_hold else False
-                if (hold and hold.partner_id and order_partner
+                if not (hold and hold.partner_id and order_partner
                         and hold.partner_id.commercial_partner_id
                         != order_partner.commercial_partner_id):
+                    continue
+
+                # APARTADO PARCIAL (formato/pieza): el hold ajeno solo retiene
+                # la parcialidad de su reserva; el remanente del lote es libre
+                # y SÍ puede asignarse a este pedido. Se rechaza solo cuando lo
+                # pedido a ese lote no cabe en lo que queda libre. Las placas
+                # son atómicas: cualquier hold ajeno bloquea.
+                tipo = str(getattr(quant.lot_id, 'x_tipo', '') or '').lower()
+                if tipo in ('formato', 'pieza') and hasattr(quant, 'som_hold_free_qty'):
+                    libre = quant.som_hold_free_qty()
+                    pedido = breakdown.get(str(quant.lot_id.id))
+                    if pedido is None:
+                        pedido = line.product_uom_qty or 0.0
+                    try:
+                        pedido = float(pedido or 0.0)
+                    except (TypeError, ValueError):
+                        pedido = line.product_uom_qty or 0.0
+                    if pedido <= libre + 0.0001:
+                        continue
                     raise UserError(_(
-                        'El lote %(lot)s está APARTADO para %(partner)s y no '
-                        'puede asignarse a este pedido. Si el apartado ya no '
-                        'aplica, cancélalo primero.',
+                        'El lote %(lot)s tiene %(libre).2f libres: el resto '
+                        'está APARTADO para %(partner)s. Este pedido le pide '
+                        '%(pedido).2f. Baja la cantidad de ese lote o elige otro.',
                         lot=quant.lot_id.name,
+                        libre=libre,
                         partner=hold.partner_id.name,
+                        pedido=pedido,
                     ))
+
+                raise UserError(_(
+                    'El lote %(lot)s está APARTADO para %(partner)s y no '
+                    'puede asignarse a este pedido. Si el apartado ya no '
+                    'aplica, cancélalo primero.',
+                    lot=quant.lot_id.name,
+                    partner=hold.partner_id.name,
+                ))
 
     def _stone_validate_duplicate_plates_in_order(self, added_by_line=None):
         """Una PLACA no puede vivir en lot_ids de DOS líneas del mismo
