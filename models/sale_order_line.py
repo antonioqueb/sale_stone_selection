@@ -985,14 +985,22 @@ class SaleOrderLine(models.Model):
         transit_lot_ids = set()
         missing = [lid for lid in all_lot_ids if lid not in qty_map]
         if missing:
-            Loc = self.env['stock.location']
-            tbase = [('lot_id', 'in', missing), ('quantity', '>', 0)]
-            tdom = (tbase + Loc._som_transit_quant_leaf()
-                    if hasattr(Loc, '_som_transit_quant_leaf')
-                    else tbase + [('location_id.usage', '=', 'transit')])
-            for q in self.env['stock.quant'].sudo().search(tdom):
-                transit_lot_ids.add(q.lot_id.id)
-                loc_map.setdefault(q.lot_id.id, _('En tránsito'))
+            if hasattr(Lot, '_som_lot_ids_in_transit'):
+                # Sin RESIDUOS: placas ya recibidas/entregadas con centésimas
+                # colgando en SOM/TRANSIT no se pintan como en tránsito.
+                company_id = (self.order_id.company_id.id
+                              if self.order_id and self.order_id.company_id else None)
+                transit_lot_ids = set(Lot._som_lot_ids_in_transit(missing, company_id=company_id))
+            else:
+                Loc = self.env['stock.location']
+                tbase = [('lot_id', 'in', missing), ('quantity', '>', 0)]
+                tdom = (tbase + Loc._som_transit_quant_leaf()
+                        if hasattr(Loc, '_som_transit_quant_leaf')
+                        else tbase + [('location_id.usage', '=', 'transit')])
+                for q in self.env['stock.quant'].sudo().search(tdom):
+                    transit_lot_ids.add(q.lot_id.id)
+            for lid in transit_lot_ids:
+                loc_map.setdefault(lid, _('En tránsito'))
 
         result = []
         for lot_id in all_lot_ids:
