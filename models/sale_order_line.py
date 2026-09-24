@@ -1058,6 +1058,23 @@ class SaleOrderLine(models.Model):
             for lid in transit_lot_ids:
                 loc_map.setdefault(lid, _('En tránsito'))
 
+        # CANTIDAD EN TRÁNSITO (solo referencia): lo que trae el embarque de
+        # cada lote prealocado. No es stock ni se reserva; alimenta la
+        # columna "Total ref." para que el vendedor vea cuánto lleva asignado
+        # sumando stock + tránsito (24 sep 2026).
+        transit_qty_map = {}
+        if transit_lot_ids:
+            Loc = self.env['stock.location']
+            tdom = [('lot_id', 'in', list(transit_lot_ids)), ('quantity', '>', 0)]
+            tdom += (Loc._som_transit_quant_leaf()
+                     if hasattr(Loc, '_som_transit_quant_leaf')
+                     else [('location_id.usage', '=', 'transit')])
+            if self.order_id.company_id:
+                tdom.append(('company_id', 'in', [False, self.order_id.company_id.id]))
+            for tlot, tqty in self.env['stock.quant'].sudo()._read_group(
+                    tdom, ['lot_id'], ['quantity:sum']):
+                transit_qty_map[tlot.id] = tqty or 0.0
+
         result = []
         for lot_id in all_lot_ids:
             lot = lots_map.get(lot_id)
@@ -1078,6 +1095,14 @@ class SaleOrderLine(models.Model):
                     float(bqty) if bqty is not None else available_qty)
             else:
                 displayed_qty = available_qty
+
+            transit_qty = transit_qty_map.get(lot_id, 0.0) if is_transit else 0.0
+            if is_ghost:
+                ref_qty = 0.0
+            elif is_transit and displayed_qty <= 0:
+                ref_qty = transit_qty
+            else:
+                ref_qty = displayed_qty
 
             badges = []
             is_locked = False
@@ -1194,6 +1219,8 @@ class SaleOrderLine(models.Model):
                 'is_locked': is_locked,
                 'is_ghost': is_ghost,
                 'is_transit': is_transit,
+                'transit_qty': transit_qty,
+                'ref_qty': ref_qty,
                 'min_qty': min_qty,
                 'qty_delivered': d['qty_delivered'] if d else 0.0,
                 'qty_returned': d['qty_returned'] if d else 0.0,

@@ -1016,6 +1016,7 @@ export class StoneExpandButton extends Component {
         }
 
         let totalQty = 0;
+        let totalRef = 0;
         let html = `
             <table class="stone-sel-table stone-sel-table-with-status">
                 <thead>
@@ -1032,6 +1033,7 @@ export class StoneExpandButton extends Component {
                         <th>Tipo</th>
                         <th class="col-num">Disp.</th>
                         <th class="col-num col-qty-input">Cant.</th>
+                        <th class="col-num col-ref-qty" title="Referencia: lo asignado en stock más lo que viene en tránsito. No reserva nada.">Total ref.</th>
                         <th>Color</th>
                         <th class="col-act"></th>
                     </tr>
@@ -1047,6 +1049,7 @@ export class StoneExpandButton extends Component {
 
             if (!isGhost) {
                 totalQty += item.displayed_qty || 0;
+                totalRef += item.ref_qty ?? item.displayed_qty ?? 0;
             }
 
             const rowClasses = [];
@@ -1125,6 +1128,17 @@ export class StoneExpandButton extends Component {
                        <i class="fa fa-times"></i>
                    </button>`;
 
+            // Total ref.: en stock refleja Cant.; en tránsito (Cant. = 0) muestra
+            // lo que trae el embarque, marcado con el barquito.
+            const refQty = isGhost ? 0 : (item.ref_qty ?? item.displayed_qty ?? 0);
+            const transitRef = (item.is_transit && !isGhost) ? (parseFloat(item.transit_qty) || 0) : 0;
+            const refCell = isGhost
+                ? `<span class="text-muted">-</span>`
+                : `<span class="stone-ref-qty">${this._fmt(refQty)}</span> ${qtyLabel}${
+                    transitRef > 0 && !((item.displayed_qty || 0) > 0)
+                        ? ` <i class="fa fa-ship text-muted" title="En tránsito: ${this._fmt(transitRef)} ${qtyLabel}"></i>`
+                        : ""}`;
+
             const lotNameHtml = isGhost
                 ? `<s>${this._escapeHtml(item.lot_name)}</s>`
                 : this._escapeHtml(item.lot_name);
@@ -1132,7 +1146,7 @@ export class StoneExpandButton extends Component {
             const tipoLabel = tipo.charAt(0).toUpperCase() + tipo.slice(1);
 
             html += `
-                <tr class="${rowClasses.join(" ")}">
+                <tr class="${rowClasses.join(" ")}" data-transit-ref="${transitRef}">
                     <td class="col-photo">${photoCell}</td>
                     <td class="cell-lot">${lotNameHtml}</td>
                     <td class="col-status">${badgesHtml}</td>
@@ -1147,6 +1161,7 @@ export class StoneExpandButton extends Component {
                     </td>
                     <td class="col-num text-muted">${this._fmt(item.available_qty)} ${qtyLabel}</td>
                     <td class="col-num col-qty-input">${qtyCell}</td>
+                    <td class="col-num col-ref-qty text-muted">${refCell}</td>
                     <td>${this._escapeHtml(item.x_color) || "-"}</td>
                     <td class="col-act">${removeBtn}</td>
                 </tr>`;
@@ -1156,8 +1171,10 @@ export class StoneExpandButton extends Component {
                 </tbody>
                 <tfoot>
                     <tr class="stone-total-row">
-                        <td colspan="10" class="text-end fw-bold text-muted">Total:</td>
+                        <td colspan="11" class="text-end fw-bold text-muted">Total:</td>
                         <td class="col-num fw-bold" id="stone-sel-total">${this._fmt(totalQty)}</td>
+                        <td class="col-num fw-bold text-muted" id="stone-sel-total-ref"
+                            title="Stock + tránsito (referencia)">${this._fmt(totalRef)}</td>
                         <td colspan="2"></td>
                     </tr>
                 </tfoot>
@@ -1359,19 +1376,33 @@ export class StoneExpandButton extends Component {
         const totalEl = this._detailsRow.querySelector("#stone-sel-total");
         if (!totalEl) return;
 
+        // Por renglón: Cant. suma al total; Total ref. = Cant., o lo que trae
+        // el embarque si el lote está en tránsito y Cant. sigue en 0.
         let total = 0;
-        this._detailsRow.querySelectorAll("tbody tr:not(.stone-row-ghost) .stone-qty-input").forEach((inp) => {
-            total += parseFloat(inp.value) || 0;
-        });
-        this._detailsRow.querySelectorAll("tbody tr:not(.stone-row-ghost) .stone-pack-input").forEach((inp) => {
-            const qpp = parseFloat(inp.dataset.qpp) || 0;
-            total += (parseInt(inp.value, 10) || 0) * qpp;
-        });
-        this._detailsRow.querySelectorAll("tbody tr:not(.stone-row-ghost) td.col-qty-input .fw-semibold").forEach((span) => {
-            const m = span.textContent.match(/([\d.]+)/);
-            if (m) total += parseFloat(m[1]) || 0;
+        let totalRef = 0;
+        this._detailsRow.querySelectorAll("tbody tr:not(.stone-row-ghost)").forEach((tr) => {
+            let qty = 0;
+            const inp = tr.querySelector(".stone-qty-input");
+            const pack = tr.querySelector(".stone-pack-input");
+            const span = tr.querySelector("td.col-qty-input .fw-semibold");
+            if (inp) {
+                qty = parseFloat(inp.value) || 0;
+            } else if (pack) {
+                qty = (parseInt(pack.value, 10) || 0) * (parseFloat(pack.dataset.qpp) || 0);
+            } else if (span) {
+                const m = span.textContent.match(/([\d.]+)/);
+                if (m) qty = parseFloat(m[1]) || 0;
+            }
+            total += qty;
+            const transitRef = parseFloat(tr.dataset.transitRef) || 0;
+            const ref = qty > 0 ? qty : transitRef;
+            totalRef += ref;
+            const refEl = tr.querySelector(".stone-ref-qty");
+            if (refEl) refEl.textContent = this._fmt(ref);
         });
         totalEl.textContent = this._fmt(total);
+        const refTotalEl = this._detailsRow.querySelector("#stone-sel-total-ref");
+        if (refTotalEl) refTotalEl.textContent = this._fmt(totalRef);
     }
 
     /**
