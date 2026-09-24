@@ -170,6 +170,13 @@ class StockMove(models.Model):
                 if done_qty > 0:
                     delivered_added.add(lot_id)
             suppress_ratchet = not (added - delivered_added)
+            # Asignación fresca por PLOMERÍA (planificador nocturno, crons,
+            # flujos en sudo) no es decisión comercial: no sube el Solicitado
+            # (V/179 subió de 511 a 651 m² firmado por 'Administrator'). La
+            # asignación fresca de una persona en la entrega sí lo sube.
+            skip_ratchet = bool(
+                self.env.context.get('tc_skip_qty_ratchet') or self.env.su
+            )
 
             try:
                 # tc_qty_sync_from_lots: solo cuando TODO lo agregado es
@@ -188,6 +195,7 @@ class StockMove(models.Model):
                     # dobles residuales — el candado es para el vendedor).
                     skip_stone_dup_plate_check=True,
                     tc_qty_sync_from_lots=suppress_ratchet,
+                    tc_skip_qty_ratchet=skip_ratchet,
                     som_lot_log_reason=(
                         'Sincronización desde la entrega %s (STONE SYNC): la '
                         'línea de venta se alinea con lo que traen los '
