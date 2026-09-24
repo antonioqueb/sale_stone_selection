@@ -15,6 +15,26 @@ class StockMove(models.Model):
             return res
         return res
 
+    @api.model
+    def _stone_lot_qty_in_pickings(self, sol, lot_id):
+        """Cantidad del lote que dicen las entregas de la línea: MÁXIMO por
+        picking (sumando solo dentro del mismo picking), nunca la suma entre
+        pickings. PICK y OUT llevan el mismo material, y cada devolución +
+        re-entrega es otra pasada del MISMO material; sumarlas todas inflaba
+        el desglose (V/045: renglón de 97 pza con 438 en el desglose). Las
+        devoluciones (origen cliente) y lo cancelado no cuentan."""
+        per_picking = {}
+        for ml in sol.move_ids.mapped('move_line_ids'):
+            if ml.lot_id.id != lot_id or ml.state == 'cancel':
+                continue
+            if ml.move_id.state == 'cancel' or ml.location_id.usage == 'customer':
+                continue
+            if ml.move_id.origin_returned_move_id:
+                continue
+            key = ml.picking_id.id or ('move', ml.move_id.id)
+            per_picking[key] = per_picking.get(key, 0.0) + (ml.quantity or 0.0)
+        return max(per_picking.values()) if per_picking else 0.0
+
     def _sync_stone_sale_lines(self):
         if self.env.context.get('is_stone_confirming'):
             _logger.info("[STONE SYNC] Saltando sync durante confirmación inicial")
@@ -39,6 +59,23 @@ class StockMove(models.Model):
                         all_lot_ids.add(ml.lot_id.id)
 
             existing_lots = set(sol.lot_ids.ids) if sol.lot_ids else set()
+
+            # Placas de OTRAS líneas del mismo pedido no se adoptan: si un
+            # asignador cargó las placas de las líneas hermanas (mismo
+            # producto) en el move de esta línea, oficializarlas duplicaba la
+            # placa entre líneas y el ratchet inflaba el Solicitado (V/150:
+            # las 4 placas en el renglón de 13.46 → 26.92 / 0 / 0). Una placa
+            # que no tiene dueño en el pedido sí es asignación fresca.
+            sibling_lines = sol.order_id.order_line.filtered(
+                lambda l: l.id != sol.id and l.product_id == sol.product_id)
+            owned_by_siblings = set(sibling_lines.mapped('lot_ids').ids) - existing_lots
+            if owned_by_siblings & all_lot_ids:
+                _logger.info(
+                    "[STONE SYNC] SO Line %s: se ignoran lotes que pertenecen a "
+                    "otras líneas del pedido: %s", sol.id,
+                    self.env['stock.lot'].browse(
+                        list(owned_by_siblings & all_lot_ids)).mapped('name'))
+                all_lot_ids -= owned_by_siblings
 
             # REGLA DE ORO (2026-08-07, pedida explícitamente): LAS ENTREGAS
             # MANDAN. Lo que viva en los pickings (pick/out) ES la selección:
@@ -108,12 +145,7 @@ class StockMove(models.Model):
                         continue
                     if sol._som_breakdown_qty_for_lot(breakdown, lot) is not None:
                         continue
-                    ml_qty = sum(
-                        ml.quantity or 0.0
-                        for ml in sol.move_ids.mapped('move_line_ids')
-                        if ml.lot_id.id == lot_id
-                        and ml.state not in ('cancel',)
-                    )
+                    ml_qty = self._stone_lot_qty_in_pickings(sol, lot_id)
                     if ml_qty > 0:
                         breakdown[str(lot_id)] = ml_qty
                         changed_bd = True

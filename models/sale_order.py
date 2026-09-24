@@ -523,8 +523,54 @@ class SaleOrder(models.Model):
             return {'qty_done': qty}
         return {}
 
-    def _stone_get_lot_quants_for_assignment(self, product, lot, source_location=None, company=None):
+    @api.model
+    def _stone_move_has_live_upstream(self, move):
+        """¿El move espera material de un paso previo VIVO (OUT tras un PICK
+        sin validar)?
+
+        En ese caso el material todavía está en el bin y lo va a llevar el
+        PICK a Salida; si el OUT crea sus líneas desde el bin, Odoo 19
+        descuenta en la ubicación literal y el lote sale DOS veces del bin
+        (caso V/147, S58-04: el PICK llevó 2 m² de Descarga 4-1 a Salida y el
+        OUT volvió a descontar 2 m² de Descarga 4-1 — 2 m² sin dueño en
+        Salida). El OUT se reserva desde Salida cuando el PICK se valida.
+
+        Paso previo = move_orig_ids vivos, o moves internos vivos de la MISMA
+        línea de venta (en otro picking) cuyo destino cae dentro del origen
+        de este move (pickings regenerados que no quedaron encadenados)."""
+        if not move:
+            return False
+        live = ('done', 'cancel')
+        if move.move_orig_ids.filtered(lambda m: m.state not in live):
+            return True
+        src = move.location_id
+        if not move.sale_line_id or not src or not src.parent_path:
+            return False
+        for sibling in move.sale_line_id.move_ids:
+            if sibling.id == move.id or sibling.state in live:
+                continue
+            if sibling.picking_id and sibling.picking_id == move.picking_id:
+                continue
+            if sibling.location_id.usage != 'internal':
+                # Devoluciones (cliente → bodega) y recepciones no son paso previo.
+                continue
+            dest = sibling.location_dest_id
+            if dest and dest != sibling.location_id and (dest.parent_path or '').startswith(src.parent_path):
+                return True
+        return False
+
+    @api.model
+    def _stone_location_within(self, location, parent):
+        return bool(
+            location and parent and location.parent_path and parent.parent_path
+            and location.parent_path.startswith(parent.parent_path)
+        )
+
+    def _stone_get_lot_quants_for_assignment(self, product, lot, source_location=None, company=None,
+                                             move=None):
         Quant = self.env['stock.quant']
+        if move and not source_location:
+            source_location = move.location_id
 
         base_domain = [
             ('lot_id', '=', lot.id),
@@ -546,11 +592,13 @@ class SaleOrder(models.Model):
                 order='quantity desc, location_id, id',
             )
 
-        if not quants:
+        if not quants and not (move and self._stone_move_has_live_upstream(move)):
             # ...pero si inventario movió la placa fuera de esa rama, se toma
             # de donde esté. El flujo NO debe romperse por una reubicación: el
             # move line se recrea apuntando a la ubicación nueva (ver
             # _stone_unlink_existing_lot_move_lines + _stone_create_lot_move_lines).
+            # EXCEPTO en un OUT encadenado a un PICK vivo: ese material lo
+            # lleva el PICK a Salida (ver _stone_move_has_live_upstream).
             quants = Quant.search(
                 base_domain + [('location_id.usage', '=', 'internal')],
                 order='quantity desc, location_id, id',
@@ -695,6 +743,7 @@ class SaleOrder(models.Model):
 
             for move in moves:
                 total_for_move = 0.0
+                waits_upstream = self._stone_move_has_live_upstream(move)
 
                 for lot in lots:
                     partial_qty, qty_source = self._get_lot_qty_for_line(
@@ -708,7 +757,32 @@ class SaleOrder(models.Model):
                         lot=lot,
                         source_location=move.location_id,
                         company=move.company_id or sale_line.company_id,
+                        move=move,
                     )
+
+                    if not quants and waits_upstream:
+                        # OUT encadenado a un PICK vivo: el lote aún está en el
+                        # bin y lo lleva el PICK. Nada de líneas desde el bin
+                        # (doble descuento); la demanda sí refleja la selección
+                        # y el OUT se reserva desde Salida al validar el PICK.
+                        self._stone_unlink_existing_lot_move_lines(move, lot, ctx)
+                        measure = self._stone_get_lot_quants_for_assignment(
+                            product=product,
+                            lot=lot,
+                            company=move.company_id or sale_line.company_id,
+                        )
+                        physical_qty = self._stone_get_lot_physical_qty(measure)
+                        if qty_source == 'breakdown' and partial_qty is not None:
+                            wanted = min(partial_qty, physical_qty) if physical_qty else partial_qty
+                        elif qty_source == 'sale_qty_split':
+                            wanted = sale_line.product_uom_qty / len(lots) if lots else 0.0
+                        else:
+                            wanted = physical_qty
+                        total_for_move += max(wanted or 0.0, 0.0)
+                        _logger.info(
+                            "[STONE] Lote %s: move %s espera al PICK vivo; sin líneas "
+                            "desde bin (demanda %.6f).", lot.name, move.id, wanted or 0.0)
+                        continue
 
                     if not quants:
                         _logger.warning(

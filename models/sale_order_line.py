@@ -91,6 +91,7 @@ class SaleOrderLine(models.Model):
                 lot=lot,
                 source_location=source_location,
                 company=(move.company_id if move else False) or self.company_id,
+                move=move,
             )
 
         Quant = self.env['stock.quant']
@@ -109,7 +110,9 @@ class SaleOrderLine(models.Model):
                 base_domain + [('location_id', 'child_of', source_location.id)],
                 order='quantity desc, location_id, id',
             )
-        if not quants:
+        if not quants and not (
+            move and move.move_orig_ids.filtered(lambda m: m.state not in ('done', 'cancel'))
+        ):
             quants = Quant.search(
                 base_domain + [('location_id.usage', '=', 'internal')],
                 order='quantity desc, location_id, id',
@@ -137,7 +140,13 @@ class SaleOrderLine(models.Model):
         tipo = str(lot.x_tipo).lower() if lot.x_tipo else 'placa'
         lot_id_str = str(lot.id)
         quants = self._stone_line_get_lot_quants(lot, move=move)
-        physical_qty = sum((q.quantity or 0.0) for q in quants)
+        measure = quants
+        if not quants and move:
+            # OUT que espera a un PICK vivo: no hay quants reservables en su
+            # origen (ver _stone_move_has_live_upstream), pero la demanda se
+            # mide contra el lote físico — si no, una placa valdría 0.
+            measure = self._stone_line_get_lot_quants(lot)
+        physical_qty = sum((q.quantity or 0.0) for q in measure)
 
         if tipo in ('formato', 'pieza'):
             if lot_id_str in breakdown:
@@ -648,6 +657,23 @@ class SaleOrderLine(models.Model):
                         total_qty,
                     )
                     move.with_context(ctx).write({'product_uom_qty': total_qty})
+
+                if sale_line.order_id._stone_move_has_live_upstream(move):
+                    # OUT encadenado a un PICK vivo: las líneas con lote que
+                    # apunten FUERA de su origen (el bin) descontarían el lote
+                    # dos veces. Se quitan; el OUT se reserva desde Salida al
+                    # validar el PICK (caso V/147, S58-04).
+                    stray = move.move_line_ids.filtered(
+                        lambda ml: ml.lot_id and ml.state not in ('done', 'cancel')
+                        and not sale_line.order_id._stone_location_within(
+                            ml.location_id, move.location_id)
+                    )
+                    if stray:
+                        _logger.info(
+                            "[STONE SYNC] Move %s espera al PICK: se quitan %s línea(s) "
+                            "reservadas desde bin (%s).",
+                            move.id, len(stray), ', '.join(stray.mapped('lot_id.name')))
+                        stray.with_context(ctx).unlink()
 
                 existing_move_lines = move.move_line_ids
                 existing_lots = existing_move_lines.mapped('lot_id')
