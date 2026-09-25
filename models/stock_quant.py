@@ -39,6 +39,7 @@ class StockQuant(models.Model):
         for sol in committed_sol:
             sol_lot_ids.update(sol.lot_ids.ids)
         delivered_by_line = {}
+        delivered_qty = defaultdict(float)
         if sol_lot_ids:
             done_mls = self.env['stock.move.line'].sudo().search([
                 ('product_id', '=', product_id),
@@ -50,6 +51,9 @@ class StockQuant(models.Model):
             for ml in done_mls:
                 delivered_by_line.setdefault(
                     ml.move_id.sale_line_id.id, set()).add(ml.lot_id.id)
+                delivered_qty[(ml.move_id.sale_line_id.id, ml.lot_id.id)] += (
+                    ml.quantity if 'quantity' in ml._fields
+                    else getattr(ml, 'qty_done', 0.0)) or 0.0
         for sol in committed_sol:
             delivered = delivered_by_line.get(sol.id, set())
             committed_ids.update(
@@ -91,7 +95,13 @@ class StockQuant(models.Model):
                     bd = getattr(sol, 'x_lot_breakdown_json', None)
                     if bd:
                         qty = sol._som_breakdown_qty_for_lot(bd, lot)
-                sol_qty += float(qty) if qty is not None else fisico
+                if qty is None:
+                    qty = fisico
+                # Lo ya entregado de ESA línea ya salió del físico: no
+                # compromete el remanente (V/558 entregó 20 de 20665-2 y
+                # seguía sumándolas, dejando el palet "lleno").
+                sol_qty += max(
+                    float(qty) - delivered_qty.get((sol.id, lot.id), 0.0), 0.0)
             comprometido = max(ml_qty, min(sol_qty, fisico))
             if comprometido >= fisico - 0.0001:
                 fully.append(lot.id)
