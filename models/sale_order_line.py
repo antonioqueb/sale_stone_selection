@@ -313,6 +313,8 @@ class SaleOrderLine(models.Model):
         new_lines = lines.filtered('lot_ids')
         new_lines._stone_validate_duplicate_plates_in_order(
             added_by_line={l.id: set(l.lot_ids.ids) for l in new_lines})
+        new_lines._stone_validate_plates_not_in_other_orders(
+            added_by_line={l.id: set(l.lot_ids.ids) for l in new_lines})
         for line in lines:
             if line.lot_ids:
                 line._som_log_lot_change(line.lot_ids, 'assign')
@@ -410,29 +412,46 @@ class SaleOrderLine(models.Model):
             ])
             if not quants:
                 continue
+            # UPDATE inocuo en vez de SELECT ... FOR UPDATE: en REPEATABLE
+            # READ solo una MODIFICACIÓN de la fila hace fallar (y reintentar)
+            # a la transacción competidora; con FOR UPDATE esperaba y seguía
+            # con su foto vieja sin ver el hold recién creado. Orden fijo de
+            # ids para no provocar deadlocks entre dos asignaciones.
             self.env.cr.execute(
-                "SELECT id FROM stock_quant WHERE id IN %s FOR UPDATE",
-                [tuple(quants.ids)],
+                "UPDATE stock_quant SET write_date = write_date WHERE id IN %s",
+                [tuple(sorted(quants.ids))],
             )
             quants.invalidate_recordset()
             order_partner = line.order_id.partner_id
             breakdown = line._parse_breakdown_dict()
             for quant in quants:
-                hold = quant.x_hold_activo_id if quant.x_tiene_hold else False
-                if not (hold and hold.partner_id and order_partner
-                        and hold.partner_id.commercial_partner_id
-                        != order_partner.commercial_partner_id):
+                if not quant.x_tiene_hold or not order_partner:
+                    continue
+                # Solo holds AJENOS (todos, no solo x_hold_activo_id: si el
+                # más reciente era del mismo cliente se ignoraban los demás).
+                if hasattr(quant, '_som_foreign_active_holds'):
+                    foreign = quant._som_foreign_active_holds(order_partner.id)
+                    hold = foreign[:1]
+                else:
+                    hold = quant.x_hold_activo_id
+                    if hold and hold.partner_id.commercial_partner_id \
+                            == order_partner.commercial_partner_id:
+                        hold = False
+                if not hold:
                     continue
 
                 # APARTADO PARCIAL (formato/pieza): el hold ajeno solo retiene
                 # la parcialidad de su reserva; el remanente del lote es libre
                 # y SÍ puede asignarse a este pedido. Se rechaza solo cuando lo
-                # pedido a ese lote no cabe en lo que queda libre. Las placas
-                # son atómicas: cualquier hold ajeno bloquea.
+                # pedido a ese lote no cabe en lo que queda libre PARA ESTE
+                # CLIENTE (físico − holds ajenos). Las placas son atómicas:
+                # cualquier hold ajeno bloquea.
                 tipo = str(getattr(quant.lot_id, 'x_tipo', '') or '').lower()
                 if tipo in ('formato', 'pieza') and hasattr(quant, 'som_hold_free_qty'):
-                    libre = quant.som_hold_free_qty()
-                    pedido = breakdown.get(str(quant.lot_id.id))
+                    libre = (quant.som_hold_free_qty_for(order_partner.id)
+                             if hasattr(quant, 'som_hold_free_qty_for')
+                             else quant.som_hold_free_qty())
+                    pedido = line._som_breakdown_qty_for_lot(breakdown, quant.lot_id)
                     if pedido is None:
                         pedido = line.product_uom_qty or 0.0
                     try:
@@ -458,6 +477,56 @@ class SaleOrderLine(models.Model):
                     lot=quant.lot_id.name,
                     partner=hold.partner_id.name,
                 ))
+
+    def _stone_validate_plates_not_in_other_orders(self, added_by_line=None):
+        """Una PLACA recién agregada no puede estar ya en lot_ids de OTRA venta
+        confirmada de la compañía que todavía no la entregó. Antes nada lo
+        impedía: V/100 conservaba la placa tras anular su reserva, el
+        selector de otro vendedor (que no ve ventas ajenas por las reglas)
+        la mostraba libre y quedaba en dos ventas. Formatos/piezas se
+        comparten por cantidad (los cuida el candado de apartados/move
+        lines). Placas ya entregadas por la otra venta no bloquean (una
+        devolución la puede haber regresado al piso)."""
+        if self.env.context.get('skip_stone_dup_plate_check'):
+            return
+        Sol = self.env['sale.order.line'].sudo()
+        Ml = self.env['stock.move.line'].sudo()
+        for line in self:
+            if line.display_type or not line.lot_ids:
+                continue
+            check = line.lot_ids
+            if added_by_line is not None:
+                added = added_by_line.get(line.id) or set()
+                check = check.filtered(lambda l: l.id in added)
+            plates = check.filtered(
+                lambda l: str(getattr(l, 'x_tipo', '') or 'placa').lower()
+                not in ('formato', 'pieza'))
+            if not plates:
+                continue
+            others = Sol.search([
+                ('lot_ids', 'in', plates.ids),
+                ('order_id', '!=', line.order_id.id),
+                ('order_id.state', '=', 'sale'),
+                ('order_id.company_id', '=', line.order_id.company_id.id),
+            ])
+            for other in others:
+                for lot in (other.lot_ids & plates):
+                    delivered = Ml.search_count([
+                        ('lot_id', '=', lot.id),
+                        ('state', '=', 'done'),
+                        ('move_id.sale_line_id', '=', other.id),
+                        ('location_dest_id.usage', '=', 'customer'),
+                    ])
+                    if delivered:
+                        continue
+                    raise UserError(_(
+                        'La placa %(lot)s ya está asignada a la venta %(so)s '
+                        '(%(partner)s). Una placa solo puede estar en una venta: '
+                        'quítala de esa venta antes de asignarla aquí.',
+                        lot=lot.name,
+                        so=other.order_id.name,
+                        partner=other.order_id.partner_id.display_name or '',
+                    ))
 
     def _stone_validate_duplicate_plates_in_order(self, added_by_line=None):
         """Una PLACA no puede vivir en lot_ids de DOS líneas del mismo
@@ -514,6 +583,13 @@ class SaleOrderLine(models.Model):
         # contra ella (el many2many puede venir en cualquier formato de
         # comando — 6/4/3/5 —, así que el diff real es la única fuente fiable).
         lots_before = self._som_snapshot_lot_ids() if 'lot_ids' in vals else None
+        # Desglose previo: subir la parcialidad de un lote que la línea YA
+        # tenía también se valida contra apartados ajenos (antes solo se
+        # revisaban lotes agregados y el formato apartado se comía).
+        breakdown_before = (
+            {l.id: l._parse_breakdown_dict() for l in self}
+            if 'x_lot_breakdown_json' in vals else None
+        )
 
         if has_selection_vals:
             _logger.info("[STONE LINE WRITE] Líneas IDs: %s", self.ids)
@@ -578,6 +654,17 @@ class SaleOrderLine(models.Model):
                     _before = (lots_before or {}).get(
                         _line.id, set(_line.lot_ids.ids))
                     added_map[_line.id] = set(_line.lot_ids.ids) - _before
+                    if breakdown_before is not None:
+                        _old = breakdown_before.get(_line.id) or {}
+                        _new = _line._parse_breakdown_dict()
+                        for _lot in _line.lot_ids:
+                            _k = str(_lot.id)
+                            try:
+                                _grew = float(_new.get(_k) or 0.0) > float(_old.get(_k) or 0.0) + 0.0001
+                            except (TypeError, ValueError):
+                                _grew = False
+                            if _grew:
+                                added_map[_line.id].add(_lot.id)
                 # Revalidación EN la transacción: si un lote recién asignado
                 # tiene hold activo de OTRO cliente (creado un segundo antes
                 # por otra operación), el write completo se revierte.
@@ -587,6 +674,8 @@ class SaleOrderLine(models.Model):
                 # Exclusividad de PLACAS entre líneas del mismo pedido
                 # (misma transacción: si se duplicó, el write se revierte).
                 allowed_lines._stone_validate_duplicate_plates_in_order(
+                    added_by_line=added_map)
+                allowed_lines._stone_validate_plates_not_in_other_orders(
                     added_by_line=added_map)
 
         else:
