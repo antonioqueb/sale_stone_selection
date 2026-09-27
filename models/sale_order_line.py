@@ -649,6 +649,26 @@ class SaleOrderLine(models.Model):
                     }
                     total_qty += expected_qty
 
+                # Lo esperado por lote es el PENDIENTE, no el desglose bruto:
+                # se resta lo ya atendido (neto del paso / con el cliente) y
+                # lo reservado en moves hermanos del mismo paso. Antes, al
+                # tocar lot_ids de una línea con entregas parciales, el
+                # backorder volvía a reservar el formato completo (20 m² ya
+                # entregados de 28.32 se reservaban otra vez) — causa raíz
+                # de V/579. Mismo cálculo que stock_whole_lot_removal.
+                if expected_by_lot and hasattr(move, '_som_partial_pending_breakdown'):
+                    desired = {
+                        lot_id: data['qty']
+                        for lot_id, data in expected_by_lot.items()
+                        if data['qty'] > 0
+                    }
+                    pending = move._som_partial_pending_breakdown(
+                        sale_line, desired, include_self_reserved=False)
+                    total_qty = 0.0
+                    for lot_id, data in expected_by_lot.items():
+                        data['qty'] = min(data['qty'], pending.get(lot_id, 0.0))
+                        total_qty += data['qty']
+
                 if total_qty > 0 and abs((move.product_uom_qty or 0.0) - total_qty) > 0.0001:
                     _logger.info(
                         "[STONE SYNC] Ajustando demanda Move %s de %s a %s",
