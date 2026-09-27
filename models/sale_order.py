@@ -645,10 +645,18 @@ class SaleOrder(models.Model):
         if qty <= 0 or not quants:
             return []
 
-        positive_quants = quants.filtered(lambda q: (q.quantity or 0.0) > 0)
+        # LIBRE por quant (físico − reservado por OTRAS operaciones; las
+        # líneas propias del lote se borran antes de llamar aquí). Antes se
+        # elegía por físico: quant de 10 con 5 reservados para otra venta y
+        # se pedían 10 → 15 reservados sobre 10 y la otra venta validaba en
+        # negativo.
+        def _free(q):
+            return max((q.quantity or 0.0) - (q.reserved_quantity or 0.0), 0.0)
+
+        positive_quants = quants.filtered(lambda q: _free(q) > 0)
 
         for quant in positive_quants:
-            if (quant.quantity or 0.0) >= qty:
+            if _free(quant) >= qty:
                 return [(quant, qty)]
 
         remaining = qty
@@ -658,7 +666,7 @@ class SaleOrder(models.Model):
             if remaining <= 0:
                 break
 
-            take_qty = min(remaining, quant.quantity or 0.0)
+            take_qty = min(remaining, _free(quant))
             if take_qty <= 0:
                 continue
 
@@ -775,7 +783,7 @@ class SaleOrder(models.Model):
                         if qty_source == 'breakdown' and partial_qty is not None:
                             wanted = min(partial_qty, physical_qty) if physical_qty else partial_qty
                         elif qty_source == 'sale_qty_split':
-                            wanted = sale_line.product_uom_qty / len(lots) if lots else 0.0
+                            wanted = sale_line._som_even_share_for_lot(lot, lots) if lots else 0.0
                         else:
                             wanted = physical_qty
                         total_for_move += max(wanted or 0.0, 0.0)
@@ -799,10 +807,9 @@ class SaleOrder(models.Model):
                     elif qty_source == 'breakdown' and partial_qty is not None:
                         qty_to_assign = partial_qty
                     elif qty_source == 'sale_qty_split':
-                        num_lots = len(lots)
                         qty_to_assign = (
-                            sale_line.product_uom_qty / num_lots
-                            if num_lots > 0 else physical_qty
+                            sale_line._som_even_share_for_lot(lot, lots)
+                            if lots else physical_qty
                         )
                     else:
                         qty_to_assign = physical_qty

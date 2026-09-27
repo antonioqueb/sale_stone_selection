@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
+from odoo.tools import float_round
 import json
 import logging
 
@@ -67,6 +68,28 @@ class SaleOrderLine(models.Model):
     # =========================================================================
     # Helpers
     # =========================================================================
+
+    def _som_even_share_for_lot(self, lot, lots=None):
+        """Parte de lo vendido que le toca a `lot` cuando la línea NO trae
+        desglose: reparto redondeado a la UdM con el residuo al ÚLTIMO lote
+        (orden por id). Antes era total / n a pelo: 10 m² en 3 lotes =
+        3.333… que guardado sumaba 9.99 y dejaba un backorder de 0.01."""
+        self.ensure_one()
+        lots = (lots if lots is not None else self.lot_ids).sorted('id')
+        n = len(lots)
+        total = self.product_uom_qty or 0.0
+        if not n or total <= 0:
+            return 0.0
+        uom = self.product_id.uom_id
+        for fname in ('product_uom_id', 'product_uom'):
+            if fname in self._fields and self[fname]:
+                uom = self[fname]
+                break
+        rounding = uom.rounding or 0.0001
+        share = float_round(total / n, precision_rounding=rounding)
+        if lot.id == lots[-1].id:
+            return float_round(total - share * (n - 1), precision_rounding=rounding)
+        return share
 
     def _parse_breakdown_dict(self):
         self.ensure_one()
@@ -170,7 +193,7 @@ class SaleOrderLine(models.Model):
                     num_lots = len(self.lot_ids) if self.lot_ids else 1
                     if num_lots > 0 and (self.product_uom_qty or 0.0) > 0:
                         expected_qty = min(
-                            (self.product_uom_qty or 0.0) / num_lots,
+                            self._som_even_share_for_lot(lot),
                             physical_qty,
                         )
                     else:
