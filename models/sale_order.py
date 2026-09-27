@@ -17,6 +17,23 @@ class SaleOrder(models.Model):
     # viven las cotizaciones reales.
     active = fields.Boolean(default=True)
 
+    def _action_cancel(self):
+        """Cancelar la venta SUELTA sus placas en la bitácora de asignación.
+        Los lot_ids se conservan en la orden cancelada (historia), pero
+        antes la bitácora no registraba nada: la placa parecía seguir
+        asignada a una venta muerta."""
+        to_log = {
+            line: line.lot_ids
+            for line in self.mapped('order_line')
+            if not line.display_type and 'lot_ids' in line._fields and line.lot_ids
+        }
+        res = super()._action_cancel()
+        for line, lots in to_log.items():
+            line._som_log_lot_change(
+                lots, 'unassign',
+                reason=_('Orden %s cancelada') % line.order_id.name)
+        return res
+
     x_is_quote_backup = fields.Boolean(
         string="Es Cotización Histórica",
         default=False,
