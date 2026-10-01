@@ -86,6 +86,45 @@ class SaleOrderLine(models.Model):
                 uom = self[fname]
                 break
         rounding = uom.rounding or 0.0001
+
+        # DESGLOSE MIXTO (caso V/265): si la línea trae parcialidad para
+        # ALGUNOS lotes, los que no tienen entrada van COMPLETOS — así los
+        # cuenta el selector — hasta agotar lo vendido que el desglose no
+        # cubre. total / n los recortaba a todos por igual (450 m² en 19
+        # lotes = 23.68 cada uno aunque el palet tuviera 25–30) y el tablero
+        # pedía asignar material que la selección ya cubría de sobra.
+        breakdown = self._parse_breakdown_dict()
+        if breakdown:
+            explicit = {}
+            for other in lots:
+                qty = self._som_breakdown_qty_for_lot(breakdown, other)
+                if qty is not None:
+                    explicit[other.id] = qty
+            if lot.id in explicit:
+                return explicit[lot.id]
+            if explicit:
+                whole = lots.filtered(lambda l: l.id not in explicit)
+                domain = [
+                    ('lot_id', 'in', whole.ids),
+                    ('product_id', '=', self.product_id.id),
+                    ('location_id.usage', '=', 'internal'),
+                    ('quantity', '>', 0),
+                ]
+                if self.company_id:
+                    domain.append(('company_id', 'in', [self.company_id.id, False]))
+                physical = {}
+                for quant in self.env['stock.quant'].sudo().search(domain):
+                    physical[quant.lot_id.id] = physical.get(quant.lot_id.id, 0.0) + quant.quantity
+                remaining = total - sum(explicit.values())
+                for other in whole:
+                    take = float_round(
+                        min(max(remaining, 0.0), physical.get(other.id, 0.0)),
+                        precision_rounding=rounding)
+                    if other.id == lot.id:
+                        return take
+                    remaining -= take
+                return 0.0
+
         share = float_round(total / n, precision_rounding=rounding)
         if lot.id == lots[-1].id:
             return float_round(total - share * (n - 1), precision_rounding=rounding)
